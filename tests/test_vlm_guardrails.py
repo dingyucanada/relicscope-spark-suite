@@ -1,12 +1,42 @@
 from __future__ import annotations
 
 import pytest
+from httpx import Headers
 
 from app.services.vlm import (
+    OpenAICompatibleClient,
     report_citation_ids,
     validate_reasoner_output,
     validate_vision_output,
 )
+
+
+def test_nemotron_candidate_disables_thinking_and_audio_for_json_video_contract():
+    nemotron = OpenAICompatibleClient(
+        "http://vision:8000/v1", "key", "nemotron_3_nano_omni"
+    )
+    assert nemotron._model_request_options(video=True) == {
+        "top_k": 1,
+        "chat_template_kwargs": {"enable_thinking": False},
+        "mm_processor_kwargs": {"use_audio_in_video": False},
+    }
+    qwen = OpenAICompatibleClient("http://vision:8000/v1", "key", "qwen3_vl_30b_a3b")
+    assert qwen._model_request_options(video=True) == {}
+
+
+def test_completion_identity_requires_exact_model_and_request_id():
+    body = {"model": "qwen3_vl_30b_a3b", "id": "chatcmpl-123"}
+    assert OpenAICompatibleClient._completion_identity(
+        body, Headers(), "qwen3_vl_30b_a3b"
+    ) == ("qwen3_vl_30b_a3b", "chatcmpl-123")
+    with pytest.raises(ValueError, match="model identity"):
+        OpenAICompatibleClient._completion_identity(
+            {"id": "chatcmpl-123"}, Headers(), "qwen3_vl_30b_a3b"
+        )
+    with pytest.raises(ValueError, match="request identifier"):
+        OpenAICompatibleClient._completion_identity(
+            {"model": "qwen3_vl_30b_a3b"}, Headers(), "qwen3_vl_30b_a3b"
+        )
 
 
 def test_compliant_vision_output_is_accepted():

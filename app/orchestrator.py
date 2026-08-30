@@ -41,10 +41,12 @@ from .services.image_analysis import analyze_image, decode_image
 from .services.instruments import ReplayInstrumentAdapter
 from .services.knowledge import KnowledgeBase, KnowledgePolicyError
 from .services.reporting import build_report, rehash_report, report_to_html
+from .services.runtime import runtime_snapshot
 from .services.video_analysis import (
     VIDEO_EXTENSIONS,
     detect_video_container,
     dhash_distance,
+    inspect_mp4_bytes,
     next_best_observations,
     summarize_frames,
     validate_video_mime,
@@ -85,6 +87,22 @@ def _safe_payload_hash(value: Any) -> str:
         return hashlib.sha256(repr(value).encode("utf-8", errors="replace")).hexdigest()
 
 
+def _model_runtime_trace(result: Dict[str, Any]) -> Dict[str, Any]:
+    """Select non-secret, server-returned facts for the durable evidence record."""
+
+    return {
+        "configured_model": result.get("configured_model"),
+        "model_identity_verified": result.get("model_identity_verified"),
+        "provider_request_id": result.get("request_id"),
+        "token_usage": result.get("usage", {}),
+        "finish_reason": result.get("finish_reason"),
+        "model_profile": result.get("model_profile"),
+        "model_source": result.get("model_source"),
+        "model_revision": result.get("model_revision"),
+        "deployment_git_commit": result.get("deployment_git_commit"),
+    }
+
+
 class RelicScopeService:
     def __init__(
         self,
@@ -104,13 +122,30 @@ class RelicScopeService:
             settings.vision_api_key,
             settings.vision_model,
             settings.model_timeout_seconds,
+            model_profile=settings.model_profile,
+            model_source=settings.vision_model_source,
+            model_revision=settings.vision_model_revision,
+            deployment_git_commit=settings.deployment_git_commit,
         )
         self.reasoner_client = reasoner_client or OpenAICompatibleClient(
             settings.reasoner_base_url,
             settings.reasoner_api_key,
             settings.reasoner_model,
             settings.model_timeout_seconds,
+            model_profile=settings.model_profile,
+            model_source=(
+                settings.vision_model_source
+                if settings.runtime_mode == "single-spark"
+                else settings.reasoner_model
+            ),
+            model_revision=(
+                settings.vision_model_revision
+                if settings.runtime_mode == "single-spark"
+                else "unknown"
+            ),
+            deployment_git_commit=settings.deployment_git_commit,
         )
+        self.model_semaphore = asyncio.Semaphore(settings.model_max_concurrency)
         self.instrument_adapter = instrument_adapter or ReplayInstrumentAdapter()
 
     @staticmethod
@@ -135,10 +170,7 @@ class RelicScopeService:
             }
         )
         model_modes = sorted(
-            {
-                str(item.get("mode", "UNKNOWN"))
-                for item in state.get("model_runs", [])
-            }
+            {str(item.get("mode", "UNKNOWN")) for item in state.get("model_runs", [])}
         )
         contains_user_upload = "USER_UPLOAD" in raw_categories
         contains_demo = bool(state.get("demo_data")) or any(
@@ -322,9 +354,7 @@ class RelicScopeService:
             "session": state,
             "audit_verified": audit["valid"],
             "audit_event_count": audit["event_count"],
-            "integrity": self.integrity_manifest(
-                session_id, state=state, audit=audit
-            ),
+            "integrity": self.integrity_manifest(session_id, state=state, audit=audit),
             "data_provenance": self.provenance_summary(state),
         }
 
@@ -366,6 +396,7 @@ class RelicScopeService:
             "image_comparisons": [],
             "videos": [],
             "video_analyses": [],
+            "native_video_analyses": [],
             "next_best_observations": [],
             "model_runs": [],
             "knowledge_version": self.knowledge.version,
@@ -378,6 +409,11 @@ class RelicScopeService:
                 "compute_node": self.settings.compute_node_id,
                 "topology": "APPLICATION_LEVEL_INDEPENDENT_SERVICES",
                 "offline": self.settings.offline_mode,
+                "model_profile": self.settings.model_profile,
+                "model_source": self.settings.vision_model_source,
+                "model_revision": self.settings.vision_model_revision,
+                "served_model": self.settings.vision_model,
+                "deployment_git_commit": self.settings.deployment_git_commit,
             },
         }
         self.store.create_session(state)
@@ -540,15 +576,16 @@ class RelicScopeService:
         analysis_id = f"IMG-{uuid4().hex[:16].upper()}"
         model_run_id = f"MRUN-{uuid4().hex[:16].upper()}"
         model_started = utc_now()
-        vision_result = await self.vision_client.vision_observe(
-            f"data:{decoded.detected_mime};base64,{request.image_base64}",
-            {
-                "session_id": session_id,
-                "file_id": file_id,
-                "region_id": request.region_id,
-                "quality_gate": analysis["quality_gate"],
-            },
-        )
+        async with self.model_semaphore:
+            vision_result = await self.vision_client.vision_observe(
+                f"data:{decoded.detected_mime};base64,{request.image_base64}",
+                {
+                    "session_id": session_id,
+                    "file_id": file_id,
+                    "region_id": request.region_id,
+                    "quality_gate": analysis["quality_gate"],
+                },
+            )
         model_completed = utc_now()
         model_run = {
             "run_id": model_run_id,
@@ -571,6 +608,7 @@ class RelicScopeService:
             "output_ref": analysis_id if vision_result.get("available") else None,
             "error_category": vision_result.get("error"),
             "output": vision_result.get("output"),
+            **_model_runtime_trace(vision_result),
         }
         knowledge_snapshot = self._knowledge_snapshot(
             state=state,
@@ -734,7 +772,10 @@ class RelicScopeService:
         first_vector = baseline["fingerprint"]["feature_vector"]
         second_vector = comparison["fingerprint"]["feature_vector"]
         feature_distance = math.sqrt(
-            sum((first - second) ** 2 for first, second in zip(first_vector, second_vector))
+            sum(
+                (first - second) ** 2
+                for first, second in zip(first_vector, second_vector)
+            )
             / max(len(first_vector), 1)
         )
         reasons = []
@@ -877,7 +918,9 @@ class RelicScopeService:
                 raise ValueError("empty video")
             detected_container = detect_video_container(bytes(prefix))
             normalized_mime = validate_video_mime(declared_mime, detected_container)
-            stored_path = session_dir / f"{file_id}{VIDEO_EXTENSIONS[detected_container]}"
+            stored_path = (
+                session_dir / f"{file_id}{VIDEO_EXTENSIONS[detected_container]}"
+            )
             temporary_path.replace(stored_path)
             video_record = {
                 "id": video_id,
@@ -890,6 +933,7 @@ class RelicScopeService:
                 "modality": modality,
                 "region_id": region_id,
                 "duration_ms": duration_ms,
+                "duration_source": "CLIENT_DECLARED_UNVERIFIED",
                 "capture_note": capture_note,
                 "status": "REGISTERED",
                 "frame_extraction": "CLIENT_SIDE_BROWSER",
@@ -940,7 +984,9 @@ class RelicScopeService:
                         "container": detected_container,
                     },
                 )
-                add_edge(graph, raw_node, f"region:{session_id}:{region_id}", "measured_at")
+                add_edge(
+                    graph, raw_node, f"region:{session_id}:{region_id}", "measured_at"
+                )
                 return current, {
                     "video_id": video_id,
                     "file_id": file_id,
@@ -989,7 +1035,9 @@ class RelicScopeService:
         if registered_duration is not None:
             tolerance = max(1000, int(registered_duration * 0.05))
             if abs(int(registered_duration) - request.duration_ms) > tolerance:
-                raise ValueError("analyzed duration does not match registered video metadata")
+                raise ValueError(
+                    "analyzed duration does not match registered video metadata"
+                )
 
         analysis_id = f"VAN-{uuid4().hex[:16].upper()}"
         frame_directory = self.settings.upload_dir / session_id / "frames" / video_id
@@ -1081,18 +1129,19 @@ class RelicScopeService:
             }
 
             async def observe_frame(frame: Dict[str, Any]):
-                result = await self.vision_client.vision_observe(
-                    f"data:{frame['mime_type']};base64,{frame['_image_base64']}",
-                    {
-                        "session_id": session_id,
-                        "video_id": video_id,
-                        "frame_id": frame["id"],
-                        "timestamp_ms": frame["timestamp_ms"],
-                        "region_id": video["region_id"],
-                        "quality_gate": frame["analysis"]["quality_gate"],
-                        "boundary": "visible observation only",
-                    },
-                )
+                async with self.model_semaphore:
+                    result = await self.vision_client.vision_observe(
+                        f"data:{frame['mime_type']};base64,{frame['_image_base64']}",
+                        {
+                            "session_id": session_id,
+                            "video_id": video_id,
+                            "frame_id": frame["id"],
+                            "timestamp_ms": frame["timestamp_ms"],
+                            "region_id": video["region_id"],
+                            "quality_gate": frame["analysis"]["quality_gate"],
+                            "boundary": "visible observation only",
+                        },
+                    )
                 return frame, result
 
             observed = await asyncio.gather(
@@ -1133,14 +1182,19 @@ class RelicScopeService:
                         "started_at": utc_now(),
                         "completed_at": utc_now(),
                         "latency_ms": vision_result.get("latency_ms", 0),
-                        "status": "SUCCESS" if vision_result.get("available") else "DEGRADED",
+                        "status": "SUCCESS"
+                        if vision_result.get("available")
+                        else "DEGRADED",
                         "mode": vision_result.get("mode", "deterministic_fallback"),
                         "input_refs": [video["file_id"], frame["file_id"], frame["id"]],
                         "input_hash": frame["sha256"],
                         "output_hash": vision_result.get("output_hash"),
-                        "output_ref": analysis_id if vision_result.get("available") else None,
+                        "output_ref": analysis_id
+                        if vision_result.get("available")
+                        else None,
                         "error_category": vision_result.get("error"),
                         "output": output if vision_result.get("available") else None,
+                        **_model_runtime_trace(vision_result),
                     }
                 )
 
@@ -1301,7 +1355,11 @@ class RelicScopeService:
                         "视频代表帧本地多模态观察",
                         "model_run",
                         "success" if model_run["status"] == "SUCCESS" else "degraded",
-                        {key: value for key, value in model_run.items() if key != "output"},
+                        {
+                            key: value
+                            for key, value in model_run.items()
+                            if key != "output"
+                        },
                     )
                     add_edge(
                         graph,
@@ -1361,9 +1419,7 @@ class RelicScopeService:
                     ],
                     "quality_gate": summarized["quality_gate"],
                     "sampling_summary": summarized["summary"],
-                    "representative_frame_ids": summarized[
-                        "representative_frame_ids"
-                    ],
+                    "representative_frame_ids": summarized["representative_frame_ids"],
                     "model_runs": [
                         {key: value for key, value in item.items() if key != "output"}
                         for item in model_runs
@@ -1382,6 +1438,188 @@ class RelicScopeService:
             for path in created_paths:
                 path.unlink(missing_ok=True)
             raise
+        return self.envelope(session_id)
+
+    async def analyze_native_video(
+        self, session_id: str, video_id: str
+    ) -> Dict[str, Any]:
+        state = self.store.get_session(session_id)
+        video = next(
+            (item for item in state.get("videos", []) if item.get("id") == video_id),
+            None,
+        )
+        if video is None:
+            raise ValueError("unknown video identifier")
+        if int(video.get("byte_length", 0)) > self.settings.max_native_video_bytes:
+            raise ValueError(
+                "video exceeds native model limit; use representative-frame analysis"
+            )
+        declared_duration_ms = video.get("duration_ms")
+        if declared_duration_ms is None:
+            raise ValueError("native model analysis requires a declared video duration")
+        if int(declared_duration_ms) > self.settings.max_native_video_duration_ms:
+            raise ValueError(
+                "video exceeds native model duration limit; use representative-frame analysis"
+            )
+        file_record = next(
+            (
+                item
+                for item in self.store.list_raw_files(session_id)
+                if item.get("id") == video.get("file_id")
+            ),
+            None,
+        )
+        if file_record is None:
+            raise ValueError("registered video file is unavailable")
+        stored_path = Path(file_record["path"]).resolve()
+        upload_root = self.settings.upload_dir.resolve()
+        try:
+            stored_path.relative_to(upload_root)
+        except ValueError as exc:
+            raise ValueError(
+                "registered video path crossed the upload boundary"
+            ) from exc
+        raw_bytes = stored_path.read_bytes()
+        if hashlib.sha256(raw_bytes).hexdigest() != video["sha256"]:
+            raise ValueError("registered video bytes failed integrity verification")
+        if video.get("mime_type") != "video/mp4" or video.get("container") != "ISO-BMFF":
+            raise ValueError("native model analysis currently requires an H.264 MP4 file")
+        media_probe = inspect_mp4_bytes(
+            raw_bytes,
+            max_duration_ms=self.settings.max_native_video_duration_ms,
+        )
+        actual_duration_ms = int(media_probe["duration_ms"])
+        duration_tolerance_ms = max(500, round(actual_duration_ms * 0.05))
+        if abs(int(declared_duration_ms) - actual_duration_ms) > duration_tolerance_ms:
+            raise ValueError(
+                "declared video duration does not match the server-parsed MP4 duration"
+            )
+
+        started_at = utc_now()
+        async with self.model_semaphore:
+            result = await self.vision_client.video_observe(
+                f"data:{video['mime_type']};base64,{base64.b64encode(raw_bytes).decode('ascii')}",
+                {
+                    "session_id": session_id,
+                    "video_id": video_id,
+                    "region_id": video["region_id"],
+                    "duration_ms": actual_duration_ms,
+                    "duration_source": "SERVER_PARSED_ISO_BMFF",
+                    "codec": media_probe["codec"],
+                    "width": media_probe["width"],
+                    "height": media_probe["height"],
+                    "sha256": video["sha256"],
+                    "analysis_mode": "native_video",
+                },
+            )
+        completed_at = utc_now()
+        analysis_id = f"NVAN-{uuid4().hex[:16].upper()}"
+        run_id = f"MRUN-{uuid4().hex[:16].upper()}"
+        model_run = {
+            "run_id": run_id,
+            "role": "native_video_multimodal_observation",
+            "node_id": self.settings.node_id,
+            "model": result.get("model", self.settings.vision_model),
+            "template_hash": result.get("prompt_hash"),
+            "started_at": started_at,
+            "completed_at": completed_at,
+            "latency_ms": result.get("latency_ms", 0),
+            "status": "SUCCESS" if result.get("available") else "DEGRADED",
+            "mode": result.get("mode", "deterministic_fallback"),
+            "input_refs": [video["file_id"], video_id],
+            "input_hash": video["sha256"],
+            "output_hash": result.get("output_hash"),
+            "output_ref": analysis_id if result.get("available") else None,
+            "error_category": result.get("error"),
+            "output": result.get("output"),
+            **_model_runtime_trace(result),
+        }
+        analysis = {
+            "id": analysis_id,
+            "video_id": video_id,
+            "file_id": video["file_id"],
+            "analysis_kind": "NATIVE_VIDEO_MODEL",
+            "model": model_run["model"],
+            "status": model_run["status"],
+            "result": result.get("output"),
+            "source_category": (
+                "MODEL_DERIVED_OBSERVATION"
+                if result.get("available")
+                else "MODEL_RUN_FAILURE"
+            ),
+            "media_validation": {
+                "container_signature": video.get("container"),
+                "input_sha256": video["sha256"],
+                "declared_duration_ms": declared_duration_ms,
+                "actual_duration_ms": actual_duration_ms,
+                "duration_source": "SERVER_PARSED_ISO_BMFF",
+                "duration_tolerance_ms": duration_tolerance_ms,
+                "codec": media_probe["codec"],
+                "width": media_probe["width"],
+                "height": media_probe["height"],
+                "frame_metadata": media_probe["frame_metadata"],
+                "container_metadata": media_probe["container_metadata"],
+                "model_endpoint_decode": (
+                    "ACCEPTED" if result.get("available") else "REJECTED"
+                ),
+            },
+            "conclusion_boundary": (
+                "原生视频模型仅描述跨视角可见信息；不构成真伪、年代、"
+                "窑口、材料成分、价值或法律结论。"
+            ),
+            "created_at": completed_at,
+        }
+
+        def updater(current: Dict[str, Any]):
+            current.setdefault("native_video_analyses", []).append(analysis)
+            current.setdefault("model_runs", []).append(model_run)
+            current["next_step"] = (
+                "比较原生视频与代表帧观察，并由专家复核"
+                if result.get("available")
+                else "原生视频模型运行失败；改用代表帧路径或检查模型服务"
+            )
+            graph = current["evidence_graph"]
+            observation_node = f"observation:{session_id}:{analysis_id}"
+            model_node = f"model-run:{session_id}:{run_id}"
+            add_node(
+                graph,
+                model_node,
+                f"原生视频模型运行 · {model_run['model']}",
+                "model-run",
+                "accepted" if result.get("available") else "rejected",
+                {
+                    "model": model_run["model"],
+                    "input_sha256": video["sha256"],
+                    "output_sha256": model_run["output_hash"],
+                    "request_id": model_run["provider_request_id"],
+                },
+            )
+            add_edge(
+                graph,
+                model_node,
+                f"raw:{session_id}:{video['file_id']}",
+                "analyzes",
+            )
+            if result.get("available"):
+                add_node(
+                    graph,
+                    observation_node,
+                    "原生视频跨视角观察",
+                    "observation",
+                    "accepted",
+                    {"data_level": "MODEL_DERIVED_OBSERVATION"},
+                )
+                add_edge(graph, observation_node, model_node, "produced_by")
+            return current, {
+                "analysis_id": analysis_id,
+                "video_id": video_id,
+                "model_run_id": run_id,
+                "status": model_run["status"],
+                "model": model_run["model"],
+                "output_hash": model_run["output_hash"],
+            }
+
+        self.store.atomic_update(session_id, "NATIVE_VIDEO_ANALYZED", updater)
         return self.envelope(session_id)
 
     def search_knowledge(
@@ -1622,7 +1860,9 @@ class RelicScopeService:
 
         first_plan = self.plan(session_id)["session"]
         if first_plan.get("current_action_id") != "A2":
-            raise RuntimeError("P01 demo invariant failed: Raman was not selected first")
+            raise RuntimeError(
+                "P01 demo invariant failed: Raman was not selected first"
+            )
         xrf = next(item for item in first_plan["last_plan"] if item["id"] == "A3")
         timeline.append(
             {
@@ -1771,7 +2011,8 @@ class RelicScopeService:
                 "error": "OptionalReasonerBypassedForDeterministicScenario",
             }
         else:
-            reasoner_result = await self.reasoner_client.summarize_report(report)
+            async with self.model_semaphore:
+                reasoner_result = await self.reasoner_client.summarize_report(report)
         if reasoner_result.get("available"):
             try:
                 reasoner_result["output"] = validate_reasoner_output(
@@ -1794,7 +2035,9 @@ class RelicScopeService:
         if reasoner_result.get("available"):
             report["assistant_summary"] = reasoner_result.get("output")
         else:
-            deterministic_scenario = reasoner_result.get("mode") == "deterministic_scenario"
+            deterministic_scenario = (
+                reasoner_result.get("mode") == "deterministic_scenario"
+            )
             report["assistant_summary"] = {
                 "summary": "证据包已按确定性模板生成；本地推理模型未参与摘要。",
                 "limitations": [
@@ -1823,9 +2066,8 @@ class RelicScopeService:
             "output_hash": reasoner_result.get("output_hash"),
             "output_ref": report["report_id"],
             "error_category": reasoner_result.get("error"),
-            "citation_ids": reasoner_result.get("output", {}).get(
-                "citation_ids", []
-            ),
+            "citation_ids": reasoner_result.get("output", {}).get("citation_ids", []),
+            **_model_runtime_trace(reasoner_result),
         }
         report.setdefault("model_runs", []).append(model_run)
         rehash_report(report)
@@ -1877,6 +2119,7 @@ class RelicScopeService:
         )
         knowledge = self.knowledge.health()
         dual_node = self.settings.runtime_mode == "dual-node"
+        single_spark = self.settings.runtime_mode == "single-spark"
         actual_compute_node = (
             self.settings.compute_node_id if dual_node else self.settings.node_id
         )
@@ -1891,7 +2134,11 @@ class RelicScopeService:
             },
             {
                 "name": "local-knowledge",
-                "status": knowledge["status"],
+                "status": (
+                    "online"
+                    if knowledge["status"] in {"ready", "degraded"}
+                    else "unavailable"
+                ),
                 "detail": f"{knowledge['entry_count']} entries · {knowledge['data_level']}",
                 "node_id": self.settings.node_id,
                 "role": "local-knowledge",
@@ -1899,15 +2146,21 @@ class RelicScopeService:
             },
             {
                 **vision,
+                "name": "spark-vision" if single_spark else "spark-a-vision",
                 "node_id": actual_compute_node,
                 "role": "multimodal-compute",
-                "required": dual_node,
+                "required": dual_node or single_spark,
             },
             {
                 **reasoner,
+                "name": "spark-report-model" if single_spark else "spark-b-reasoner",
                 "node_id": self.settings.node_id,
-                "role": "optional-report-reasoner",
-                "required": False,
+                "role": (
+                    "shared-multimodal-report-model"
+                    if single_spark
+                    else "optional-report-reasoner"
+                ),
+                "required": single_spark,
             },
             {
                 "name": "instrument-adapter",
@@ -1964,7 +2217,7 @@ class RelicScopeService:
                     else "DETERMINISTIC_IMAGE_ONLY"
                 ),
                 "node_id": actual_compute_node,
-                "required": dual_node,
+                "required": dual_node or single_spark,
                 "model": vision.get("model"),
                 "data_classification": "USER_UPLOAD/UNVERIFIED",
                 "degraded_reason": (
@@ -1982,7 +2235,7 @@ class RelicScopeService:
             },
             {
                 "id": "optional-report-reasoner",
-                "name": "可选报告推理",
+                "name": "共享模型报告摘要" if single_spark else "可选报告推理",
                 "status": reasoner["status"],
                 "execution_mode": (
                     "LOCAL_MODEL"
@@ -1990,7 +2243,7 @@ class RelicScopeService:
                     else "DETERMINISTIC_REPORT_TEMPLATE"
                 ),
                 "node_id": self.settings.node_id,
-                "required": False,
+                "required": single_spark,
                 "model": reasoner.get("model"),
                 "data_classification": "DERIVED_SUMMARY",
                 "degraded_reason": (
@@ -2034,7 +2287,28 @@ class RelicScopeService:
             nodes.append(node)
         nodes.sort(key=lambda item: item["node_id"])
         degraded = any(
-            item["status"] in {"degraded", "disabled"} for item in components
+            item["status"] in {"degraded", "disabled"} and item.get("required", True)
+            for item in components
+        )
+        compute_runtime = runtime_snapshot(
+            node_id=self.settings.node_id,
+            runtime_mode=self.settings.runtime_mode,
+        )
+        compute_runtime.update(
+            {
+                "model_endpoint_status": vision["status"],
+                "model_profile": self.settings.model_profile,
+                "model_source": self.settings.vision_model_source,
+                "model_revision": self.settings.vision_model_revision,
+                "deployment_git_commit": self.settings.deployment_git_commit,
+                "configured_model": vision.get("model"),
+                "served_models": vision.get("served_models", []),
+                "model_identity_verified": vision.get("model_identity_verified", False),
+                "endpoint_identity_ready": bool(
+                    vision["status"] == "online"
+                    and vision.get("model_identity_verified", False)
+                ),
+            }
         )
         return {
             "status": "degraded" if degraded else "online",
@@ -2049,10 +2323,14 @@ class RelicScopeService:
                 "compute_node": actual_compute_node,
                 "configured_compute_node": self.settings.compute_node_id,
                 "dual_node_active": dual_node,
+                "physical_node_count": 2 if dual_node else 1,
+                "colocated_services": single_spark,
             },
             "operational_profile": (
                 "DUAL_NODE_LOCAL_AI"
                 if dual_node
+                else "SINGLE_SPARK_LOCAL_AI"
+                if single_spark
                 else "SINGLE_NODE_DEGRADED"
                 if self.settings.runtime_mode == "single-degraded"
                 else "LOCAL_DEVELOPMENT"
@@ -2060,14 +2338,28 @@ class RelicScopeService:
             "nodes": nodes,
             "capabilities": capabilities,
             "data_boundary": {
-                "mode": "OFFLINE_LOCAL_ONLY"
-                if self.settings.offline_mode
-                else "APPROVED_PRIVATE_ENDPOINTS_ONLY",
+                "mode": (
+                    "LOCAL_INTERNAL_NETWORK_CONFIGURED"
+                    if single_spark and self.settings.offline_mode
+                    else "APPLICATION_LEVEL_LOCAL_ENDPOINT_POLICY"
+                    if self.settings.offline_mode
+                    else "APPROVED_PRIVATE_ENDPOINTS_ONLY"
+                ),
                 "public_fallback_allowed": False,
                 "private_endpoint_enforcement": self.settings.require_private_endpoints,
-                "raw_artifact_data_egress": "BLOCKED_BY_DEFAULT",
+                "network_enforcement": (
+                    "COMPOSE_INTERNAL_REQUIRES_HOST_ATTESTATION"
+                    if single_spark
+                    else "NOT_ATTESTED_BY_APPLICATION"
+                ),
+                "raw_artifact_data_egress": (
+                    "BLOCKED_WHEN_INTERNAL_NETWORK_ATTESTATION_PASSES"
+                    if single_spark
+                    else "NOT_ATTESTED_AT_APPLICATION_LAYER"
+                ),
             },
             "knowledge_version": self.knowledge.version,
+            "compute_runtime": compute_runtime,
             "components": components,
             "checked_at": utc_now(),
         }

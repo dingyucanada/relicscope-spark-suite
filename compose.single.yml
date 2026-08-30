@@ -1,7 +1,7 @@
 services:
   app:
     platform: linux/arm64
-    image: ${APP_IMAGE:-relicscope-ai-demo:1.1.0-arm64}
+    image: ${APP_IMAGE:-relicscope-ai-demo:1.2.0-arm64}
     build:
       context: .
       dockerfile: Dockerfile
@@ -13,6 +13,7 @@ services:
     restart: unless-stopped
     init: true
     read_only: true
+    gpus: all
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -24,23 +25,29 @@ services:
       RELICSCOPE_HOST: 0.0.0.0
       RELICSCOPE_PORT: "8088"
       RELICSCOPE_DEMO_MODE: ${RELICSCOPE_DEMO_MODE:-true}
-      RELICSCOPE_RUNTIME_MODE: single-degraded
-      RELICSCOPE_NODE_ID: ${RELICSCOPE_NODE_ID:-spark-single}
-      RELICSCOPE_COMPUTE_NODE_ID: ${RELICSCOPE_COMPUTE_NODE_ID:-spark-single}
-      RELICSCOPE_SERVICE_VERSION: ${RELICSCOPE_SERVICE_VERSION:-1.1.0}
+      RELICSCOPE_RUNTIME_MODE: single-spark
+      RELICSCOPE_NODE_ID: ${SINGLE_NODE_ID:-spark-single}
+      RELICSCOPE_COMPUTE_NODE_ID: ${SINGLE_NODE_ID:-spark-single}
+      RELICSCOPE_SERVICE_VERSION: ${RELICSCOPE_SERVICE_VERSION:-1.2.0}
       RELICSCOPE_OFFLINE_MODE: ${RELICSCOPE_OFFLINE_MODE:-true}
       RELICSCOPE_REQUIRE_PRIVATE_ENDPOINTS: ${RELICSCOPE_REQUIRE_PRIVATE_ENDPOINTS:-true}
       RELICSCOPE_MAX_UPLOAD_BYTES: ${RELICSCOPE_MAX_UPLOAD_BYTES:-8388608}
       RELICSCOPE_MAX_VIDEO_BYTES: ${RELICSCOPE_MAX_VIDEO_BYTES:-268435456}
+      RELICSCOPE_MAX_NATIVE_VIDEO_BYTES: ${RELICSCOPE_MAX_NATIVE_VIDEO_BYTES:-33554432}
+      RELICSCOPE_MAX_NATIVE_VIDEO_DURATION_MS: ${RELICSCOPE_MAX_NATIVE_VIDEO_DURATION_MS:-15000}
       RELICSCOPE_MAX_VIDEO_FRAMES: ${RELICSCOPE_MAX_VIDEO_FRAMES:-12}
       RELICSCOPE_MAX_FRAME_BYTES: ${RELICSCOPE_MAX_FRAME_BYTES:-2097152}
-      MODEL_TIMEOUT_SECONDS: ${MODEL_TIMEOUT_SECONDS:-45}
-      VISION_BASE_URL: ${SINGLE_VISION_BASE_URL:-}
-      VISION_MODEL: ${VISION_MODEL:-nvidia/Qwen2.5-VL-7B-Instruct-NVFP4}
+      MODEL_TIMEOUT_SECONDS: ${MODEL_TIMEOUT_SECONDS:-180}
+      MODEL_MAX_CONCURRENCY: ${MODEL_MAX_CONCURRENCY:-2}
+      MODEL_PROFILE: ${MODEL_PROFILE:-qwen3-vl}
+      VISION_BASE_URL: http://vision:8000/v1
+      VISION_MODEL_SOURCE: ${VISION_MODEL_SOURCE:-Qwen/Qwen3-VL-30B-A3B-Instruct}
+      VISION_MODEL_REVISION: ${VISION_MODEL_REVISION:-unknown}
+      VISION_MODEL: ${VISION_MODEL:-qwen3_vl_30b_a3b}
       EMBEDDING_BASE_URL: ${SINGLE_EMBEDDING_BASE_URL:-}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-Qwen/Qwen3-VL-Embedding-2B}
-      REASONER_BASE_URL: ${SINGLE_REASONER_BASE_URL:-}
-      REASONER_MODEL: ${REASONER_MODEL:-nvidia/Qwen3-14B-NVFP4}
+      REASONER_BASE_URL: http://vision:8000/v1
+      REASONER_MODEL: ${VISION_MODEL:-qwen3_vl_30b_a3b}
       HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-1}
       TRANSFORMERS_OFFLINE: ${TRANSFORMERS_OFFLINE:-1}
       HF_HUB_DISABLE_TELEMETRY: ${HF_HUB_DISABLE_TELEMETRY:-1}
@@ -72,6 +79,9 @@ services:
       - /tmp:size=256m,mode=1777
     networks:
       - relicscope-single
+    depends_on:
+      vision:
+        condition: service_healthy
     healthcheck:
       test:
         - CMD
@@ -80,18 +90,17 @@ services:
         - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8088/health/ready', timeout=3).read()"
       interval: 15s
       timeout: 4s
-      start_period: 20s
+      start_period: 45s
       retries: 4
     labels:
-      ai.relicscope.node: ${RELICSCOPE_NODE_ID:-spark-single}
-      ai.relicscope.role: single-node-core
-      ai.relicscope.runtime: single-degraded-not-dual
-      ai.relicscope.version: ${RELICSCOPE_SERVICE_VERSION:-1.1.0}
+      ai.relicscope.node: ${SINGLE_NODE_ID:-spark-single}
+      ai.relicscope.role: single-spark-gateway-evidence-report
+      ai.relicscope.runtime: single-spark-local-ai
+      ai.relicscope.version: ${RELICSCOPE_SERVICE_VERSION:-1.2.0}
 
   vision:
-    profiles: ["vision"]
     platform: linux/arm64
-    image: ${VLLM_IMAGE:-nvcr.io/nvidia/vllm:26.05.post1-py3}
+    image: ${VLLM_IMAGE:-relicscope-multimodal-vllm:0.20.0-arm64}
     restart: unless-stopped
     init: true
     ipc: host
@@ -102,32 +111,20 @@ services:
     secrets:
       - service_api_key
     environment:
-      VISION_MODEL: ${VISION_MODEL:-nvidia/Qwen2.5-VL-7B-Instruct-NVFP4}
-      VISION_MAX_MODEL_LEN: ${VISION_MAX_MODEL_LEN:-8192}
-      VISION_GPU_MEMORY_UTILIZATION: ${VISION_GPU_MEMORY_UTILIZATION:-0.75}
-      VISION_MAX_IMAGES: ${VISION_MAX_IMAGES:-4}
+      VISION_MODEL_SOURCE: ${VISION_MODEL_SOURCE:-Qwen/Qwen3-VL-30B-A3B-Instruct}
+      VISION_MODEL_REVISION: ${VISION_MODEL_REVISION:-unknown}
+      VISION_MODEL: ${VISION_MODEL:-qwen3_vl_30b_a3b}
+      MODEL_PROFILE: ${MODEL_PROFILE:-qwen3-vl}
+      VISION_MAX_MODEL_LEN: ${VISION_MAX_MODEL_LEN:-32768}
+      VISION_GPU_MEMORY_UTILIZATION: ${VISION_GPU_MEMORY_UTILIZATION:-0.80}
+      MODEL_MAX_CONCURRENCY: ${MODEL_MAX_CONCURRENCY:-2}
       HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-1}
       TRANSFORMERS_OFFLINE: ${TRANSFORMERS_OFFLINE:-1}
       HF_HUB_DISABLE_TELEMETRY: ${HF_HUB_DISABLE_TELEMETRY:-1}
+      HF_MODULES_CACHE: /root/.cache/vllm/modules
       DO_NOT_TRACK: ${DO_NOT_TRACK:-1}
-      VLLM_LOGGING_LEVEL: WARNING
+      VLLM_LOGGING_LEVEL: INFO
       VLLM_SERVER_DEV_MODE: "0"
-    entrypoint: ["/bin/bash", "-ec"]
-    command:
-      - |
-        service_key="$$(cat /run/secrets/service_api_key)"
-        if [ "$${#service_key}" -lt 32 ]; then
-          echo "FATAL: service API key is missing or shorter than 32 characters" >&2
-          exit 78
-        fi
-        export VLLM_API_KEY="$$service_key"
-        exec vllm serve "$$VISION_MODEL" \
-          --host 0.0.0.0 \
-          --port 8000 \
-          --max-model-len "$$VISION_MAX_MODEL_LEN" \
-          --gpu-memory-utilization "$$VISION_GPU_MEMORY_UTILIZATION" \
-          --max-num-seqs 2 \
-          --limit-mm-per-prompt "{\"image\":$$VISION_MAX_IMAGES,\"video\":0}"
     volumes:
       - type: bind
         source: ${HF_CACHE_DIR:-./runtime/hf-cache}
@@ -142,75 +139,24 @@ services:
       test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()\" || exit 1"]
       interval: 20s
       timeout: 5s
-      start_period: 15m
+      start_period: 20m
       retries: 5
     labels:
-      ai.relicscope.role: single-node-vision
-      ai.relicscope.runtime: single-degraded-not-dual
-
-  reasoner:
-    profiles: ["reasoner"]
-    platform: linux/arm64
-    image: ${VLLM_IMAGE:-nvcr.io/nvidia/vllm:26.05.post1-py3}
-    restart: unless-stopped
-    init: true
-    ipc: host
-    shm_size: 16gb
-    gpus: all
-    security_opt:
-      - no-new-privileges:true
-    secrets:
-      - service_api_key
-    environment:
-      REASONER_MODEL: ${REASONER_MODEL:-nvidia/Qwen3-14B-NVFP4}
-      REASONER_MAX_MODEL_LEN: ${REASONER_MAX_MODEL_LEN:-8192}
-      REASONER_GPU_MEMORY_UTILIZATION: ${SINGLE_REASONER_GPU_MEMORY_UTILIZATION:-0.20}
-      HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-1}
-      TRANSFORMERS_OFFLINE: ${TRANSFORMERS_OFFLINE:-1}
-      HF_HUB_DISABLE_TELEMETRY: ${HF_HUB_DISABLE_TELEMETRY:-1}
-      DO_NOT_TRACK: ${DO_NOT_TRACK:-1}
-      VLLM_LOGGING_LEVEL: WARNING
-      VLLM_SERVER_DEV_MODE: "0"
-    entrypoint: ["/bin/bash", "-ec"]
-    command:
-      - |
-        service_key="$$(cat /run/secrets/service_api_key)"
-        if [ "$${#service_key}" -lt 32 ]; then
-          echo "FATAL: service API key is missing or shorter than 32 characters" >&2
-          exit 78
-        fi
-        export VLLM_API_KEY="$$service_key"
-        exec vllm serve "$$REASONER_MODEL" \
-          --host 0.0.0.0 \
-          --port 8000 \
-          --max-model-len "$$REASONER_MAX_MODEL_LEN" \
-          --gpu-memory-utilization "$$REASONER_GPU_MEMORY_UTILIZATION" \
-          --max-num-seqs 1
-    volumes:
-      - type: bind
-        source: ${HF_CACHE_DIR:-./runtime/hf-cache}
-        target: /root/.cache/huggingface
-        read_only: true
-      - type: bind
-        source: ${VLLM_CACHE_DIR:-./runtime/vllm-cache}
-        target: /root/.cache/vllm
-    networks:
-      - relicscope-single
-    healthcheck:
-      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()\" || exit 1"]
-      interval: 20s
-      timeout: 5s
-      start_period: 15m
-      retries: 5
-    labels:
-      ai.relicscope.role: single-node-optional-reasoner
-      ai.relicscope.runtime: single-degraded-not-dual
+      ai.relicscope.node: ${SINGLE_NODE_ID:-spark-single}
+      ai.relicscope.role: shared-multimodal-model
+      ai.relicscope.runtime: single-spark-local-ai
+      ai.relicscope.model.profile: ${MODEL_PROFILE:-qwen3-vl}
+      ai.relicscope.model.source: ${VISION_MODEL_SOURCE:-Qwen/Qwen3-VL-30B-A3B-Instruct}
+      ai.relicscope.model.revision: ${VISION_MODEL_REVISION:-unknown}
+      ai.relicscope.model.served: ${VISION_MODEL:-qwen3_vl_30b_a3b}
 
 networks:
   relicscope-single:
     driver: bridge
+    internal: true
     labels:
-      ai.relicscope.scope: local-single-node
+      ai.relicscope.scope: local-single-spark
+      ai.relicscope.egress: blocked
 
 secrets:
   service_api_key:

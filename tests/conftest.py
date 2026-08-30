@@ -29,6 +29,10 @@ class LocalModelStub:
             "status": "online",
             "detail": "test model stub ready",
             "model": self.model,
+            "configured_model": self.model,
+            "served_models": [self.model],
+            "model_identity_verified": True,
+            "request_id": "health-test-request",
             "latency_ms": 1,
         }
 
@@ -38,6 +42,11 @@ class LocalModelStub:
             "mode": "local_test_stub",
             "role": "vision",
             "model": self.model,
+            "configured_model": self.model,
+            "model_identity_verified": True,
+            "request_id": "vision-test-request",
+            "usage": {"prompt_tokens": 20, "completion_tokens": 30, "total_tokens": 50},
+            "finish_reason": "stop",
             "prompt_hash": "1" * 64,
             "latency_ms": 1,
             "output_hash": "2" * 64,
@@ -49,12 +58,44 @@ class LocalModelStub:
             },
         }
 
+    async def video_observe(self, video_data_url, metadata):
+        return {
+            "available": True,
+            "mode": "local_vllm",
+            "role": "native_video",
+            "model": self.model,
+            "configured_model": self.model,
+            "model_identity_verified": True,
+            "request_id": "video-test-request",
+            "usage": {"prompt_tokens": 40, "completion_tokens": 50, "total_tokens": 90},
+            "finish_reason": "stop",
+            "prompt_hash": "5" * 64,
+            "latency_ms": 2,
+            "output_hash": "6" * 64,
+            "output": {
+                "observations": ["可见蓝色纹饰与白色釉面"],
+                "temporal_observations": ["环绕视角覆盖器身与底足"],
+                "suggested_regions": [{"label": "R1", "reason": "纹饰边界清楚"}],
+                "limitations": ["合成测试视频；不代表科学结论"],
+                "ood_risk": "LOW",
+            },
+        }
+
     async def summarize_report(self, report):
         return {
             "available": True,
             "mode": "local_test_stub",
             "role": "reasoner",
             "model": self.model,
+            "configured_model": self.model,
+            "model_identity_verified": True,
+            "request_id": "reasoner-test-request",
+            "usage": {
+                "prompt_tokens": 100,
+                "completion_tokens": 40,
+                "total_tokens": 140,
+            },
+            "finish_reason": "stop",
             "prompt_hash": "3" * 64,
             "latency_ms": 1,
             "output_hash": "4" * 64,
@@ -86,7 +127,9 @@ def active_state() -> Dict[str, Any]:
         "current_action_run_id": None,
         "plan_history": [],
         "executions": [],
-        "evidence_graph": build_initial_graph(session_id, "测试器物", "清代景德镇青花瓷"),
+        "evidence_graph": build_initial_graph(
+            session_id, "测试器物", "清代景德镇青花瓷"
+        ),
     }
 
 

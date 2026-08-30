@@ -113,8 +113,8 @@ fi
   printf 'role=%s\n' "$ROLE"
   printf 'archive=%s\n' "$(basename -- "$archive")"
   printf 'archive_sha256=%s\n' "$archive_hash"
-  printf 'service_version=%s\n' "$(cfg RELICSCOPE_SERVICE_VERSION 1.1.0)"
-  printf 'app_image=%s\n' "$(cfg APP_IMAGE relicscope-ai-demo:1.1.0-arm64)"
+  printf 'service_version=%s\n' "$(cfg RELICSCOPE_SERVICE_VERSION 1.2.0)"
+  printf 'app_image=%s\n' "$(cfg APP_IMAGE relicscope-ai-demo:1.2.0-arm64)"
   printf 'knowledge_manifest_sha256=%s\n' "$knowledge_hash"
   printf 'contains_secrets=false\n'
   printf 'contains_model_cache=false\n'

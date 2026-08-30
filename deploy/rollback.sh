@@ -87,7 +87,7 @@ if [[ "$ROLE" == "single" || "$ROLE" == "all" ]]; then
     (
       cd "$PROJECT_DIR"
       docker compose --env-file "$ENV_FILE" -f compose.single.yml \
-        --profile vision --profile reasoner down --remove-orphans
+        down --remove-orphans
     )
   fi
 fi

@@ -2,6 +2,7 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 umask 077
+export COPYFILE_DISABLE=1
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
@@ -38,7 +39,7 @@ while (($#)); do
   esac
 done
 case "$ROLE" in spark-a|spark-b|single|all) ;; *) die "invalid role: ${ROLE}" ;; esac
-for command_name in awk tar sha256sum mktemp; do
+for command_name in awk git tar sha256sum mktemp; do
   command -v "$command_name" >/dev/null 2>&1 || die "required command not found: ${command_name}"
 done
 
@@ -58,7 +59,18 @@ cfg() {
 }
 absolute_path() { [[ "$1" == /* ]] && printf '%s' "$1" || printf '%s/%s' "$PROJECT_DIR" "$1"; }
 
-release_version="$(cfg RELICSCOPE_RELEASE_VERSION 1.1.0)"
+git_root="$(git -C "$PROJECT_DIR" rev-parse --show-toplevel 2>/dev/null)" \
+  || die "release packaging requires a Git worktree with an immutable HEAD"
+[[ "$git_root" == "$PROJECT_DIR" ]] \
+  || die "package script must run from the repository root: ${PROJECT_DIR}"
+source_commit="$(git -C "$PROJECT_DIR" rev-parse --verify 'HEAD^{commit}')" \
+  || die "unable to resolve the release source commit"
+[[ "$source_commit" =~ ^([0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$ ]] \
+  || die "release source commit is not an immutable 40- or 64-hex revision"
+[[ -z "$(git -C "$PROJECT_DIR" status --porcelain --untracked-files=all)" ]] \
+  || die "release source tree is not clean; commit or remove tracked and untracked changes before packaging"
+
+release_version="$(cfg RELICSCOPE_RELEASE_VERSION 1.2.0)"
 [[ "$release_version" =~ ^[A-Za-z0-9._-]+$ ]] || die "invalid RELICSCOPE_RELEASE_VERSION"
 output_dir="$(absolute_path "${OUTPUT_DIR:-$(cfg PACKAGE_DIR ./runtime/packages)}")"
 [[ "$output_dir" != "/" && "$output_dir" != "$PROJECT_DIR" ]] || die "unsafe package directory: ${output_dir}"
@@ -75,7 +87,7 @@ trap cleanup EXIT
 release_archive="${staging}/relicscope-release-${release_version}.tar.gz"
 entries=(
   .agents .github .dockerignore .env.example .gitattributes .gitignore
-  AGENTS.md Dockerfile Makefile NOTICE.md README.md THIRD_PARTY_NOTICES.md
+  AGENTS.md Dockerfile Dockerfile.vllm Makefile NOTICE.md README.md THIRD_PARTY_NOTICES.md
   requirements.txt requirements.lock requirements-dev.txt requirements-dev.lock pytest.ini
   app data demo_media deploy docs openspec scripts tests
   compose.yml compose.single.yml run_local.sh
@@ -84,17 +96,20 @@ existing_entries=()
 for entry in "${entries[@]}"; do
   [[ -e "${PROJECT_DIR}/${entry}" ]] && existing_entries+=("$entry")
 done
-tar -C "$PROJECT_DIR" \
-  --exclude='.pytest_cache' --exclude='.ruff_cache' --exclude='__pycache__' \
-  --exclude='*.pyc' --exclude='.env' --exclude='secrets' --exclude='runtime' \
-  -czf "$release_archive" "${existing_entries[@]}"
+git -C "$PROJECT_DIR" archive \
+  --format=tar.gz \
+  --output "$release_archive" \
+  "$source_commit" -- "${existing_entries[@]}"
 
 {
   printf 'release_version=%s\n' "$release_version"
   printf 'generated_at_utc=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  printf 'source_commit=%s\n' "$source_commit"
+  printf 'source_tree_clean=true\n'
+  printf 'source_archive=git-object\n'
   printf 'role=%s\n' "$ROLE"
   printf 'offline_payload=%s\n' "$OFFLINE"
-  printf 'application_service_version=%s\n' "$(cfg RELICSCOPE_SERVICE_VERSION 1.1.0)"
+  printf 'application_service_version=%s\n' "$(cfg RELICSCOPE_SERVICE_VERSION 1.2.0)"
   printf 'contains_env=false\n'
   printf 'contains_secrets=false\n'
   printf 'contains_runtime_evidence=false\n'
@@ -107,14 +122,14 @@ if [[ "$OFFLINE" == "1" ]]; then
   [[ -f "$ENV_FILE" ]] || die "--offline requires a configured .env"
   command -v docker >/dev/null 2>&1 || die "Docker is required for --offline"
   docker info >/dev/null 2>&1 || die "Docker daemon is unavailable"
-  app_image="$(cfg APP_IMAGE relicscope-ai-demo:1.1.0-arm64)"
-  vllm_image="$(cfg VLLM_IMAGE nvcr.io/nvidia/vllm:26.05.post1-py3)"
+  app_image="$(cfg APP_IMAGE relicscope-ai-demo:1.2.0-arm64)"
+  vllm_image="$(cfg VLLM_IMAGE relicscope-multimodal-vllm:0.20.0-arm64)"
   images=()
   models=()
   case "$ROLE" in
     spark-a)
       images+=("$vllm_image")
-      models+=("$(cfg VISION_MODEL nvidia/Qwen2.5-VL-7B-Instruct-NVFP4)")
+      models+=("$(cfg VISION_MODEL_SOURCE Qwen/Qwen3-VL-30B-A3B-Instruct)")
       [[ "$(cfg EMBEDDING_ENABLED 0)" == "1" ]] && models+=("$(cfg EMBEDDING_MODEL Qwen/Qwen3-VL-Embedding-2B)")
       ;;
     spark-b)
@@ -126,16 +141,26 @@ if [[ "$OFFLINE" == "1" ]]; then
       ;;
     single|all)
       images+=("$app_image" "$vllm_image")
-      models+=("$(cfg VISION_MODEL nvidia/Qwen2.5-VL-7B-Instruct-NVFP4)")
+      models+=("$(cfg VISION_MODEL_SOURCE Qwen/Qwen3-VL-30B-A3B-Instruct)")
+      if [[ "$(cfg PREFETCH_AB_MODELS 1)" == "1" ]]; then
+        models+=("$(cfg AB_NEMOTRON_MODEL_SOURCE nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning-NVFP4)")
+      fi
       [[ "$(cfg EMBEDDING_ENABLED 0)" == "1" ]] && models+=("$(cfg EMBEDDING_MODEL Qwen/Qwen3-VL-Embedding-2B)")
       [[ "$(cfg REASONER_ENABLED 0)" == "1" ]] && models+=("$(cfg REASONER_MODEL nvidia/Qwen3-14B-NVFP4)")
       ;;
   esac
   for image in "${images[@]}"; do
     docker image inspect "$image" >/dev/null 2>&1 || die "offline image is not cached: ${image}"
+    image_id="$(docker image inspect --format '{{.Id}}' "$image")"
+    image_source_commit="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")"
+    [[ "$image_id" =~ ^sha256:[0-9A-Fa-f]{64}$ ]] \
+      || die "offline image does not expose an immutable image ID: ${image}"
+    [[ "$image_source_commit" == "$source_commit" ]] \
+      || die "offline image was not built from release commit ${source_commit}: ${image}"
     {
       printf 'container_image=%s\n' "$image"
-      printf 'container_image_id=%s@%s\n' "$image" "$(docker image inspect --format '{{.Id}}' "$image")"
+      printf 'container_image_id=%s@%s\n' "$image" "$image_id"
+      printf 'container_image_source_commit=%s@%s\n' "$image" "$image_source_commit"
     } >>"${staging}/MANIFEST.txt"
   done
   docker save --output "${staging}/container-images.tar" "${images[@]}"
@@ -159,11 +184,12 @@ if [[ "$OFFLINE" == "1" ]]; then
     printf 'model_id=%s\n' "$model" >>"${staging}/MODEL_REQUIREMENTS.txt"
     if [[ -n "$model_root" && -f "${model_root}/refs/main" ]]; then
       revision="$(tr -d '\r\n' <"${model_root}/refs/main")"
+      [[ "$revision" =~ ^([0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$ ]] \
+        || die "cached model revision is not immutable for ${model}"
       printf 'model_revision=%s@%s\n' "$model" "$revision" >>"${staging}/MANIFEST.txt"
       printf 'observed_cached_revision=%s\n' "$revision" >>"${staging}/MODEL_REQUIREMENTS.txt"
     else
-      printf 'model_revision=%s@unknown\n' "$model" >>"${staging}/MANIFEST.txt"
-      printf 'observed_cached_revision=unknown\n' >>"${staging}/MODEL_REQUIREMENTS.txt"
+      die "offline package requires an immutable cached model revision for ${model}"
     fi
     printf 'redistributed=false\n\n' >>"${staging}/MODEL_REQUIREMENTS.txt"
   done

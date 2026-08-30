@@ -26,6 +26,21 @@ cfg() {
 
 absolute_path() { [[ "$1" == /* ]] && printf '%s' "$1" || printf '%s/%s' "$PROJECT_DIR" "$1"; }
 
+cached_model_revision() {
+  local model_id="$1" cache_dir cache_name root revision=""
+  cache_dir="$(absolute_path "$(cfg HF_CACHE_DIR ./runtime/hf-cache)")"
+  cache_name="models--${model_id//\//--}"
+  for root in "${cache_dir}/hub/${cache_name}" "${cache_dir}/${cache_name}"; do
+    if [[ -f "${root}/refs/main" ]]; then
+      revision="$(tr -d '\r\n' <"${root}/refs/main")"
+      break
+    fi
+  done
+  [[ "$revision" =~ ^[0-9A-Fa-f]{7,64}$ ]] \
+    || die "cached model revision is missing or invalid for ${model_id}; rerun prefetch"
+  printf '%s' "$revision"
+}
+
 "${SCRIPT_DIR}/preflight.sh" --role spark-a --require-vision
 
 container_name="relicscope-vision"
@@ -43,8 +58,11 @@ fi
 bind_ip="$(cfg SPARK_A_BIND_IP '')"
 [[ -n "$bind_ip" ]] || die "SPARK_A_BIND_IP must be a pinned private IP"
 port="$(cfg VISION_PORT 8001)"
-image="$(cfg VLLM_IMAGE nvcr.io/nvidia/vllm:26.05.post1-py3)"
-model="$(cfg VISION_MODEL nvidia/Qwen2.5-VL-7B-Instruct-NVFP4)"
+image="$(cfg VLLM_IMAGE relicscope-multimodal-vllm:0.20.0-arm64)"
+model_source="$(cfg VISION_MODEL_SOURCE Qwen/Qwen3-VL-30B-A3B-Instruct)"
+model="$(cfg VISION_MODEL qwen3_vl_30b_a3b)"
+model_profile="$(cfg MODEL_PROFILE qwen3-vl)"
+model_revision="$(cached_model_revision "$model_source")"
 node_id="$(cfg VISION_NODE_ID "$(cfg RELICSCOPE_COMPUTE_NODE_ID spark-a)")"
 cache_dir="$(absolute_path "$(cfg HF_CACHE_DIR ./runtime/hf-cache)")"
 vllm_cache_dir="$(absolute_path "$(cfg VLLM_CACHE_DIR ./runtime/vllm-cache)")"
@@ -67,13 +85,17 @@ docker run -d \
   --volume "${cache_dir}:/root/.cache/huggingface:ro" \
   --volume "${vllm_cache_dir}:/root/.cache/vllm:rw" \
   --volume "${secret_file}:/run/secrets/service_api_key:ro" \
+  --env "VISION_MODEL_SOURCE=${model_source}" \
   --env "VISION_MODEL=${model}" \
-  --env "VISION_MAX_MODEL_LEN=$(cfg VISION_MAX_MODEL_LEN 8192)" \
+  --env "VISION_MODEL_REVISION=${model_revision}" \
+  --env "MODEL_PROFILE=${model_profile}" \
+  --env "VISION_MAX_MODEL_LEN=$(cfg VISION_MAX_MODEL_LEN 32768)" \
   --env "VISION_GPU_MEMORY_UTILIZATION=$(cfg VISION_GPU_MEMORY_UTILIZATION 0.75)" \
   --env "VISION_MAX_IMAGES=$(cfg VISION_MAX_IMAGES 4)" \
   --env "HF_HUB_OFFLINE=$(cfg HF_HUB_OFFLINE 1)" \
   --env "TRANSFORMERS_OFFLINE=$(cfg TRANSFORMERS_OFFLINE 1)" \
   --env "HF_HUB_DISABLE_TELEMETRY=1" \
+  --env "HF_MODULES_CACHE=/root/.cache/vllm/modules" \
   --env "DO_NOT_TRACK=1" \
   --env "VLLM_LOGGING_LEVEL=WARNING" \
   --env "VLLM_SERVER_DEV_MODE=0" \
@@ -85,6 +107,7 @@ docker run -d \
   --label "ai.relicscope.node=${node_id}" \
   --label ai.relicscope.role=multimodal-vision \
   --label ai.relicscope.runtime=independent-service-not-tp \
+  --label "ai.relicscope.model.revision=${model_revision}" \
   --entrypoint /bin/bash \
   "$image" -ec '
     service_key="$(cat /run/secrets/service_api_key)"
@@ -93,14 +116,17 @@ docker run -d \
       exit 78
     fi
     export VLLM_API_KEY="$service_key"
-    exec vllm serve "$VISION_MODEL" \
+    exec vllm serve "$VISION_MODEL_SOURCE" \
+      --served-model-name "$VISION_MODEL" \
+      --revision "$VISION_MODEL_REVISION" \
+      --tokenizer-revision "$VISION_MODEL_REVISION" \
       --host 0.0.0.0 \
       --port 8000 \
       --max-model-len "$VISION_MAX_MODEL_LEN" \
       --gpu-memory-utilization "$VISION_GPU_MEMORY_UTILIZATION" \
       --max-num-seqs 2 \
-      --limit-mm-per-prompt "{\"image\":${VISION_MAX_IMAGES},\"video\":0}"
+      --limit-mm-per-prompt "{\"image\":${VISION_MAX_IMAGES},\"video\":1}"
   ' >/dev/null
 
-printf 'Vision service started: node=%s role=multimodal-vision model=%s endpoint=http://%s:%s/v1 mode=independent-service-not-tp\n' \
-  "$node_id" "$model" "$bind_ip" "$port"
+printf 'Vision service started: node=%s role=multimodal-vision profile=%s source=%s@%s served=%s endpoint=http://%s:%s/v1 mode=independent-service-not-tp\n' \
+  "$node_id" "$model_profile" "$model_source" "$model_revision" "$model" "$bind_ip" "$port"

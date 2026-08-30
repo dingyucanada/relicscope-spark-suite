@@ -98,6 +98,22 @@ cfg() {
   printf '%s' "${value:-$fallback}"
 }
 
+vision_model_for_role() {
+  if [[ "$ROLE" == "single" && "$(cfg MODEL_PROFILE qwen3-vl)" == "nemotron-omni" ]]; then
+    cfg AB_NEMOTRON_MODEL nemotron_3_nano_omni
+  else
+    cfg VISION_MODEL qwen3_vl_30b_a3b
+  fi
+}
+
+vision_source_for_role() {
+  if [[ "$ROLE" == "single" && "$(cfg MODEL_PROFILE qwen3-vl)" == "nemotron-omni" ]]; then
+    cfg AB_NEMOTRON_MODEL_SOURCE nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning-NVFP4
+  else
+    cfg VISION_MODEL_SOURCE Qwen/Qwen3-VL-30B-A3B-Instruct
+  fi
+}
+
 absolute_path() {
   local value="$1"
   if [[ "$value" == /* ]]; then
@@ -291,11 +307,15 @@ require_command python3
 
 max_upload_bytes="$(cfg RELICSCOPE_MAX_UPLOAD_BYTES 8388608)"
 max_video_bytes="$(cfg RELICSCOPE_MAX_VIDEO_BYTES 268435456)"
+max_native_video_bytes="$(cfg RELICSCOPE_MAX_NATIVE_VIDEO_BYTES 33554432)"
+max_native_video_duration_ms="$(cfg RELICSCOPE_MAX_NATIVE_VIDEO_DURATION_MS 15000)"
 max_video_frames="$(cfg RELICSCOPE_MAX_VIDEO_FRAMES 12)"
 max_frame_bytes="$(cfg RELICSCOPE_MAX_FRAME_BYTES 2097152)"
 for item in \
   "RELICSCOPE_MAX_UPLOAD_BYTES:${max_upload_bytes}" \
   "RELICSCOPE_MAX_VIDEO_BYTES:${max_video_bytes}" \
+  "RELICSCOPE_MAX_NATIVE_VIDEO_BYTES:${max_native_video_bytes}" \
+  "RELICSCOPE_MAX_NATIVE_VIDEO_DURATION_MS:${max_native_video_duration_ms}" \
   "RELICSCOPE_MAX_VIDEO_FRAMES:${max_video_frames}" \
   "RELICSCOPE_MAX_FRAME_BYTES:${max_frame_bytes}"; do
   key="${item%%:*}"
@@ -306,6 +326,8 @@ for item in \
 done
 ((max_video_bytes >= max_frame_bytes)) \
   || die "RELICSCOPE_MAX_VIDEO_BYTES must not be smaller than RELICSCOPE_MAX_FRAME_BYTES"
+((max_video_bytes >= max_native_video_bytes)) \
+  || die "RELICSCOPE_MAX_VIDEO_BYTES must not be smaller than RELICSCOPE_MAX_NATIVE_VIDEO_BYTES"
 ((max_frame_bytes <= max_upload_bytes)) \
   || die "RELICSCOPE_MAX_FRAME_BYTES must not exceed RELICSCOPE_MAX_UPLOAD_BYTES"
 ((max_video_frames >= 3 && max_video_frames <= 24)) \
@@ -368,15 +390,15 @@ if [[ "$ROLE" == "spark-b" || "$ROLE" == "single" || "$ROLE" == "all" ]]; then
     || die "persistent data owner is ${data_uid}:${data_gid}, but the application image expects ${app_uid}:${app_gid}; align APP_UID/APP_GID or fix directory ownership"
 fi
 
-min_free_gb="$(cfg MIN_FREE_GB 40)"
+min_free_gb="$(cfg MIN_FREE_GB 160)"
 [[ "$min_free_gb" =~ ^[0-9]+$ ]] || die "MIN_FREE_GB must be a non-negative integer"
 free_kb="$(df -Pk "$data_dir" | awk 'NR==2 {print $4}')"
 ((free_kb >= min_free_gb * 1024 * 1024)) \
   || die "insufficient free disk space: require ${min_free_gb} GiB"
 
 offline_runtime="$(cfg OFFLINE_RUNTIME 1)"
-vllm_image="$(cfg VLLM_IMAGE nvcr.io/nvidia/vllm:26.05.post1-py3)"
-app_image="$(cfg APP_IMAGE relicscope-ai-demo:1.1.0-arm64)"
+vllm_image="$(cfg VLLM_IMAGE relicscope-multimodal-vllm:0.20.0-arm64)"
+app_image="$(cfg APP_IMAGE relicscope-ai-demo:1.2.0-arm64)"
 
 if [[ "$MODEL_REQUIREMENTS_EXPLICIT" == "0" ]]; then
   case "$ROLE" in
@@ -386,6 +408,9 @@ if [[ "$MODEL_REQUIREMENTS_EXPLICIT" == "0" ]]; then
       ;;
     spark-b)
       [[ "$(cfg REASONER_ENABLED 0)" == "1" ]] && REQUIRE_REASONER=1
+      ;;
+    single)
+      REQUIRE_VISION=1
       ;;
     all)
       REQUIRE_VISION=1
@@ -421,7 +446,7 @@ if [[ "$offline_runtime" == "1" ]]; then
       || die "vLLM image architecture is ${vllm_arch}; expected arm64"
   fi
   if [[ "$REQUIRE_VISION" == "1" ]]; then
-    check_cache_for_model "$cache_dir" "$(cfg VISION_MODEL nvidia/Qwen2.5-VL-7B-Instruct-NVFP4)"
+    check_cache_for_model "$cache_dir" "$(vision_source_for_role)"
   fi
   if [[ "$REQUIRE_EMBEDDING" == "1" ]]; then
     check_cache_for_model "$cache_dir" "$(cfg EMBEDDING_MODEL Qwen/Qwen3-VL-Embedding-2B)"
@@ -457,7 +482,7 @@ if [[ "$CHECK_RUNNING" == "1" ]]; then
       vision_base_url="http://$(cfg SPARK_A_BIND_IP ''):$(cfg VISION_PORT 8001)/v1"
       check_openai_endpoint_auth_model \
         vision "$vision_base_url" "$service_key_file" \
-        "$(cfg VISION_MODEL nvidia/Qwen2.5-VL-7B-Instruct-NVFP4)"
+        "$(vision_model_for_role)"
     fi
     if [[ "$REQUIRE_EMBEDDING" == "1" ]]; then
       docker inspect --format '{{.State.Health.Status}}' relicscope-embedding 2>/dev/null \
@@ -485,7 +510,7 @@ if [[ "$CHECK_RUNNING" == "1" ]]; then
       expect_app_embedding=1
     fi
     if [[ "$ROLE" == "single" ]]; then
-      expected_mode=single-degraded
+      expected_mode=single-spark
       expected_gateway_node="$(cfg SINGLE_NODE_ID spark-single)"
       expected_compute_node="$expected_gateway_node"
     else
@@ -510,8 +535,8 @@ PY
     python3 - \
       "$app_url" "$expect_app_vision" "$expect_app_embedding" "$expect_app_reasoner" \
       "$expected_mode" "$expected_gateway_node" "$expected_compute_node" \
-      "$(cfg RELICSCOPE_SERVICE_VERSION 1.1.0)" \
-      "$(cfg VISION_MODEL nvidia/Qwen2.5-VL-7B-Instruct-NVFP4)" \
+      "$(cfg RELICSCOPE_SERVICE_VERSION 1.2.0)" \
+      "$(vision_model_for_role)" \
       "$(cfg REASONER_MODEL nvidia/Qwen3-14B-NVFP4)" <<'PY'
 import json
 import sys
@@ -554,7 +579,7 @@ if gateway.get("node_id") != expected_gateway_node:
     raise SystemExit("gateway-store reports an unexpected node")
 if gateway.get("version") != expected_service_version:
     raise SystemExit("gateway-store reports an unexpected service version")
-vision = components.get("spark-a-vision", {})
+vision = components.get("spark-vision", components.get("spark-a-vision", {}))
 if require_vision == "1":
     if vision.get("status") != "online":
         raise SystemExit("required vision component is not online")
@@ -565,7 +590,7 @@ if require_vision == "1":
 knowledge = components.get("local-knowledge", {})
 if require_embedding == "1" and knowledge.get("status") != "ready":
     raise SystemExit("required embedding-backed knowledge component is not ready")
-reasoner = components.get("spark-b-reasoner", {})
+reasoner = components.get("spark-report-model", components.get("spark-b-reasoner", {}))
 if require_reasoner == "1":
     if reasoner.get("status") != "online":
         raise SystemExit("required reasoner component is not online")
@@ -580,7 +605,7 @@ PY
     if [[ "$ROLE" != "single" && -n "$vision_base_url" ]]; then
       check_openai_endpoint_auth_model \
         vision "$vision_base_url" "$service_key_file" \
-        "$(cfg VISION_MODEL nvidia/Qwen2.5-VL-7B-Instruct-NVFP4)"
+        "$(vision_model_for_role)"
     fi
     if [[ "$ROLE" != "single" && -n "$embedding_base_url" ]]; then
       check_openai_endpoint_auth_model \
@@ -593,15 +618,55 @@ PY
         "$(cfg REASONER_MODEL nvidia/Qwen3-14B-NVFP4)"
     fi
     if [[ "$ROLE" == "single" && "$REQUIRE_VISION" == "1" ]]; then
+      vision_container_id="$({
+        cd "$PROJECT_DIR"
+        docker compose --env-file "$ENV_FILE" -f compose.single.yml ps -q vision
+      })"
+      [[ -n "$vision_container_id" ]] || die "single-Spark vision container is not running"
+      python3 - "$vision_container_id" <<'PY'
+import json
+import subprocess
+import sys
+
+container = json.loads(
+    subprocess.run(
+        ["docker", "inspect", sys.argv[1]],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+)[0]
+published = {
+    port: bindings
+    for port, bindings in (container.get("NetworkSettings", {}).get("Ports") or {}).items()
+    if bindings
+}
+if published:
+    raise SystemExit("single-Spark model service must not publish a host port")
+networks = (container.get("NetworkSettings", {}).get("Networks") or {}).keys()
+if not networks:
+    raise SystemExit("single-Spark model service has no runtime network")
+for name in networks:
+    network = json.loads(
+        subprocess.run(
+            ["docker", "network", "inspect", name],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+    )[0]
+    if network.get("Internal") is not True:
+        raise SystemExit(f"runtime network {name} must have Internal=true")
+PY
       single_vision_base_url="$(cfg SINGLE_VISION_BASE_URL '')"
       if [[ -n "$single_vision_base_url" && "$single_vision_base_url" != http://vision:* ]]; then
         check_openai_endpoint_auth_model \
           vision "$single_vision_base_url" "$service_key_file" \
-          "$(cfg VISION_MODEL nvidia/Qwen2.5-VL-7B-Instruct-NVFP4)"
+          "$(vision_model_for_role)"
       else
         check_compose_endpoint_auth_model \
           vision compose.single.yml vision http://vision:8000/v1 \
-          "$(cfg VISION_MODEL nvidia/Qwen2.5-VL-7B-Instruct-NVFP4)"
+          "$(vision_model_for_role)"
       fi
     fi
     if [[ "$REQUIRE_REASONER" == "1" ]]; then

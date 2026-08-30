@@ -99,7 +99,9 @@ class RequestBodyLimitMiddleware:
                 return
             if declared_length > maximum_body:
                 response = _error_response(
-                    413, "REQUEST_TOO_LARGE", "request body exceeds the configured limit"
+                    413,
+                    "REQUEST_TOO_LARGE",
+                    "request body exceeds the configured limit",
                 )
                 await response(scope, receive, send)
                 return
@@ -199,10 +201,8 @@ def create_app(
     )
     application.state.service = service
     frame_request_bytes = (
-        (((resolved.max_frame_bytes + 2) // 3) * 4 + 2048)
-        * resolved.max_video_frames
-        + 256 * 1024
-    )
+        ((resolved.max_frame_bytes + 2) // 3) * 4 + 2048
+    ) * resolved.max_video_frames + 256 * 1024
     application.add_middleware(
         RequestBodyLimitMiddleware,
         maximum_body=resolved.max_request_bytes,
@@ -239,7 +239,9 @@ def create_app(
             {
                 "type": item.get("type", "validation_error"),
                 "location": [str(part) for part in item.get("loc", ())],
-                "message": _redact_detail(str(item.get("msg", "invalid value")), resolved),
+                "message": _redact_detail(
+                    str(item.get("msg", "invalid value")), resolved
+                ),
             }
             for item in exc.errors()
         ]
@@ -265,12 +267,11 @@ def create_app(
             if item["status"] in {"degraded", "disabled"}
         ]
         required_unavailable = []
-        if resolved.runtime_mode == "dual-node":
+        if resolved.runtime_mode in {"dual-node", "single-spark"}:
             required_unavailable = [
                 item["name"]
                 for item in health["components"]
-                if item.get("role") == "multimodal-compute"
-                and item.get("status") != "online"
+                if item.get("required") is True and item.get("status") != "online"
             ]
         payload = {
             "status": "not_ready" if required_unavailable else "ready",
@@ -286,6 +287,17 @@ def create_app(
     @application.get("/api/health")
     async def api_health():
         return await service.health()
+
+    @application.get("/api/runtime/compute")
+    async def api_compute_runtime():
+        health = await service.health()
+        return {
+            "status": health["status"],
+            "mode": health["mode"],
+            "topology": health["topology"],
+            "compute_runtime": health["compute_runtime"],
+            "checked_at": health["checked_at"],
+        }
 
     @application.post("/api/demo/scenarios/p01", status_code=201)
     async def run_p01_demo(payload: Optional[DemoScenarioRequest] = None):
@@ -333,8 +345,14 @@ def create_app(
     ):
         return await service.analyze_video_frames(session_id, video_id, payload)
 
+    @application.post("/api/sessions/{session_id}/videos/{video_id}/native-analyze")
+    async def analyze_session_native_video(session_id: str, video_id: str):
+        return await service.analyze_native_video(session_id, video_id)
+
     @application.post("/api/sessions/{session_id}/knowledge/search")
-    async def search_session_knowledge(session_id: str, payload: KnowledgeSearchRequest):
+    async def search_session_knowledge(
+        session_id: str, payload: KnowledgeSearchRequest
+    ):
         return service.search_knowledge(session_id, payload)
 
     @application.post("/api/sessions/{session_id}/plan")

@@ -13,6 +13,7 @@ const API = Object.freeze({
   imageCompare: (id) => `/api/sessions/${encodeURIComponent(id)}/images/compare`,
   videoRegister: (id) => `/api/sessions/${encodeURIComponent(id)}/videos/register`,
   videoAnalyze: (id, videoId) => `/api/sessions/${encodeURIComponent(id)}/videos/${encodeURIComponent(videoId)}/analyze`,
+  nativeVideoAnalyze: (id, videoId) => `/api/sessions/${encodeURIComponent(id)}/videos/${encodeURIComponent(videoId)}/native-analyze`,
   knowledgeSearch: (id) => `/api/sessions/${encodeURIComponent(id)}/knowledge/search`,
   plan: (id) => `/api/sessions/${encodeURIComponent(id)}/plan`,
   execute: (id) => `/api/sessions/${encodeURIComponent(id)}/execute`,
@@ -56,6 +57,7 @@ const EVENT_TEXT = Object.freeze({
   VIDEO_REGISTERED: "原始视频与文件哈希已登记",
   VIDEO_FRAMES_ANALYZED: "视频多帧质量与观察已登记",
   VIDEO_ANALYZED: "视频多帧质量与观察已登记",
+  NATIVE_VIDEO_ANALYZED: "原生视频模型观察已登记",
   KNOWLEDGE_SEARCHED: "本地知识检索完成",
   LOCAL_KNOWLEDGE_RETRIEVED: "本地知识检索完成",
   ACTION_PLANNED: "下一检测已规划并预留",
@@ -143,6 +145,7 @@ const state = {
   videoObjectUrl: null,
   videoRecord: null,
   videoAnalysis: null,
+  nativeVideoAnalysis: null,
   sampledFrames: [],
   videoBusy: false,
   knowledgePayload: null,
@@ -164,6 +167,7 @@ function syncBodyStateClasses() {
   const hasMediaAnalysis = Boolean(
     state.imageAnalysis
     || state.videoAnalysis
+    || state.nativeVideoAnalysis
     || (Array.isArray(session?.image_analyses) && session.image_analyses.length)
     || (Array.isArray(session?.video_analyses) && session.video_analyses.length),
   );
@@ -405,6 +409,7 @@ function renderShowcase() {
   const reportBadge = $("spotlight-report-state");
   reportBadge.textContent = statusText(reportState);
   reportBadge.className = `badge badge--${badgeKind(reportState)}`;
+  renderRuntimeReceipt();
 }
 
 function renderShowcaseNodes(nodeA, nodeB) {
@@ -437,25 +442,27 @@ async function loadHealth() {
 function renderHealth(health) {
   const status = normalizeStatus(health?.status || "degraded");
   const components = normalizeHealthComponents(health);
-  const nodeA = aggregateNode(components.filter((item) => item.node === "A"), "A");
-  const nodeB = aggregateNode(components.filter((item) => item.node === "B"), "B", health);
+  const singleSpark = isSingleSparkHealth(health);
+  document.body.classList.toggle("is-single-spark-runtime", singleSpark);
+
+  const nodeA = singleSpark
+    ? singleSparkAiEngine(health, components)
+    : aggregateNode(components.filter((item) => item.node === "A"), "A");
+  const nodeB = singleSpark
+    ? singleSparkEvidenceEngine(health, components)
+    : aggregateNode(components.filter((item) => item.node === "B"), "B", health);
   renderNode("a", nodeA);
   renderNode("b", nodeB);
-  renderShowcaseNodes(nodeA, nodeB);
 
   const mode = firstDefined(health?.mode, health?.runtime_mode, health?.topology?.mode, "LOCAL / CHECKING");
   const modeToken = String(mode).trim().toLowerCase().replaceAll("_", "-");
   const dualNode = modeToken === "dual-node";
-  $("node-a-name").textContent = dualNode ? "Spark A" : "逻辑 A（本机回退）";
-  $("node-b-name").textContent = dualNode ? "Spark B" : "逻辑 B（本机回退）";
-  $("brand-runtime-subtitle").textContent = dualNode
-    ? "古陶瓷多模态科学鉴证 · 双 Spark 本地控制台"
-    : "古陶瓷多模态科学鉴证 · 本机降级控制台";
-  $("node-link-label").textContent = dualNode ? "PRIVATE API" : "LOCAL LOOPBACK";
-  $("node-link-label").closest(".node-link").setAttribute(
-    "aria-label",
-    dualNode ? "受控私网 API 双向连接" : "本机逻辑服务回环连接",
-  );
+  if (singleSpark) {
+    renderSingleSparkTopology(health, components, nodeA, nodeB);
+  } else {
+    renderDistributedTopology({ dualNode, mode, nodeA, nodeB });
+  }
+
   const knowledgeVersion = firstDefined(
     health?.knowledge_version,
     health?.knowledge?.version,
@@ -464,6 +471,13 @@ function renderHealth(health) {
     "—",
   );
   $("runtime-mode").textContent = humanizeMode(mode);
+  $("physical-topology").textContent = singleSpark
+    ? health?.compute_runtime?.dgx_spark_hardware_verified === true
+      ? "1 × DGX Spark · GB10 已核验"
+      : "单机本地模式 · 硬件待核验"
+    : dualNode
+      ? "2 × SPARK · 私网协同"
+      : "本机逻辑服务";
   $("knowledge-version").textContent = String(knowledgeVersion);
   $("knowledge-snapshot").textContent = String(knowledgeVersion);
   $("data-boundary").textContent = formatDataBoundary(health?.data_boundary, health);
@@ -472,11 +486,212 @@ function renderHealth(health) {
   const globalPill = $("global-system-pill");
   const globalDot = globalPill.querySelector(".status-dot");
   globalDot.className = `status-dot status-dot--${statusClass(status)}`;
-  $("global-system-status").textContent = status === "online" || status === "ready"
-    ? dualNode ? "双节点服务可用" : "本机逻辑服务可用"
-    : status === "degraded"
-      ? "本地降级模式"
-      : `系统 ${statusText(status)}`;
+  if (!singleSpark) {
+    $("global-system-status").textContent = status === "online" || status === "ready"
+      ? dualNode ? "双节点服务可用" : "本机逻辑服务可用"
+      : status === "degraded"
+        ? "本地降级模式"
+        : `系统 ${statusText(status)}`;
+  }
+  renderRuntimeReceipt();
+}
+
+function isSingleSparkHealth(health) {
+  const mode = normalizeStatus(firstDefined(health?.mode, health?.runtime_mode, health?.topology?.mode, ""));
+  return mode === "single_spark"
+    || normalizeStatus(health?.operational_profile) === "single_spark_local_ai"
+    || (health?.topology?.physical_node_count === 1 && health?.topology?.colocated_services === true);
+}
+
+function componentMatches(component, pattern) {
+  const searchable = `${component.name} ${component.role} ${component.nodeId}`.toLowerCase();
+  return pattern.test(searchable);
+}
+
+function singleSparkAiEngine(health, components) {
+  const compute = health?.compute_runtime || {};
+  const modelComponents = components.filter((item) => componentMatches(
+    item,
+    /vision|multimodal|shared.*model|report.*model|inference/,
+  ));
+  const primary = modelComponents.find((item) => /vision|multimodal/.test(`${item.name} ${item.role}`.toLowerCase()))
+    || modelComponents[0]
+    || {};
+  const configuredModel = firstDefined(compute.configured_model, primary.configuredModel, primary.model, "待实机返回");
+  const servedModels = normalizedServedModels(firstDefined(compute.served_models, primary.servedModels, []));
+  const endpointReady = compute.endpoint_identity_ready === true;
+  const endpointStatus = normalizeStatus(firstDefined(compute.model_endpoint_status, primary.status, "checking"));
+  const identityVerified = compute.model_identity_verified === true || primary.modelIdentityVerified === true;
+  const status = endpointReady && identityVerified
+    ? "online"
+    : ["offline", "unhealthy"].includes(endpointStatus)
+      ? "offline"
+      : endpointStatus === "online" || endpointStatus === "ready"
+        ? "checking"
+        : endpointStatus === "degraded" || endpointStatus === "disabled"
+          ? "checking"
+          : endpointStatus;
+  const latencies = modelComponents.map((item) => Number(item.latency)).filter(Number.isFinite);
+  return {
+    status,
+    role: "多模态理解 · 本地模型推理",
+    model: String(configuredModel),
+    servedModels,
+    detail: endpointReady
+      ? "本地模型端点在线，配置模型与服务模型已核对"
+      : primary.detail || "等待本地模型端点与身份核对",
+    latency: latencies.length ? Math.max(...latencies) : Number(primary.latency),
+  };
+}
+
+function singleSparkEvidenceEngine(health, components) {
+  const evidenceComponents = components.filter((item) => componentMatches(
+    item,
+    /gateway|evidence|knowledge|store|audit|orchestrat|application/,
+  ));
+  const required = evidenceComponents.filter((item) => item.required !== false);
+  const considered = required.length ? required : evidenceComponents;
+  const unavailable = considered.some((item) => ["offline", "unhealthy", "unavailable"].includes(item.status));
+  const ready = considered.length > 0 && considered.every((item) => ["online", "ready"].includes(item.status));
+  const latencies = considered.map((item) => Number(item.latency)).filter(Number.isFinite);
+  return {
+    status: unavailable ? "offline" : ready ? "online" : considered.length ? "checking" : normalizeStatus(health?.status || "checking"),
+    role: "知识检索 · 证据图 · 审计与结构化报告",
+    model: "Scientific Evidence Graph · SHA-256 Audit",
+    detail: considered.length
+      ? considered.map((item) => `${item.name}: ${item.detail}`).join("；")
+      : "等待证据服务返回状态",
+    latency: latencies.length ? Math.max(...latencies) : null,
+  };
+}
+
+function renderSingleSparkTopology(health, components, aiEngine, evidenceEngine) {
+  const compute = health?.compute_runtime || {};
+  const configuredModel = firstDefined(compute.configured_model, aiEngine.model, "");
+  const servedModels = normalizedServedModels(compute.served_models);
+  const profile = inferModelProfile([configuredModel, ...servedModels].join(" "));
+  const nemotronActive = profile.name === "Nemotron-3-Nano-Omni";
+  const modelVerified = compute.model_identity_verified === true;
+  const endpointReady = compute.endpoint_identity_ready === true;
+  const hardwareVerified = compute.dgx_spark_hardware_verified === true;
+  const verifiedExecution = latestVerifiedModelRun();
+  const gpuProof = formatGpuProof(compute);
+  const topologyName = hardwareVerified ? "一台 DGX Spark" : "单机本地运行模式";
+
+  $("runtime-kicker").textContent = hardwareVerified ? "ONE DGX SPARK · GB10 VERIFIED" : "SINGLE LOCAL · HARDWARE CHECKING";
+  $("runtime-heading").textContent = `${topologyName}内的两类核心引擎`;
+  $("hero-runtime-kicker").textContent = hardwareVerified ? "ONE DGX SPARK · LIVE LOCAL COMPUTE" : "SINGLE LOCAL · DEVICE UNVERIFIED";
+  $("hero-runtime-title").textContent = "GPU AI 与科学证据引擎，在同一台设备内协同";
+  $("hero-node-a-label").textContent = "GPU AI ENGINE";
+  $("hero-node-b-label").textContent = "EVIDENCE ENGINE";
+  $("hero-engine-connector").textContent = "＋";
+  $("hero-engine-pair").setAttribute("aria-label", `${topologyName}内 GPU AI 引擎与证据引擎运行状态`);
+  $("hero-runtime-proof").textContent = endpointReady && verifiedExecution
+    ? `已有可追溯模型运行；${gpuProof.short}`
+    : endpointReady
+      ? `模型端点与身份已核对；${gpuProof.short}；尚待一次成功分析。`
+    : "当前只显示接口能够证明的状态；模型或 GPU 未实测时保持待验证。";
+
+  $("node-a-code").textContent = "AI";
+  $("node-b-code").textContent = "E";
+  $("node-a-name").textContent = "GPU AI Engine";
+  $("node-b-name").textContent = "Evidence Engine";
+  $("node-a-role-label").textContent = "Local Multimodal Inference";
+  $("node-b-role-label").textContent = "Knowledge · Evidence · Audit";
+  $("brand-runtime-subtitle").textContent = hardwareVerified
+    ? "古陶瓷多模态科学鉴证 · 单台 DGX Spark 实机控制台"
+    : "古陶瓷多模态科学鉴证 · 单机本地控制台（硬件待核验）";
+  $("node-link-label").textContent = hardwareVerified ? "ONE PHYSICAL DGX SPARK" : "ONE LOCAL MACHINE";
+  $("node-link-detail").textContent = "本地共置 · 受控任务传递";
+  $("node-link-label").closest(".node-link").setAttribute("aria-label", `${topologyName}内两类引擎共置`);
+  $("qwen-strategy-status").textContent = nemotronActive ? "BASELINE" : "DEFAULT · ACTIVE";
+  $("nemotron-strategy-status").textContent = nemotronActive ? "CANDIDATE · ACTIVE" : "A/B ONLY";
+  $("qwen-strategy-status").classList.toggle("is-active", !nemotronActive);
+  $("nemotron-strategy-status").classList.toggle("is-active", nemotronActive);
+
+  setProofValue("node-a-served-model", servedModels.length ? servedModels.join(" / ") : "待服务端点返回", servedModels.length ? "verified" : "pending");
+  setProofValue(
+    "node-a-model-identity",
+    modelVerified ? "CONFIGURED = SERVED · 已核对" : endpointReady ? "模型身份状态不一致" : "待模型端点核对",
+    modelVerified ? "verified" : endpointReady ? "warning" : "pending",
+  );
+  setProofValue(
+    "node-a-profile",
+    `${profile.name} · ${profile.label}`,
+    modelVerified ? profile.tone : "pending",
+  );
+  setProofValue("node-a-gpu-proof", gpuProof.text, gpuProof.tone);
+  $("model-profile").textContent = `${profile.name} · ${profile.label}`;
+  $("model-profile").title = profile.explanation;
+  $("physical-topology").textContent = hardwareVerified
+    ? "1 × DGX Spark · GB10 已核验"
+    : "单机本地模式 · 硬件待核验";
+
+  renderShowcaseEngineStatus("a", aiEngine.status, endpointReady ? "ENDPOINT VERIFIED" : "WAITING PROOF");
+  renderShowcaseEngineStatus("b", evidenceEngine.status, evidenceEngine.status === "online" ? "LOCAL READY" : "CHECKING");
+
+  const globalDot = $("global-system-pill").querySelector(".status-dot");
+  if (endpointReady && gpuProof.verified && verifiedExecution) {
+    globalDot.className = "status-dot status-dot--online";
+    $("global-system-status").textContent = "DGX Spark · 实机推理证据已绑定";
+  } else if (endpointReady && hardwareVerified) {
+    globalDot.className = "status-dot status-dot--checking";
+    $("global-system-status").textContent = "DGX Spark · 模型就绪，等待一次分析";
+  } else if (endpointReady) {
+    globalDot.className = "status-dot status-dot--checking";
+    $("global-system-status").textContent = "单机模型就绪 · 硬件待核验";
+  } else {
+    globalDot.className = "status-dot status-dot--checking";
+    $("global-system-status").textContent = "单机本地模式 · 等待模型与硬件证据";
+  }
+}
+
+function renderDistributedTopology({ dualNode, mode, nodeA, nodeB }) {
+  $("runtime-kicker").textContent = "RUNTIME TOPOLOGY";
+  $("runtime-heading").textContent = "本地运行态势";
+  $("hero-runtime-kicker").textContent = dualNode ? "DUAL SPARK · LIVE TOPOLOGY" : "LOCAL COMPUTE · LOGICAL SERVICES";
+  $("hero-runtime-title").textContent = dualNode ? "感知计算与证据推理，本地协同" : "本机逻辑服务正在协同运行";
+  $("hero-node-a-label").textContent = dualNode ? "SPARK A" : "LOGICAL AI";
+  $("hero-node-b-label").textContent = dualNode ? "SPARK B" : "LOGICAL EVIDENCE";
+  $("hero-engine-connector").textContent = dualNode ? "⇄" : "＋";
+  $("hero-runtime-proof").textContent = dualNode
+    ? "节点和模型状态来自受控私网健康接口。"
+    : "当前为本机软件路径，不代表 DGX Spark GPU 已完成实机验证。";
+  $("node-a-code").textContent = "A";
+  $("node-b-code").textContent = "B";
+  $("node-a-name").textContent = dualNode ? "Spark A" : "逻辑 A（本机回退）";
+  $("node-b-name").textContent = dualNode ? "Spark B" : "逻辑 B（本机回退）";
+  $("node-a-role-label").textContent = "Multimodal Compute";
+  $("node-b-role-label").textContent = "Evidence Gateway";
+  $("brand-runtime-subtitle").textContent = dualNode
+    ? "古陶瓷多模态科学鉴证 · 双 Spark 本地控制台"
+    : "古陶瓷多模态科学鉴证 · 本机降级控制台";
+  $("node-link-label").textContent = dualNode ? "PRIVATE API" : "LOCAL LOOPBACK";
+  $("node-link-detail").textContent = dualNode ? "受控私网 · 最小数据交换" : "本机逻辑服务";
+  $("node-link-label").closest(".node-link").setAttribute(
+    "aria-label",
+    dualNode ? "受控私网 API 双向连接" : "本机逻辑服务回环连接",
+  );
+  $("model-profile").textContent = /fallback|回退|未报告|未配置/i.test(String(nodeA.model || ""))
+    ? "未运行真实模型"
+    : inferModelProfile(nodeA.model).name;
+  renderShowcaseNodes(nodeA, nodeB);
+  void mode;
+}
+
+function renderShowcaseEngineStatus(prefix, status, onlineLabel) {
+  const normalized = normalizeStatus(status);
+  $(`hero-node-${prefix}-status`).textContent = ["online", "ready"].includes(normalized)
+    ? onlineLabel
+    : normalized === "offline" || normalized === "unhealthy"
+      ? "OFFLINE"
+      : onlineLabel === "WAITING PROOF" ? onlineLabel : "CHECKING";
+  const dot = $(`hero-node-${prefix}-dot`);
+  dot.className = ["online", "ready"].includes(normalized)
+    ? "is-online"
+    : ["offline", "unhealthy"].includes(normalized)
+      ? "is-offline"
+      : "";
 }
 
 function normalizeHealthComponents(health) {
@@ -498,11 +713,16 @@ function normalizeHealthComponents(health) {
     if (/spark[-_ ]?b|gateway|reason|evidence|knowledge|store|orchestrat|application/.test(search)) node = "B";
     return {
       node,
+      nodeId: component.node_id || component.node || "",
       name,
       role: component.role || component.logical_role || "",
       status: normalizeStatus(component.status || component.ready || "degraded"),
       detail: component.detail || component.message || component.endpoint || "服务状态已返回",
       model: component.model || component.model_id || component.version || "",
+      configuredModel: component.configured_model || component.model || "",
+      servedModels: normalizedServedModels(component.served_models),
+      modelIdentityVerified: component.model_identity_verified === true,
+      required: component.required,
       latency: component.latency_ms ?? component.latency ?? null,
     };
   });
@@ -565,24 +785,231 @@ function summarizeServiceDetail(value) {
 }
 
 function renderHealthError(error) {
+  const singleSpark = isSingleSparkHealth(state.health);
   for (const prefix of ["a", "b"]) {
     renderNode(prefix, {
       status: "offline",
-      role: prefix === "a" ? "感知 · 向量化 · 检索" : "编排 · 证据 · 报告",
+      role: prefix === "a" ? "多模态理解 · 本地模型推理" : "知识 · 证据 · 审计 · 报告",
       model: "状态不可用",
       detail: error.message,
       latency: null,
     });
   }
   $("global-system-pill").querySelector(".status-dot").className = "status-dot status-dot--offline";
-  $("global-system-status").textContent = "服务入口不可达";
-  $("node-a-name").textContent = "逻辑 A（状态未知）";
-  $("node-b-name").textContent = "逻辑 B（状态未知）";
+  $("global-system-status").textContent = singleSpark ? "单机本地模式 · 状态不可达" : "服务入口不可达";
+  $("node-a-name").textContent = singleSpark ? "GPU AI Engine（状态未知）" : "逻辑 A（状态未知）";
+  $("node-b-name").textContent = singleSpark ? "Evidence Engine（状态未知）" : "逻辑 B（状态未知）";
   $("brand-runtime-subtitle").textContent = "古陶瓷多模态科学鉴证 · 运行拓扑不可用";
   $("node-link-label").textContent = "LINK OFFLINE";
-  $("runtime-mode").textContent = "OFFLINE / UNKNOWN";
+  $("node-link-detail").textContent = "未取得现场健康响应";
+  $("runtime-mode").textContent = singleSpark ? "SINGLE LOCAL · STATUS UNKNOWN" : "OFFLINE / UNKNOWN";
   $("health-checked-at").textContent = formatTime(new Date().toISOString());
   renderShowcaseNodes({ status: "offline" }, { status: "offline" });
+}
+
+function normalizedServedModels(value) {
+  if (Array.isArray(value)) return unique(value.map(String).map((item) => item.trim()).filter(Boolean));
+  if (typeof value === "string" && value.trim()) return [value.trim()];
+  return [];
+}
+
+function inferModelProfile(value) {
+  const model = String(value || "").toLowerCase().replaceAll("_", "-");
+  if (/nemotron/.test(model) && /omni/.test(model)) {
+    return {
+      name: "Nemotron-3-Nano-Omni",
+      label: "原生视频候选 · English-first",
+      tone: "warning",
+      explanation: "NVIDIA 提供 DGX Spark 运行路径；本产品仍将其作为原生视频 A/B 候选，胜出并经专家确认后才可晋升。",
+    };
+  }
+  if (/qwen.?3/.test(model) && /vl/.test(model)) {
+    return {
+      name: "Qwen3-VL",
+      label: "中文陶瓷图像基线",
+      tone: "verified",
+      explanation: "Qwen3-VL 是当前中文陶瓷图片与报告基线；现场是否真实运行仍以模型身份和运行记录为准。",
+    };
+  }
+  if (/qwen/.test(model)) {
+    return {
+      name: "Qwen Baseline",
+      label: "基线配置",
+      tone: "pending",
+      explanation: "Qwen 系列在本产品中作为基线配置；不代表当前现场模型已经验证。",
+    };
+  }
+  if (model) {
+    return {
+      name: "Custom Model",
+      label: "待确认档位",
+      tone: "pending",
+      explanation: "服务返回了未归类模型名称，需要在部署记录中确认模型来源与适用档位。",
+    };
+  }
+  return {
+    name: "Qwen3-VL",
+    label: "中文陶瓷基线 · 待服务返回",
+    tone: "pending",
+    explanation: "这是当前默认基线，不是设备运行声明；必须由健康接口返回模型身份后才标记已核对。",
+  };
+}
+
+function formatGpuProof(compute) {
+  const access = normalizeStatus(compute?.gpu_access || "");
+  const devices = Array.isArray(compute?.gpu_devices) ? compute.gpu_devices : [];
+  const names = unique(devices.map((item) => item?.name).filter(Boolean));
+  if (access === "verified_by_nvidia_smi" && devices.length && compute?.dgx_spark_hardware_verified === true) {
+    const deviceCopy = names.length ? names.join(" / ") : `${devices.length} 个 NVIDIA 设备`;
+    return {
+      verified: true,
+      tone: "verified",
+      text: `NVIDIA-SMI 已探测 · ${deviceCopy}`,
+      short: `GPU 已由 NVIDIA-SMI 实机探测（${deviceCopy}）`,
+    };
+  }
+  if (access === "verified_by_nvidia_smi" && devices.length) {
+    const deviceCopy = names.length ? names.join(" / ") : `${devices.length} 个 NVIDIA 设备`;
+    return {
+      verified: false,
+      tone: "warning",
+      text: `NVIDIA-SMI 已探测 · ${deviceCopy} · 主机型号尚未核验为 DGX Spark`,
+      short: "已探测 NVIDIA GPU，但 DGX Spark 主机型号待核验",
+    };
+  }
+  if (compute?.container_gpu_visible === true) {
+    return {
+      verified: false,
+      tone: "warning",
+      text: "GPU 容器可见配置存在 · 尚无 NVIDIA-SMI 实测",
+      short: "GPU 可见性已配置，实机探测证据待补",
+    };
+  }
+  if (access) {
+    return {
+      verified: false,
+      tone: "pending",
+      text: `${String(compute.gpu_access).replaceAll("_", " ")} · 未取得 GPU 实测值`,
+      short: "GPU 探测证据尚未取得",
+    };
+  }
+  return {
+    verified: false,
+    tone: "pending",
+    text: "待实机探测",
+    short: "GPU 探测证据尚未取得",
+  };
+}
+
+function setProofValue(id, value, tone = "pending") {
+  const element = $(id);
+  if (!element) return;
+  element.textContent = value;
+  element.title = value;
+  element.classList.remove("is-verified", "is-warning", "is-pending");
+  element.classList.add(`is-${tone}`);
+}
+
+function latestVerifiedModelRun() {
+  const runs = Array.isArray(state.session?.model_runs) ? state.session.model_runs : [];
+  return lastItem(runs.filter((item) => (
+    normalizeStatus(item?.mode) === "local_vllm"
+    && normalizeStatus(item?.status) === "success"
+    && item?.model_identity_verified === true
+    && item?.model === item?.configured_model
+    && Boolean(item?.provider_request_id)
+    && item?.finish_reason === "stop"
+    && /^[0-9a-f]{64}$/i.test(String(item?.input_hash || ""))
+    && /^[0-9a-f]{64}$/i.test(String(item?.output_hash || ""))
+    && /^[0-9a-f]{7,64}$/i.test(String(item?.model_revision || ""))
+    && /^[0-9a-f]{40,64}$/i.test(String(item?.deployment_git_commit || ""))
+  )));
+}
+
+function renderRuntimeReceipt() {
+  const runs = Array.isArray(state.session?.model_runs) ? state.session.model_runs : [];
+  const realRuns = runs.filter((item) => (
+    normalizeStatus(item?.mode) === "local_vllm"
+    && normalizeStatus(item?.status) === "success"
+  ));
+  const latestReal = lastItem(realRuns);
+  const latestVerified = latestVerifiedModelRun();
+  const latestAny = lastItem(runs);
+  const latencyElement = $("last-model-latency");
+  const tokensElement = $("last-model-tokens");
+
+  if (latestReal) {
+    const latency = Number(latestReal.latency_ms);
+    latencyElement.textContent = Number.isFinite(latency)
+      ? `${Math.round(latency)} ms · LOCAL VLLM`
+      : "LOCAL VLLM · 延迟未返回";
+    latencyElement.title = [latestReal.run_id, latestReal.model, latestReal.node_id].filter(Boolean).join(" · ");
+    const usage = latestReal.token_usage || latestReal.usage || {};
+    const prompt = Number(usage.prompt_tokens);
+    const completion = Number(usage.completion_tokens);
+    const total = Number(usage.total_tokens);
+    if (Number.isFinite(prompt) || Number.isFinite(completion) || Number.isFinite(total)) {
+      const parts = [];
+      if (Number.isFinite(prompt)) parts.push(`输入 ${prompt}`);
+      if (Number.isFinite(completion)) parts.push(`输出 ${completion}`);
+      if (Number.isFinite(total)) parts.push(`总计 ${total}`);
+      tokensElement.textContent = parts.join(" · ");
+    } else {
+      tokensElement.textContent = "模型服务未返回 Token 用量";
+    }
+    tokensElement.title = "仅显示模型服务在本次真实运行中返回的 usage 字段";
+    const profile = inferModelProfile(latestReal.configured_model || latestReal.model);
+    $("model-profile").textContent = `${profile.name} · ${profile.label}`;
+    $("model-profile").title = profile.explanation;
+    if (document.body.classList.contains("is-single-spark-runtime")) {
+      setProofValue("node-a-profile", `${profile.name} · ${profile.label}`, profile.tone);
+    }
+  } else if (latestAny) {
+    latencyElement.textContent = "仅确定性回退 · 无真实模型实测";
+    latencyElement.title = latestAny.error_category || latestAny.mode || "deterministic fallback";
+    tokensElement.textContent = "无真实模型 Token 记录";
+  } else {
+    latencyElement.textContent = "尚无运行记录";
+    latencyElement.title = "";
+    tokensElement.textContent = "服务尚未返回";
+    tokensElement.title = "";
+  }
+
+  if (document.body.classList.contains("is-single-spark-runtime")) {
+    const compute = state.health?.compute_runtime || {};
+    const dot = $("global-system-pill").querySelector(".status-dot");
+    if (compute.dgx_spark_hardware_verified === true && latestVerified) {
+      dot.className = "status-dot status-dot--online";
+      $("global-system-status").textContent = "DGX Spark · 实机推理证据已绑定";
+    } else if (compute.endpoint_identity_ready === true && compute.dgx_spark_hardware_verified === true) {
+      dot.className = "status-dot status-dot--checking";
+      $("global-system-status").textContent = "DGX Spark · 模型就绪，等待一次分析";
+    } else if (compute.endpoint_identity_ready === true) {
+      dot.className = "status-dot status-dot--checking";
+      $("global-system-status").textContent = "单机模型就绪 · 硬件待核验";
+    }
+  }
+
+  const integrity = firstDefined(
+    state.envelope?.integrity,
+    state.evidencePayload?.integrity,
+    state.auditPayload?.integrity,
+    null,
+  );
+  const evidenceHash = firstDefined(
+    integrity?.binding_sha256,
+    integrity?.evidence_bundle_sha256,
+    integrity?.evidence_graph_sha256,
+    null,
+  );
+  for (const id of ["last-evidence-hash", "node-b-evidence-hash"]) {
+    const element = $(id);
+    if (!element) continue;
+    element.textContent = evidenceHash ? shortHash(evidenceHash, 18) : "尚未生成";
+    element.title = evidenceHash || "当前会话尚无后端返回的证据绑定哈希";
+    element.classList.toggle("is-verified", Boolean(evidenceHash));
+    element.classList.toggle("is-pending", !evidenceHash);
+  }
 }
 
 async function onCreateSession(event) {
@@ -646,6 +1073,7 @@ function resetPerSessionView() {
   state.imageComparison = null;
   state.videoRecord = null;
   state.videoAnalysis = null;
+  state.nativeVideoAnalysis = null;
   state.sampledFrames = [];
   state.knowledgePayload = null;
   state.evidencePayload = null;
@@ -878,7 +1306,7 @@ function selectVideoFile(file) {
     video.removeAttribute("src");
     video.load();
     $("video-empty").hidden = false;
-    $("video-caption").textContent = "拖入或选择视频 · 浏览器本地抽取代表帧";
+    $("video-caption").textContent = "MP4 可调用本地原生视频模型 · 同时保留代表帧对照";
   }
   setVideoProgress("等待视频分析", 0, 0);
   renderVideoFrames([]);
@@ -906,7 +1334,7 @@ async function onAnalyzeVideo(event) {
     formData.append("region_id", $("video-region").value);
     formData.append("duration_ms", String(durationMs));
     formData.append("capture_note", "浏览器端均匀抽帧；用户提供器物环拍视频");
-    setVideoProgress("登记原视频与 SHA-256", 1, 12);
+    setVideoProgress("登记原视频与 SHA-256", 1, 13);
     const registration = await requestForm(API.videoRegister(state.sessionId), formData);
     acceptEnvelope(registration);
     state.videoRecord = extractVideoRecord(registration, state.session);
@@ -916,13 +1344,13 @@ async function onAnalyzeVideo(event) {
     const requestedCount = clampNumber($("video-frame-count").value, 8, 12);
     setButtonLoading(button, true, "本地抽取代表帧");
     state.sampledFrames = await sampleVideoFrames(video, requestedCount, (done, total) => {
-      setVideoProgress("浏览器本地均匀抽帧", 1 + done, 2 + total);
+      setVideoProgress("浏览器本地均匀抽帧", 1 + done, 3 + total);
       renderVideoFrames(state.sampledFrames);
     });
     renderVideoFrames(state.sampledFrames);
 
     setButtonLoading(button, true, "多帧分析中");
-    setVideoProgress("服务端质量门控与跨帧融合", requestedCount + 1, requestedCount + 2);
+    setVideoProgress("服务端质量门控与跨帧融合", requestedCount + 1, requestedCount + 3);
     const payload = await request(API.videoAnalyze(state.sessionId, videoId), {
       method: "POST",
       body: {
@@ -936,12 +1364,35 @@ async function onAnalyzeVideo(event) {
       },
     });
     acceptEnvelope(payload);
-    state.videoAnalysis = extractVideoAnalysis(payload, state.session);
+    const frameAnalysis = extractVideoAnalysis(payload, state.session);
+    state.nativeVideoAnalysis = null;
+    if (inferredMime === "video/mp4") {
+      setButtonLoading(button, true, "Spark 原生视频推理");
+      setVideoProgress("服务端校验 MP4 并调用本地视频模型", requestedCount + 2, requestedCount + 3);
+      try {
+        const nativePayload = await request(API.nativeVideoAnalyze(state.sessionId, videoId), { method: "POST" });
+        acceptEnvelope(nativePayload);
+        state.nativeVideoAnalysis = extractNativeVideoAnalysis(nativePayload, state.session);
+      } catch (nativeError) {
+        toast("原生视频路径已降级", `${nativeError.message}；代表帧分析仍保留。`, "warning");
+      }
+    }
+    state.videoAnalysis = combineVideoAnalyses(frameAnalysis, state.nativeVideoAnalysis, state.session);
     renderVideoFrames(state.sampledFrames, state.videoAnalysis);
     renderMediaAnalysis(state.videoAnalysis, "video");
-    setVideoProgress("多帧证据已登记", requestedCount + 2, requestedCount + 2);
+    setVideoProgress(
+      state.nativeVideoAnalysis?.status === "SUCCESS" ? "原生视频与代表帧证据已登记" : "代表帧证据已登记",
+      requestedCount + 3,
+      requestedCount + 3,
+    );
     await Promise.allSettled([refreshEvidence({ quiet: true }), refreshAudit({ quiet: true })]);
-    toast("视频结构化分析完成", "原视频哈希、时间戳帧、质量门控与证据引用已进入同一会话。", "success");
+    toast(
+      "视频结构化分析完成",
+      state.nativeVideoAnalysis?.status === "SUCCESS"
+        ? "原生视频时序观察、代表帧质量门控与证据引用已进入同一报告。"
+        : "代表帧质量门控与证据引用已进入报告；原生模型未产生成功观察。",
+      state.nativeVideoAnalysis?.status === "SUCCESS" ? "success" : "warning",
+    );
   } catch (error) {
     setVideoProgress("分析中止 · 原因已显示", 0, 1);
     toast("视频分析失败", error.message, "error");
@@ -1078,6 +1529,45 @@ function extractVideoAnalysis(payload, session) {
   );
 }
 
+function extractNativeVideoAnalysis(payload, session) {
+  return firstDefined(
+    payload?.native_video_analysis,
+    lastItem(payload?.native_video_analyses),
+    lastItem(session?.native_video_analyses),
+  );
+}
+
+function combineVideoAnalyses(frameAnalysis, nativeAnalysis, session) {
+  if (!frameAnalysis || !nativeAnalysis) return frameAnalysis;
+  const nativeOutput = nativeAnalysis.result || {};
+  const temporal = Array.isArray(nativeOutput.temporal_observations)
+    ? nativeOutput.temporal_observations.map((item) => `跨视角：${item}`)
+    : [];
+  const modelRun = lastItem((session?.model_runs || []).filter((item) => (
+    item.role === "native_video_multimodal_observation"
+    && item.output_ref === nativeAnalysis.id
+  )));
+  return {
+    ...frameAnalysis,
+    native_video_analysis: nativeAnalysis,
+    native_model_status: nativeAnalysis.status,
+    native_model: nativeAnalysis.model,
+    native_analysis_id: nativeAnalysis.id,
+    model_run_id: modelRun?.run_id,
+    visible_observations: unique([
+      ...extractVisibleObservations(frameAnalysis),
+      ...(Array.isArray(nativeOutput.observations) ? nativeOutput.observations : []),
+      ...temporal,
+    ]),
+    candidate_regions: unique([
+      ...extractCandidateRegions(frameAnalysis),
+      ...(Array.isArray(nativeOutput.suggested_regions)
+        ? nativeOutput.suggested_regions.map((item) => firstDefined(item?.label, item?.reason)).filter(Boolean)
+        : []),
+    ]),
+  };
+}
+
 function setVideoProgress(label, completed, total) {
   const safeTotal = Math.max(0, Number(total) || 0);
   const safeCompleted = Math.min(safeTotal || 1, Math.max(0, Number(completed) || 0));
@@ -1155,9 +1645,12 @@ function renderMediaAnalysis(analysis, mode = state.mediaMode) {
     $("media-coverage").textContent = "—";
     $("media-stability").textContent = "—";
     $("media-representative").textContent = "—";
+    $("media-native-model").textContent = "—";
+    $("media-native-model").title = "";
     renderStringList("media-observations", ["等待服务端返回可见性观察"]);
     renderStringList("media-regions", ["候选区域只用于引导复核与下一步采集"]);
     renderStringList("media-evidence-refs", ["完成分析后显示原始输入、派生观察与模型运行引用"]);
+    renderStringList("media-limitations", ["模型与算法限制会保留在报告中"]);
     renderMediaNextObservation(null);
     return;
   }
@@ -1178,7 +1671,9 @@ function renderMediaAnalysis(analysis, mode = state.mediaMode) {
     : imagePassed === true;
   badge.textContent = overallPassed ? "OBSERVABLE" : "REVIEW INPUT";
   badge.className = `badge badge--${overallPassed ? "success" : "warning"}`;
-  $("media-input-type").textContent = isVideo ? "VIDEO · MULTI-FRAME" : `${analysis.modality || $("image-modality").value} · STILL`;
+  $("media-input-type").textContent = isVideo
+    ? analysis.native_model_status === "SUCCESS" ? "VIDEO · NATIVE + FRAMES" : "VIDEO · MULTI-FRAME"
+    : `${analysis.modality || $("image-modality").value} · STILL`;
   $("media-quality-summary").textContent = isVideo
     ? `${Number.isFinite(accepted) ? accepted : "—"} / ${Number.isFinite(total) ? total : "—"} 通过`
     : imagePassed === true ? "PASS" : imagePassed === false ? "REJECTED" : "RECORDED";
@@ -1195,6 +1690,19 @@ function renderMediaAnalysis(analysis, mode = state.mediaMode) {
     frameResults.filter((frame) => frame.representative || frame.selected).length,
   );
   $("media-representative").textContent = isVideo ? `${Number(representative) || 0} FRAMES` : "1 VIEW";
+  const nativeAnalysis = analysis.native_video_analysis;
+  const nativeValidation = nativeAnalysis?.media_validation || {};
+  $("media-native-model").textContent = isVideo
+    ? nativeAnalysis?.status === "SUCCESS" ? truncate(nativeAnalysis.model || "LOCAL VLM", 22) : nativeAnalysis ? "DEGRADED" : "NOT RUN"
+    : "N/A";
+  $("media-native-model").title = nativeAnalysis
+    ? [
+        nativeAnalysis.model,
+        nativeValidation.codec,
+        nativeValidation.width && nativeValidation.height ? `${nativeValidation.width}×${nativeValidation.height}` : null,
+        nativeValidation.actual_duration_ms ? `${nativeValidation.actual_duration_ms} ms` : null,
+      ].filter(Boolean).join(" · ")
+    : "";
 
   const observations = extractVisibleObservations(analysis);
   renderStringList("media-observations", observations.length ? observations : ["服务端未返回可见性观察；系统不从缺失结果推断事实"]);
@@ -1202,6 +1710,8 @@ function renderMediaAnalysis(analysis, mode = state.mediaMode) {
   renderStringList("media-regions", regions.length ? regions : ["当前没有达到显示门槛的候选区域"]);
   const refs = extractMediaEvidenceRefs(analysis, isVideo ? state.videoRecord : null);
   renderStringList("media-evidence-refs", refs.length ? refs : ["证据引用待服务端返回"]);
+  const limitations = extractMediaLimitations(analysis);
+  renderStringList("media-limitations", limitations.length ? limitations : ["当前结果仍受输入质量、覆盖范围和方法适用性限制"]);
   renderMediaNextObservation(firstDefined(analysis.next_best_observation, analysis.recommended_next_observation, analysis.next_observation, analysis.next_best_observations?.[0], state.session?.next_best_observations?.[0]));
 }
 
@@ -1249,6 +1759,19 @@ function extractCandidateRegions(analysis) {
   });
 }
 
+function extractMediaLimitations(analysis) {
+  const nativeOutput = analysis?.native_video_analysis?.result || {};
+  const values = [
+    ...(Array.isArray(nativeOutput.limitations) ? nativeOutput.limitations : []),
+    ...(Array.isArray(analysis?.limitations) ? analysis.limitations : []),
+  ];
+  if (analysis?.conclusion_boundary) values.push(analysis.conclusion_boundary);
+  if (analysis?.native_video_analysis?.conclusion_boundary) {
+    values.push(analysis.native_video_analysis.conclusion_boundary);
+  }
+  return unique(values.filter((item) => typeof item === "string" && item.trim())).slice(0, 5);
+}
+
 function extractMediaEvidenceRefs(analysis, rawRecord = null) {
   const refs = [];
   const candidates = [
@@ -1265,7 +1788,7 @@ function extractMediaEvidenceRefs(analysis, rawRecord = null) {
       if (ref) refs.push(String(ref));
     }
   }
-  for (const value of [analysis.file_id, analysis.video_id, analysis.id, rawRecord?.id, analysis.model_run?.run_id, analysis.model_run_id]) {
+  for (const value of [analysis.file_id, analysis.video_id, analysis.id, analysis.native_analysis_id, rawRecord?.id, analysis.model_run?.run_id, analysis.model_run_id]) {
     if (value) refs.push(String(value));
   }
   for (const frame of (analysis.frames || []).filter((item) => item.selected).slice(0, 3)) {
@@ -2434,7 +2957,9 @@ function badgeKind(value) {
 }
 
 function humanizeMode(value) {
-  const text = String(value ?? "").replaceAll("_", " ").toUpperCase();
+  const token = String(value ?? "").trim().toLowerCase().replaceAll("_", "-");
+  if (token === "single-spark") return "SINGLE LOCAL · COLOCATED ENGINES";
+  const text = token.replaceAll("-", " ").toUpperCase();
   if (/dual|two|双/.test(text)) return "DUAL SPARK · SERVICE COLLAB";
   if (/single|单/.test(text)) return "SINGLE SPARK · DEGRADED";
   return text;
@@ -2444,6 +2969,9 @@ function formatDataBoundary(value, health = null) {
   if (typeof value === "string" && value.trim()) return value.replaceAll("_", " ").toUpperCase();
   if (value && typeof value === "object") {
     const mode = String(value.mode || "").toUpperCase();
+    if (mode === "LOCAL_INTERNAL_NETWORK_CONFIGURED") {
+      return "本机 · 内部网络已配置 · 待主机验收";
+    }
     const localOnly = /LOCAL|OFFLINE/.test(mode) || value.raw_artifact_data_egress === "BLOCKED_BY_DEFAULT";
     const offline = Boolean(health?.offline) || /OFFLINE/.test(mode);
     const privateOnly = value.private_endpoint_enforcement === true;

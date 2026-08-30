@@ -10,15 +10,24 @@ PACKAGE_ARGS ?=
 BACKUP_ARGS ?=
 RESTORE_ARGS ?=
 SYSTEMD_ARGS ?=
+ACCEPT_ARGS ?=
 
 .PHONY: help require-role require-archive install prefetch preflight start stop restart \
 	health status backup restore package package-offline install-systemd remove-systemd check \
-	demo demo-install demo-check demo-media-check demo-media-smoke demo-media-generate test
+	demo demo-install demo-check demo-media-check demo-media-smoke demo-media-generate test \
+	accept-single-spark ab-single-spark
 
 help:
 	@printf '%s\n' \
-	  'RelicScope dual-DGX-Spark operations' \
+	  'RelicScope single-Spark operations (dual-node expansion remains available)' \
 	  '' \
+	  '  make install ROLE=single INSTALL_ARGS="--generate-key"' \
+	  '  make prefetch ROLE=single             # cache Qwen baseline + Nemotron candidate' \
+	  '  make start ROLE=single                # one-Spark GPU system, Qwen baseline' \
+	  '  make accept-single-spark              # prove live GPU image/video/report runs' \
+	  '  make ab-single-spark                  # sequential frozen-input Qwen/Nemotron A/B' \
+	  '' \
+	  'Dual-node expansion:' \
 	  '  make install ROLE=spark-b INSTALL_ARGS="--generate-key"' \
 	  '  make install ROLE=spark-a INSTALL_ARGS="--service-key /secure/service_api_key"' \
 	  '  make prefetch ROLE=spark-a              # approved online preparation only' \
@@ -59,6 +68,12 @@ demo-media-smoke:
 demo-media-generate:
 	@test -x .venv/bin/python || { printf '%s\n' 'Project .venv is required.' >&2; exit 2; }
 	.venv/bin/python scripts/generate-demo-media.py
+
+accept-single-spark:
+	./deploy/single-spark-accept.sh $(ACCEPT_ARGS)
+
+ab-single-spark:
+	./deploy/single-spark-ab.sh
 
 test:
 	@test -x .venv/bin/python || { printf '%s\n' 'Run make demo-install first.' >&2; exit 2; }

@@ -23,6 +23,10 @@ class _OnlineModel:
             "status": "online",
             "detail": "private local endpoint ready",
             "model": self.model,
+            "configured_model": self.model,
+            "served_models": [self.model],
+            "model_identity_verified": True,
+            "request_id": "health-request",
             "latency_ms": 1,
         }
 
@@ -43,7 +47,10 @@ def test_health_exposes_nodes_capabilities_and_offline_boundary(api_client):
     assert health["topology"]["dual_node_active"] is False
     assert health["topology"]["tensor_parallel"] is False
     assert health["data_boundary"]["public_fallback_allowed"] is False
-    assert health["data_boundary"]["raw_artifact_data_egress"] == "BLOCKED_BY_DEFAULT"
+    assert (
+        health["data_boundary"]["raw_artifact_data_egress"]
+        == "NOT_ATTESTED_AT_APPLICATION_LAYER"
+    )
     assert health["nodes"]
 
     capabilities = {item["id"]: item for item in health["capabilities"]}
@@ -69,7 +76,7 @@ def test_unconfigured_models_degrade_visibly_without_public_fallback(
     assert vision["execution_mode"] == "DETERMINISTIC_IMAGE_ONLY"
     assert reasoner["status"] == "disabled"
     assert reasoner["execution_mode"] == "DETERMINISTIC_REPORT_TEMPLATE"
-    assert health["data_boundary"]["mode"] == "OFFLINE_LOCAL_ONLY"
+    assert health["data_boundary"]["mode"] == "APPLICATION_LEVEL_LOCAL_ENDPOINT_POLICY"
     assert health["data_boundary"]["public_fallback_allowed"] is False
 
 
@@ -94,6 +101,44 @@ def test_dual_node_health_reports_distinct_actual_roles(app_settings):
     assert "multimodal-compute" in nodes["spark-a"]["roles"]
     assert "knowledge-evidence-gateway" in nodes["spark-b"]["roles"]
     assert nodes["spark-a"]["core_ready"] is True
+
+
+def test_single_spark_health_reports_one_physical_gpu_system(app_settings):
+    settings = replace(
+        app_settings,
+        runtime_mode="single-spark",
+        node_id="spark-single",
+        compute_node_id="spark-single",
+        model_profile="qwen3-vl",
+        vision_model_source="Qwen/Qwen3-VL-30B-A3B-Instruct",
+        vision_model_revision="a" * 40,
+        deployment_git_commit="b" * 40,
+    )
+    knowledge = KnowledgeBase.from_path(settings.knowledge_manifest_path, offline=True)
+    application = create_app(settings, knowledge=knowledge)
+    application.state.service.vision_client = _OnlineModel("qwen3_vl_30b_a3b")
+    application.state.service.reasoner_client = _OnlineModel("qwen3_vl_30b_a3b")
+
+    with TestClient(application) as client:
+        health = client.get("/api/health").json()
+        readiness = client.get("/health/ready")
+
+    assert readiness.status_code == 200
+    assert health["status"] == "online"
+    assert health["operational_profile"] == "SINGLE_SPARK_LOCAL_AI"
+    assert health["topology"]["physical_node_count"] == 1
+    assert health["topology"]["colocated_services"] is True
+    assert health["compute_runtime"]["endpoint_identity_ready"] is True
+    assert "real_model_execution_ready" not in health["compute_runtime"]
+    assert health["compute_runtime"]["model_profile"] == "qwen3-vl"
+    assert health["compute_runtime"]["model_revision"] == "a" * 40
+    assert health["compute_runtime"]["deployment_git_commit"] == "b" * 40
+    assert health["data_boundary"]["mode"] == "LOCAL_INTERNAL_NETWORK_CONFIGURED"
+    assert (
+        health["data_boundary"]["network_enforcement"]
+        == "COMPOSE_INTERNAL_REQUIRES_HOST_ATTESTATION"
+    )
+    assert [item["node_id"] for item in health["nodes"]] == ["spark-single"]
 
 
 def test_one_click_p01_demo_runs_backend_story_and_labels_all_demo_data(api_client):
@@ -130,7 +175,9 @@ def test_one_click_p01_demo_runs_backend_story_and_labels_all_demo_data(api_clie
     assert payload["data_provenance"]["contains_demo_synthetic"] is True
     assert payload["data_provenance"]["contains_real_instrument_data"] is False
     assert payload["integrity"]["valid"] is True
-    assert payload["integrity"]["verification_strength"] == "AUDIT_CHAIN_AND_SESSION_STATE"
+    assert (
+        payload["integrity"]["verification_strength"] == "AUDIT_CHAIN_AND_SESSION_STATE"
+    )
     assert len(payload["integrity"]["binding_sha256"]) == 64
 
 
@@ -180,6 +227,4 @@ def test_integrity_endpoint_detects_tampered_uploaded_file_bytes(api_client):
     assert integrity["valid"] is False
     assert integrity["raw_files"]["valid"] is False
     assert integrity["failure_reason"] == "raw file integrity failure"
-    assert integrity["raw_files"]["items"][0]["reasons"] == [
-        "FILE_BYTES_HASH_MISMATCH"
-    ]
+    assert integrity["raw_files"]["items"][0]["reasons"] == ["FILE_BYTES_HASH_MISMATCH"]

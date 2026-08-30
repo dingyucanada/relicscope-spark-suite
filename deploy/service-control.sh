@@ -107,9 +107,7 @@ start_role() {
       "${SCRIPT_DIR}/spark-b-app.sh" "${args[@]}"
       ;;
     single)
-      args=(--single)
-      [[ -n "$(cfg SINGLE_VISION_BASE_URL '')" ]] && args+=(--with-vision)
-      [[ "$(cfg REASONER_ENABLED 0)" == "1" ]] && args+=(--with-reasoner)
+      args=(--single --model-profile "$(cfg MODEL_PROFILE qwen3-vl)")
       "${SCRIPT_DIR}/spark-b-app.sh" "${args[@]}"
       ;;
     all)
@@ -151,7 +149,7 @@ case "$COMMAND" in
       (cd "$PROJECT_DIR" && docker compose --env-file "$ENV_FILE" -f compose.yml --profile reasoner ps)
     fi
     if [[ "$ROLE" == "single" ]]; then
-      (cd "$PROJECT_DIR" && docker compose --env-file "$ENV_FILE" -f compose.single.yml --profile vision --profile reasoner ps)
+      (cd "$PROJECT_DIR" && docker compose --env-file "$ENV_FILE" -f compose.single.yml ps)
     fi
     ;;
 esac

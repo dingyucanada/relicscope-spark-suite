@@ -6,6 +6,7 @@ FROM ${PYTHON_IMAGE}
 ARG APP_UID=10001
 ARG APP_GID=10001
 ARG PYPI_INDEX_URL=https://pypi.org/simple
+ARG RELICSCOPE_GIT_COMMIT=unknown
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -14,7 +15,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DEFAULT_TIMEOUT=120 \
     RELICSCOPE_DATA_DIR=/var/lib/relicscope \
     RELICSCOPE_HOST=0.0.0.0 \
-    RELICSCOPE_PORT=8088
+    RELICSCOPE_PORT=8088 \
+    RELICSCOPE_GIT_COMMIT=${RELICSCOPE_GIT_COMMIT}
 
 RUN test "${APP_UID}" -gt 0 && test "${APP_GID}" -gt 0 \
     && groupadd --gid "${APP_GID}" relicscope \
@@ -24,7 +26,8 @@ RUN test "${APP_UID}" -gt 0 && test "${APP_GID}" -gt 0 \
 
 LABEL ai.relicscope.app.uid="${APP_UID}" \
       ai.relicscope.app.gid="${APP_GID}" \
-      ai.relicscope.architecture="linux-arm64"
+      ai.relicscope.architecture="linux-arm64" \
+      org.opencontainers.image.revision="${RELICSCOPE_GIT_COMMIT}"
 
 WORKDIR /opt/relicscope
 

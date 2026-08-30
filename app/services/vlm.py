@@ -12,6 +12,7 @@ import httpx
 VISION_SYSTEM_PROMPT = """You are a cultural-heritage imaging observation assistant.
 Return JSON only with keys: observations (array of short visible facts), suggested_regions
 (array with label and reason), limitations (array), ood_risk (LOW|MEDIUM|HIGH).
+Use Chinese for every natural-language field.
 Do not authenticate, date, price, or identify the object as genuine or fake. Distinguish
 visible observations from hypotheses. The application will make all scientific decisions."""
 
@@ -20,7 +21,17 @@ RelicScope evidence package. Return JSON only with keys: summary, limitations, n
 citation_ids. citation_ids must be an array containing only source_id values already present
 in the evidence package; use an empty array when no local knowledge claim is used. Never
 claim authenticity, legal status, age, attribution, or market value. Preserve the
-application's evidence states and abstention decision exactly."""
+application's evidence states and abstention decision exactly. Use Chinese for every
+natural-language field."""
+
+NATIVE_VIDEO_SYSTEM_PROMPT = """You are a cultural-heritage video observation assistant.
+Return JSON only with keys: observations (array of visible facts), temporal_observations
+(array of changes across viewpoints or time), suggested_regions (array with label and
+reason), limitations (array), ood_risk (LOW|MEDIUM|HIGH). Do not authenticate, date,
+price, attribute, or identify the object as genuine or fake. State when motion, focus,
+lighting, occlusion, or incomplete coverage limits the observation. Use Chinese for all
+natural-language fields when supported; otherwise use English consistently and record the
+language limitation. The application makes all scientific decisions."""
 
 FORBIDDEN_VERDICT_PATTERNS = [
     r"(?:真品|赝品|仿品|高仿|伪作|真迹|正品|复制品|摹本)",
@@ -73,6 +84,16 @@ def validate_vision_output(value: Dict[str, Any]) -> Dict[str, Any]:
     return value
 
 
+def validate_native_video_output(value: Dict[str, Any]) -> Dict[str, Any]:
+    validate_vision_output(value)
+    temporal = value.get("temporal_observations")
+    if not isinstance(temporal, list) or not all(
+        isinstance(item, str) for item in temporal
+    ):
+        raise ValueError("temporal_observations must be an array of strings")
+    return value
+
+
 def report_citation_ids(report: Dict[str, Any]) -> Set[str]:
     allowed: Set[str] = set()
     for search in report.get("knowledge", {}).get("searches", []):
@@ -118,11 +139,45 @@ class OpenAICompatibleClient:
         api_key: str,
         model: str,
         timeout_seconds: float = 45.0,
+        *,
+        model_profile: str = "unknown",
+        model_source: str = "unknown",
+        model_revision: str = "unknown",
+        deployment_git_commit: str = "unknown",
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.model = model
         self.timeout_seconds = timeout_seconds
+        self.model_profile = model_profile
+        self.model_source = model_source
+        self.model_revision = model_revision
+        self.deployment_git_commit = deployment_git_commit
+
+    def _runtime_metadata(self) -> Dict[str, Any]:
+        return {
+            "model_profile": self.model_profile,
+            "model_source": self.model_source,
+            "model_revision": self.model_revision,
+            "deployment_git_commit": self.deployment_git_commit,
+        }
+
+    @property
+    def is_nemotron_omni(self) -> bool:
+        return "nemotron" in self.model.lower() and "omni" in self.model.lower()
+
+    def _model_request_options(self, *, video: bool = False) -> Dict[str, Any]:
+        """Apply model-card-safe options without changing the shared evidence schema."""
+
+        if not self.is_nemotron_omni:
+            return {}
+        options: Dict[str, Any] = {
+            "top_k": 1,
+            "chat_template_kwargs": {"enable_thinking": False},
+        }
+        if video:
+            options["mm_processor_kwargs"] = {"use_audio_in_video": False}
+        return options
 
     @property
     def configured(self) -> bool:
@@ -146,18 +201,41 @@ class OpenAICompatibleClient:
                 "status": "disabled",
                 "detail": "未配置；使用确定性本地引擎",
                 "model": self.model,
+                **self._runtime_metadata(),
             }
         started = time.perf_counter()
         try:
-            async with httpx.AsyncClient(timeout=min(self.timeout_seconds, 5.0)) as client:
-                response = await client.get(self._endpoint("models"), headers=self._headers())
+            async with httpx.AsyncClient(
+                timeout=min(self.timeout_seconds, 5.0)
+            ) as client:
+                response = await client.get(
+                    self._endpoint("models"), headers=self._headers()
+                )
                 response.raise_for_status()
+                body = response.json()
+            served_models = sorted(
+                {
+                    str(item.get("id"))
+                    for item in body.get("data", [])
+                    if isinstance(item, dict) and item.get("id")
+                }
+            )
+            model_verified = self.model in served_models
             return {
                 "name": name,
-                "status": "online",
-                "detail": "OpenAI-compatible endpoint ready",
+                "status": "online" if model_verified else "degraded",
+                "detail": (
+                    "OpenAI-compatible endpoint ready; configured model verified"
+                    if model_verified
+                    else "endpoint ready but configured model was not advertised"
+                ),
                 "model": self.model,
+                "configured_model": self.model,
+                "served_models": served_models,
+                "model_identity_verified": model_verified,
+                "request_id": response.headers.get("x-request-id"),
                 "latency_ms": int((time.perf_counter() - started) * 1000),
+                **self._runtime_metadata(),
             }
         except Exception as exc:
             return {
@@ -166,6 +244,7 @@ class OpenAICompatibleClient:
                 "detail": f"endpoint unavailable: {type(exc).__name__}",
                 "model": self.model,
                 "latency_ms": int((time.perf_counter() - started) * 1000),
+                **self._runtime_metadata(),
             }
 
     @staticmethod
@@ -181,6 +260,18 @@ class OpenAICompatibleClient:
             raise ValueError("model response must be a JSON object")
         return parsed
 
+    @staticmethod
+    def _completion_identity(
+        body: Dict[str, Any], response_headers: Any, expected_model: str
+    ) -> tuple[str, str]:
+        response_model = body.get("model")
+        if not isinstance(response_model, str) or response_model != expected_model:
+            raise ValueError("completion response did not prove the configured model identity")
+        request_id = body.get("id") or response_headers.get("x-request-id")
+        if not isinstance(request_id, str) or not request_id.strip():
+            raise ValueError("completion response did not provide a request identifier")
+        return response_model, request_id
+
     async def vision_observe(
         self, image_data_url: str, metadata: Dict[str, Any]
     ) -> Dict[str, Any]:
@@ -190,8 +281,11 @@ class OpenAICompatibleClient:
                 "mode": "deterministic_fallback",
                 "role": "vision",
                 "model": self.model,
-                "prompt_hash": hashlib.sha256(VISION_SYSTEM_PROMPT.encode("utf-8")).hexdigest(),
+                "prompt_hash": hashlib.sha256(
+                    VISION_SYSTEM_PROMPT.encode("utf-8")
+                ).hexdigest(),
                 "error": "NotConfigured",
+                **self._runtime_metadata(),
             }
         prompt = (
             "Inspect this image as a visual observation only. Context metadata: "
@@ -211,7 +305,9 @@ class OpenAICompatibleClient:
             ],
             "temperature": 0.0,
             "max_tokens": 700,
+            "response_format": {"type": "json_object"},
         }
+        payload.update(self._model_request_options())
         return await self._completion(
             payload, VISION_SYSTEM_PROMPT, "vision", validate_vision_output
         )
@@ -223,8 +319,11 @@ class OpenAICompatibleClient:
                 "mode": "deterministic_fallback",
                 "role": "reasoner",
                 "model": self.model,
-                "prompt_hash": hashlib.sha256(REASONER_SYSTEM_PROMPT.encode("utf-8")).hexdigest(),
+                "prompt_hash": hashlib.sha256(
+                    REASONER_SYSTEM_PROMPT.encode("utf-8")
+                ).hexdigest(),
                 "error": "NotConfigured",
+                **self._runtime_metadata(),
             }
         allowed_citations = report_citation_ids(report)
         payload = {
@@ -241,12 +340,60 @@ class OpenAICompatibleClient:
             ],
             "temperature": 0.0,
             "max_tokens": 700,
+            "response_format": {"type": "json_object"},
         }
+        payload.update(self._model_request_options())
         return await self._completion(
             payload,
             REASONER_SYSTEM_PROMPT,
             "reasoner",
             lambda value: validate_reasoner_output(value, allowed_citations),
+        )
+
+    async def video_observe(
+        self, video_data_url: str, metadata: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        if not self.configured:
+            return {
+                "available": False,
+                "mode": "deterministic_fallback",
+                "role": "native_video",
+                "model": self.model,
+                "configured_model": self.model,
+                "prompt_hash": hashlib.sha256(
+                    NATIVE_VIDEO_SYSTEM_PROMPT.encode("utf-8")
+                ).hexdigest(),
+                "error": "NotConfigured",
+                **self._runtime_metadata(),
+            }
+        prompt = (
+            "Inspect this complete video as a temporal visual observation. "
+            "Follow the system language policy for all natural-language fields. "
+            "Context metadata: "
+            + json.dumps(metadata, ensure_ascii=False, sort_keys=True)
+        )
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": NATIVE_VIDEO_SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "video_url", "video_url": {"url": video_data_url}},
+                    ],
+                },
+            ],
+            "temperature": 0.0,
+            "max_tokens": 1000,
+            "response_format": {"type": "json_object"},
+        }
+        payload.update(self._model_request_options(video=True))
+        return await self._completion(
+            payload,
+            NATIVE_VIDEO_SYSTEM_PROMPT,
+            "native_video",
+            validate_native_video_output,
         )
 
     async def _completion(
@@ -267,7 +414,13 @@ class OpenAICompatibleClient:
                 )
                 response.raise_for_status()
                 body = response.json()
-            content = body["choices"][0]["message"]["content"]
+            choice = body["choices"][0]
+            response_model, request_id = self._completion_identity(
+                body, response.headers, self.model
+            )
+            if choice.get("finish_reason") != "stop":
+                raise ValueError("completion did not finish cleanly")
+            content = choice["message"]["content"]
             parsed = validator(self._parse_json_content(content))
             output_hash = hashlib.sha256(
                 json.dumps(parsed, ensure_ascii=False, sort_keys=True).encode("utf-8")
@@ -276,11 +429,21 @@ class OpenAICompatibleClient:
                 "available": True,
                 "mode": "local_vllm",
                 "role": role,
-                "model": body.get("model", self.model),
+                "model": response_model,
+                "configured_model": self.model,
+                "model_identity_verified": True,
+                "request_id": request_id,
+                "usage": {
+                    key: int(value)
+                    for key, value in (body.get("usage") or {}).items()
+                    if isinstance(value, (int, float))
+                },
+                "finish_reason": choice.get("finish_reason"),
                 "prompt_hash": prompt_hash,
                 "latency_ms": int((time.perf_counter() - started) * 1000),
                 "output_hash": output_hash,
                 "output": parsed,
+                **self._runtime_metadata(),
             }
         except Exception as exc:
             return {
@@ -291,4 +454,5 @@ class OpenAICompatibleClient:
                 "prompt_hash": prompt_hash,
                 "latency_ms": int((time.perf_counter() - started) * 1000),
                 "error": type(exc).__name__,
+                **self._runtime_metadata(),
             }

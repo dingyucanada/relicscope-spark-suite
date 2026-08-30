@@ -3,8 +3,10 @@
 # the build context.
 *
 !Dockerfile
+!Dockerfile.vllm
 !requirements.lock
 !app/
 !app/**
 !data/
 !data/**
+!deploy/vllm-entrypoint.sh

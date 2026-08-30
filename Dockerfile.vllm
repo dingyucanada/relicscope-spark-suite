@@ -1,0 +1,23 @@
+ARG VLLM_BASE_IMAGE=vllm/vllm-openai:v0.20.0
+FROM ${VLLM_BASE_IMAGE}
+
+ARG PYPI_INDEX_URL=https://pypi.org/simple
+ARG RELICSCOPE_GIT_COMMIT=unknown
+
+# Nemotron Omni imports optional audio components even when RelicScope submits
+# image/video-only prompts. Build once during the approved preparation window;
+# the deployed runtime remains cache-only and starts with --pull never.
+RUN python3 -m pip install \
+      --index-url "${PYPI_INDEX_URL}" \
+      --no-cache-dir \
+      "vllm[audio]==0.20.0"
+
+COPY deploy/vllm-entrypoint.sh /opt/relicscope/vllm-entrypoint.sh
+RUN chmod 0755 /opt/relicscope/vllm-entrypoint.sh
+
+LABEL ai.relicscope.runtime="qwen3-vl-nemotron-omni-ab" \
+      ai.relicscope.vllm.version="0.20.0" \
+      ai.relicscope.architecture="linux-arm64" \
+      org.opencontainers.image.revision="${RELICSCOPE_GIT_COMMIT}"
+
+ENTRYPOINT ["/opt/relicscope/vllm-entrypoint.sh"]

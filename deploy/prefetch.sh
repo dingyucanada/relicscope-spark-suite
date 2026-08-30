@@ -123,6 +123,7 @@ cached_model_revision() {
 require_command docker
 require_command awk
 require_command python3
+require_command git
 
 [[ "$(uname -s)" == "Linux" ]] || die "prefetch must run on the target Linux DGX Spark"
 case "$(uname -m)" in
@@ -130,11 +131,17 @@ case "$(uname -m)" in
   *) die "target must be ARM64; detected $(uname -m)" ;;
 esac
 docker info >/dev/null 2>&1 || die "Docker daemon is unavailable"
+deployment_git_commit="$(git -C "$PROJECT_DIR" rev-parse HEAD)"
+[[ "$deployment_git_commit" =~ ^[0-9A-Fa-f]{40,64}$ ]] \
+  || die "unable to resolve an immutable source commit"
+[[ -z "$(git -C "$PROJECT_DIR" status --porcelain)" ]] \
+  || die "tracked source files are dirty; commit or restore them before building deployment images"
 
-app_image="$(cfg APP_IMAGE relicscope-ai-demo:1.1.0-arm64)"
+app_image="$(cfg APP_IMAGE relicscope-ai-demo:1.2.0-arm64)"
 python_image="$(cfg PYTHON_IMAGE python:3.12.11-slim-bookworm)"
 pypi_index_url="$(cfg PYPI_INDEX_URL https://pypi.org/simple)"
-vllm_image="$(cfg VLLM_IMAGE nvcr.io/nvidia/vllm:26.05.post1-py3)"
+vllm_base_image="$(cfg VLLM_BASE_IMAGE vllm/vllm-openai:v0.20.0)"
+vllm_image="$(cfg VLLM_IMAGE relicscope-multimodal-vllm:0.20.0-arm64)"
 app_uid="$(cfg APP_UID "$(id -u)")"
 app_gid="$(cfg APP_GID "$(id -g)")"
 hf_cache_dir="$(safe_managed_dir "$(absolute_path "$(cfg HF_CACHE_DIR ./runtime/hf-cache)")")"
@@ -145,6 +152,7 @@ manifest_file="${manifest_dir}/prefetch-manifest-${ROLE}.txt"
 
 require_pinned_image "$app_image"
 require_pinned_image "$python_image"
+require_pinned_image "$vllm_base_image"
 require_pinned_image "$vllm_image"
 [[ "$pypi_index_url" == https://* ]] \
   || die "PYPI_INDEX_URL must use HTTPS"
@@ -205,8 +213,18 @@ mkdir -p -- "$hf_cache_dir" "$vllm_cache_dir" "$manifest_dir"
 chmod 700 "$hf_cache_dir" "$vllm_cache_dir" "$manifest_dir"
 
 if [[ "$need_vllm" == "1" ]]; then
-  printf 'Pulling fixed vLLM image: %s\n' "$vllm_image"
-  docker pull "$vllm_image"
+  printf 'Pulling fixed vLLM base image: %s\n' "$vllm_base_image"
+  docker pull "$vllm_base_image"
+  printf 'Building offline multimodal runtime: %s\n' "$vllm_image"
+  docker build \
+    --platform linux/arm64 \
+    --pull=false \
+    --file "${PROJECT_DIR}/Dockerfile.vllm" \
+    --build-arg "VLLM_BASE_IMAGE=${vllm_base_image}" \
+    --build-arg "PYPI_INDEX_URL=${pypi_index_url}" \
+    --build-arg "RELICSCOPE_GIT_COMMIT=${deployment_git_commit}" \
+    --tag "$vllm_image" \
+    "$PROJECT_DIR"
 fi
 
 if [[ "$need_app" == "1" ]]; then
@@ -220,13 +238,18 @@ if [[ "$need_app" == "1" ]]; then
     --build-arg "PYPI_INDEX_URL=${pypi_index_url}" \
     --build-arg "APP_UID=${app_uid}" \
     --build-arg "APP_GID=${app_gid}" \
+    --build-arg "RELICSCOPE_GIT_COMMIT=${deployment_git_commit}" \
     --tag "$app_image" \
     "$PROJECT_DIR"
 fi
 
 models=()
 if [[ "$need_vision" == "1" ]]; then
-  models+=("$(cfg VISION_MODEL nvidia/Qwen2.5-VL-7B-Instruct-NVFP4)")
+  models+=("$(cfg VISION_MODEL_SOURCE Qwen/Qwen3-VL-30B-A3B-Instruct)")
+  if [[ "$ROLE" == "single" || "$ROLE" == "all" ]] \
+      && [[ "$(cfg PREFETCH_AB_MODELS 1)" == "1" ]]; then
+    models+=("$(cfg AB_NEMOTRON_MODEL_SOURCE nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning-NVFP4)")
+  fi
 fi
 if [[ "$need_embedding" == "1" ]]; then
   models+=("$(cfg EMBEDDING_MODEL Qwen/Qwen3-VL-Embedding-2B)")
@@ -243,6 +266,7 @@ tmp_manifest="$(mktemp "${manifest_dir}/prefetch.XXXXXX")"
   printf 'generated_at_utc=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   printf 'role=%s\n' "$ROLE"
   printf 'architecture=%s\n' "$(uname -m)"
+  printf 'deployment_git_commit=%s\n' "$deployment_git_commit"
   printf 'app_uid=%s\n' "$app_uid"
   printf 'app_gid=%s\n' "$app_gid"
   printf 'app_image=%s\n' "$app_image"
@@ -250,6 +274,7 @@ tmp_manifest="$(mktemp "${manifest_dir}/prefetch.XXXXXX")"
     printf 'app_image_id=%s\n' "$(docker image inspect --format '{{.Id}}' "$app_image")"
   fi
   printf 'vllm_image=%s\n' "$vllm_image"
+  printf 'vllm_base_image=%s\n' "$vllm_base_image"
   if [[ "$need_vllm" == "1" ]]; then
     printf 'vllm_image_id=%s\n' "$(docker image inspect --format '{{.Id}}' "$vllm_image")"
   fi

@@ -6,7 +6,7 @@
     <meta name="color-scheme" content="dark" />
     <meta
       name="description"
-      content="RelicScope AI 双 Spark 多模态文物科学鉴证演示控制台"
+      content="RelicScope AI 单台 DGX Spark 多模态文物科学鉴证演示控制台"
     />
     <title>RelicScope AI · Scientific Forensics Console</title>
     <link rel="icon" href="/static/ceramic-placeholder.svg" type="image/svg+xml" />
@@ -120,13 +120,14 @@
         <article class="signal-card signal-card--compute">
           <div class="signal-card__index">02</div>
           <div>
-            <p class="eyebrow">DUAL SPARK · LIVE TOPOLOGY</p>
-            <h3>感知计算与证据推理，本地协同</h3>
-            <div class="spark-pair" aria-label="双 Spark 运行状态">
-              <span><i id="hero-node-a-dot"></i>SPARK A <strong id="hero-node-a-status">CHECKING</strong></span>
-              <b aria-hidden="true">⇄</b>
-              <span><i id="hero-node-b-dot"></i>SPARK B <strong id="hero-node-b-status">CHECKING</strong></span>
+            <p class="eyebrow" id="hero-runtime-kicker">LOCAL COMPUTE · VERIFYING TOPOLOGY</p>
+            <h3 id="hero-runtime-title">正在确认计算与证据服务的实际运行位置</h3>
+            <div class="spark-pair" id="hero-engine-pair" aria-label="本地引擎运行状态">
+              <span><i id="hero-node-a-dot"></i><em id="hero-node-a-label">GPU AI ENGINE</em> <strong id="hero-node-a-status">CHECKING</strong></span>
+              <b id="hero-engine-connector" aria-hidden="true">＋</b>
+              <span><i id="hero-node-b-dot"></i><em id="hero-node-b-label">EVIDENCE ENGINE</em> <strong id="hero-node-b-status">CHECKING</strong></span>
             </div>
+            <p class="compute-proof-copy" id="hero-runtime-proof">模型、GPU 与延迟信息只显示现场接口返回的实测证据。</p>
           </div>
         </article>
 
@@ -211,7 +212,7 @@
           <div>
             <span class="section-index">00</span>
             <div>
-              <p class="eyebrow">RUNTIME TOPOLOGY</p>
+              <p class="eyebrow" id="runtime-kicker">RUNTIME TOPOLOGY</p>
               <h2 id="runtime-heading">本地运行态势</h2>
             </div>
           </div>
@@ -223,41 +224,47 @@
         <div class="runtime-grid">
           <article class="node-card" id="node-a-card">
             <div class="node-card__head">
-              <div class="node-code">A</div>
+              <div class="node-code" id="node-a-code">AI</div>
               <div>
-                <p class="node-name" id="node-a-name">逻辑 A（拓扑检测中）</p>
-                <p class="node-role">Multimodal Compute</p>
+                <p class="node-name" id="node-a-name">GPU AI Engine（探测中）</p>
+                <p class="node-role" id="node-a-role-label">Local Multimodal Inference</p>
               </div>
               <span class="badge badge--neutral" id="node-a-status">CHECKING</span>
             </div>
             <dl class="metric-list">
-              <div><dt>逻辑角色</dt><dd id="node-a-role">感知 · 向量化 · 检索</dd></div>
-              <div><dt>模型</dt><dd id="node-a-model" class="mono">等待健康响应</dd></div>
+              <div><dt>引擎职责</dt><dd id="node-a-role">多模态理解 · 本地推理</dd></div>
+              <div><dt>配置模型</dt><dd id="node-a-model" class="mono">等待健康响应</dd></div>
+              <div data-single-only><dt>实际服务模型</dt><dd id="node-a-served-model" class="mono proof-value">待实机返回</dd></div>
+              <div data-single-only><dt>模型身份</dt><dd id="node-a-model-identity" class="proof-value is-pending">待核对</dd></div>
+              <div data-single-only><dt>模型档位</dt><dd id="node-a-profile" class="proof-value is-pending">Qwen3-VL · 中文陶瓷基线</dd></div>
+              <div data-single-only><dt>GPU 实机探测</dt><dd id="node-a-gpu-proof" class="proof-value is-pending">待实机探测</dd></div>
               <div><dt>服务</dt><dd id="node-a-detail">正在探测</dd></div>
-              <div><dt>延迟</dt><dd id="node-a-latency">—</dd></div>
+              <div><dt>端点往返延迟</dt><dd id="node-a-latency">—</dd></div>
             </dl>
           </article>
 
           <div class="node-link" aria-label="受控私网 API 双向连接">
             <span class="node-link__line"></span>
             <span class="node-link__label" id="node-link-label">LOCAL LINK</span>
+            <small class="node-link__detail" id="node-link-detail">正在确认物理拓扑</small>
             <span class="node-link__line"></span>
           </div>
 
           <article class="node-card" id="node-b-card">
             <div class="node-card__head">
-              <div class="node-code node-code--b">B</div>
+              <div class="node-code node-code--b" id="node-b-code">E</div>
               <div>
-                <p class="node-name" id="node-b-name">逻辑 B（拓扑检测中）</p>
-                <p class="node-role">Evidence Gateway</p>
+                <p class="node-name" id="node-b-name">Evidence Engine（探测中）</p>
+                <p class="node-role" id="node-b-role-label">Knowledge · Evidence · Audit</p>
               </div>
               <span class="badge badge--neutral" id="node-b-status">CHECKING</span>
             </div>
             <dl class="metric-list">
-              <div><dt>逻辑角色</dt><dd id="node-b-role">编排 · 证据 · 报告</dd></div>
-              <div><dt>模型</dt><dd id="node-b-model" class="mono">等待健康响应</dd></div>
+              <div><dt>引擎职责</dt><dd id="node-b-role">知识 · 证据 · 审计 · 报告</dd></div>
+              <div><dt>核心能力</dt><dd id="node-b-model" class="mono">等待健康响应</dd></div>
               <div><dt>服务</dt><dd id="node-b-detail">正在探测</dd></div>
-              <div><dt>延迟</dt><dd id="node-b-latency">—</dd></div>
+              <div data-single-only><dt>证据绑定哈希</dt><dd id="node-b-evidence-hash" class="mono hash-value proof-value is-pending">尚未生成</dd></div>
+              <div><dt>服务探测延迟</dt><dd id="node-b-latency">—</dd></div>
             </dl>
           </article>
 
@@ -265,6 +272,26 @@
             <div>
               <span>运行模式</span>
               <strong id="runtime-mode">检测中</strong>
+            </div>
+            <div>
+              <span>物理拓扑</span>
+              <strong id="physical-topology">待探测</strong>
+            </div>
+            <div>
+              <span>当前模型档位</span>
+              <strong id="model-profile">待模型端点返回</strong>
+            </div>
+            <div>
+              <span>最近真实模型运行</span>
+              <strong id="last-model-latency">尚无运行记录</strong>
+            </div>
+            <div>
+              <span>Token 用量</span>
+              <strong id="last-model-tokens">服务尚未返回</strong>
+            </div>
+            <div>
+              <span>证据绑定</span>
+              <strong id="last-evidence-hash" class="mono">尚未生成</strong>
             </div>
             <div>
               <span>知识版本</span>
@@ -280,6 +307,25 @@
             </div>
           </article>
         </div>
+        <div class="model-strategy" data-single-only aria-label="单台 Spark 模型策略">
+          <div class="model-strategy__heading">
+            <span>MODEL STRATEGY</span>
+            <strong>一台 Spark · 同一输入 · 顺序 A/B</strong>
+          </div>
+          <article class="model-strategy__model model-strategy__model--baseline">
+            <div><small>DEFAULT BASELINE</small><h3>Qwen3-VL</h3></div>
+            <p>中文陶瓷图像主基线<br /><span>同一视频的 A/B 对照</span></p>
+            <b id="qwen-strategy-status">DEFAULT</b>
+          </article>
+          <div class="model-strategy__arrow" aria-hidden="true">→</div>
+          <article class="model-strategy__model model-strategy__model--candidate">
+            <div><small>NATIVE VIDEO CANDIDATE</small><h3>Nemotron 3 Nano Omni</h3></div>
+            <p>原生视频时序观察<br /><span>English-first · 专家复核</span></p>
+            <b id="nemotron-strategy-status">A/B ONLY</b>
+          </article>
+          <p class="model-strategy__rule">冻结视频哈希 · 每次只加载一个模型 · 候选通过机器门槛和专家复核后才可晋升</p>
+        </div>
+        <p class="runtime-proof-note" id="runtime-proof-note">实机字段来自健康探测与当前会话运行记录；缺失字段显示“待验证”，不会以配置值冒充测量值。</p>
       </section>
 
       <div class="workspace-intro" id="operator-workspace">
@@ -357,7 +403,7 @@
               <span>01</span><strong>器物图像</strong><small>质量 · 区域 · 指纹</small>
             </button>
             <button class="media-mode-tab" id="media-tab-video" type="button" role="tab" aria-selected="false" aria-controls="video-input-pane" data-media-tab="video">
-              <span>02</span><strong>环拍视频</strong><small>抽帧 · 覆盖 · 稳定性</small>
+              <span>02</span><strong>环拍视频</strong><small>原生视频 · 抽帧对照</small>
             </button>
           </div>
 
@@ -427,13 +473,13 @@
               <video id="artifact-video" controls muted playsinline preload="metadata" aria-label="已选择的器物环拍视频"></video>
               <div class="video-empty" id="video-empty"><span>360°</span><strong>等待器物环拍视频</strong><small>建议缓慢绕拍一周，保持光照与距离稳定</small></div>
               <div class="drop-instruction" aria-hidden="true"><span>DROP</span><strong>释放以载入视频</strong></div>
-              <p class="artifact-viewer__caption" id="video-caption">拖入或选择视频 · 浏览器本地抽取代表帧</p>
+              <p class="artifact-viewer__caption" id="video-caption">MP4 可调用本地原生视频模型 · 同时保留代表帧对照</p>
             </div>
 
             <form id="video-form" class="capture-controls">
               <label class="file-picker" for="video-file">
                 <span class="file-picker__icon" aria-hidden="true">＋</span>
-                <span><strong>选择器物环拍视频</strong><small>MP4 / MOV / WEBM / AVI · 原视频先登记哈希，再提交抽帧</small></span>
+                <span><strong>选择器物环拍视频</strong><small>H.264 MP4：原生模型 + 抽帧对照；其他格式：抽帧路径</small></span>
                 <input id="video-file" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-msvideo,.mp4,.mov,.webm,.avi" />
               </label>
               <div class="inline-fields video-fields">
@@ -450,7 +496,7 @@
                   <select id="video-frame-count"><option value="8">8 帧</option><option value="10" selected>10 帧</option><option value="12">12 帧</option></select>
                 </label>
               </div>
-              <button class="button button--secondary" id="analyze-video" type="submit" disabled>登记视频并分析多帧</button>
+              <button class="button button--secondary" id="analyze-video" type="submit" disabled>在 Spark 上分析视频</button>
             </form>
 
             <div class="video-process" aria-live="polite">
@@ -473,6 +519,7 @@
               <div><span>COVERAGE</span><strong id="media-coverage">—</strong></div>
               <div><span>STABILITY</span><strong id="media-stability">—</strong></div>
               <div><span>REPRESENTATIVE</span><strong id="media-representative">—</strong></div>
+              <div><span>NATIVE MODEL</span><strong id="media-native-model">—</strong></div>
             </div>
             <div class="media-reading-grid">
               <article>
@@ -486,6 +533,10 @@
               <article>
                 <p class="micro-label">EVIDENCE REFERENCES</p>
                 <ul class="media-list media-list--mono" id="media-evidence-refs"><li>完成分析后显示原始输入、派生观察与模型运行引用</li></ul>
+              </article>
+              <article>
+                <p class="micro-label">LIMITATIONS / ABSTENTION</p>
+                <ul class="media-list" id="media-limitations"><li>模型与算法限制会保留在报告中</li></ul>
               </article>
             </div>
             <div class="next-observation-card">

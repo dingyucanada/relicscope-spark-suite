@@ -46,7 +46,7 @@ fi
 bind_ip="$(cfg SPARK_A_BIND_IP '')"
 [[ -n "$bind_ip" ]] || die "SPARK_A_BIND_IP must be a pinned private IP"
 port="$(cfg EMBEDDING_PORT 8003)"
-image="$(cfg VLLM_IMAGE nvcr.io/nvidia/vllm:26.05.post1-py3)"
+image="$(cfg VLLM_IMAGE relicscope-multimodal-vllm:0.20.0-arm64)"
 model="$(cfg EMBEDDING_MODEL Qwen/Qwen3-VL-Embedding-2B)"
 node_id="$(cfg EMBEDDING_NODE_ID "$(cfg RELICSCOPE_COMPUTE_NODE_ID spark-a)")"
 cache_dir="$(absolute_path "$(cfg HF_CACHE_DIR ./runtime/hf-cache)")"

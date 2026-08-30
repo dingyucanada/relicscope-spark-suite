@@ -61,17 +61,23 @@ class Settings:
     max_upload_bytes: int
     max_request_bytes: int
     max_video_bytes: int
+    max_native_video_bytes: int
+    max_native_video_duration_ms: int
     max_video_frames: int
     max_frame_bytes: int
     demo_mode: bool
     offline_mode: bool
     runtime_mode: str
     service_version: str
+    deployment_git_commit: str
     node_id: str
     compute_node_id: str
+    model_profile: str
     knowledge_manifest_path: Path
     vision_base_url: str
     vision_api_key: str
+    vision_model_source: str
+    vision_model_revision: str
     vision_model: str
     embedding_base_url: str
     embedding_api_key: str
@@ -80,12 +86,15 @@ class Settings:
     reasoner_api_key: str
     reasoner_model: str
     model_timeout_seconds: float
+    model_max_concurrency: int
     require_private_endpoints: bool
 
     @classmethod
     def from_env(cls) -> "Settings":
         project_root = Path(__file__).resolve().parents[1]
-        data_dir = Path(os.getenv("RELICSCOPE_DATA_DIR", project_root / "runtime")).expanduser()
+        data_dir = Path(
+            os.getenv("RELICSCOPE_DATA_DIR", project_root / "runtime")
+        ).expanduser()
         max_upload_bytes = int(
             os.getenv("RELICSCOPE_MAX_UPLOAD_BYTES", str(8 * 1024 * 1024))
         )
@@ -111,14 +120,22 @@ class Settings:
                 os.getenv("RELICSCOPE_MAX_REQUEST_BYTES", str(default_request_bytes))
             ),
             max_video_bytes=max_video_bytes,
+            max_native_video_bytes=int(
+                os.getenv("RELICSCOPE_MAX_NATIVE_VIDEO_BYTES", str(32 * 1024 * 1024))
+            ),
+            max_native_video_duration_ms=int(
+                os.getenv("RELICSCOPE_MAX_NATIVE_VIDEO_DURATION_MS", "15000")
+            ),
             max_video_frames=int(os.getenv("RELICSCOPE_MAX_VIDEO_FRAMES", "12")),
             max_frame_bytes=max_frame_bytes,
             demo_mode=_env_bool("RELICSCOPE_DEMO_MODE", True),
             offline_mode=_env_bool("RELICSCOPE_OFFLINE_MODE", True),
             runtime_mode=os.getenv("RELICSCOPE_RUNTIME_MODE", "single-degraded"),
-            service_version=os.getenv("RELICSCOPE_SERVICE_VERSION", "1.1.0"),
+            service_version=os.getenv("RELICSCOPE_SERVICE_VERSION", "1.2.0"),
+            deployment_git_commit=os.getenv("RELICSCOPE_GIT_COMMIT", "unknown"),
             node_id=os.getenv("RELICSCOPE_NODE_ID", "spark-b"),
             compute_node_id=os.getenv("RELICSCOPE_COMPUTE_NODE_ID", "spark-a"),
+            model_profile=os.getenv("MODEL_PROFILE", "qwen3-vl"),
             knowledge_manifest_path=Path(
                 os.getenv(
                     "RELICSCOPE_KNOWLEDGE_MANIFEST",
@@ -127,17 +144,22 @@ class Settings:
             ).expanduser(),
             vision_base_url=os.getenv("VISION_BASE_URL", "").rstrip("/"),
             vision_api_key=os.getenv("VISION_API_KEY", ""),
-            vision_model=os.getenv(
-                "VISION_MODEL", "nvidia/Qwen2.5-VL-7B-Instruct-NVFP4"
+            vision_model_source=os.getenv(
+                "VISION_MODEL_SOURCE", "Qwen/Qwen3-VL-30B-A3B-Instruct"
             ),
+            vision_model_revision=os.getenv("VISION_MODEL_REVISION", "unknown"),
+            vision_model=os.getenv("VISION_MODEL", "qwen3_vl_30b_a3b"),
             embedding_base_url=os.getenv("EMBEDDING_BASE_URL", "").rstrip("/"),
             embedding_api_key=os.getenv("EMBEDDING_API_KEY", ""),
             embedding_model=os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3"),
             reasoner_base_url=os.getenv("REASONER_BASE_URL", "").rstrip("/"),
             reasoner_api_key=os.getenv("REASONER_API_KEY", ""),
-            reasoner_model=os.getenv("REASONER_MODEL", "nvidia/Qwen3-14B-NVFP4"),
+            reasoner_model=os.getenv("REASONER_MODEL", "qwen3_vl_30b_a3b"),
             model_timeout_seconds=float(os.getenv("MODEL_TIMEOUT_SECONDS", "45")),
-            require_private_endpoints=_env_bool("RELICSCOPE_REQUIRE_PRIVATE_ENDPOINTS", True),
+            model_max_concurrency=int(os.getenv("MODEL_MAX_CONCURRENCY", "2")),
+            require_private_endpoints=_env_bool(
+                "RELICSCOPE_REQUIRE_PRIVATE_ENDPOINTS", True
+            ),
         )
 
     def ensure_runtime_dirs(self) -> None:
@@ -145,17 +167,26 @@ class Settings:
         self.upload_dir.mkdir(parents=True, exist_ok=True)
 
     def validate_runtime(self) -> None:
-        if self.runtime_mode not in {"dual-node", "single-degraded", "local-development"}:
+        if self.runtime_mode not in {
+            "dual-node",
+            "single-spark",
+            "single-degraded",
+            "local-development",
+        }:
             raise ValueError(f"unsupported runtime mode: {self.runtime_mode}")
         if (
             self.max_upload_bytes <= 0
             or self.max_request_bytes <= 0
             or self.max_video_bytes <= 0
+            or self.max_native_video_bytes <= 0
+            or self.max_native_video_duration_ms <= 0
             or self.max_frame_bytes <= 0
         ):
             raise ValueError("request and upload limits must be positive")
         if not 3 <= self.max_video_frames <= 24:
             raise ValueError("video frame limit must be between 3 and 24")
+        if not 1 <= self.model_max_concurrency <= 8:
+            raise ValueError("model concurrency must be between 1 and 8")
         endpoints = {
             "VISION_BASE_URL": self.vision_base_url,
             "EMBEDDING_BASE_URL": self.embedding_base_url,
@@ -163,7 +194,9 @@ class Settings:
         }
         if self.require_private_endpoints:
             invalid = [
-                name for name, value in endpoints.items() if not _service_url_is_private(value)
+                name
+                for name, value in endpoints.items()
+                if not _service_url_is_private(value)
             ]
             if invalid:
                 raise ValueError(

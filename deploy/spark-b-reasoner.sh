@@ -46,7 +46,7 @@ fi
 bind_ip="$(cfg SPARK_B_BIND_IP '')"
 [[ -n "$bind_ip" ]] || die "SPARK_B_BIND_IP must be a pinned private IP"
 port="$(cfg REASONER_PORT 8002)"
-image="$(cfg VLLM_IMAGE nvcr.io/nvidia/vllm:26.05.post1-py3)"
+image="$(cfg VLLM_IMAGE relicscope-multimodal-vllm:0.20.0-arm64)"
 model="$(cfg REASONER_MODEL nvidia/Qwen3-14B-NVFP4)"
 node_id="$(cfg REASONER_NODE_ID "$(cfg RELICSCOPE_NODE_ID spark-b)")"
 cache_dir="$(absolute_path "$(cfg HF_CACHE_DIR ./runtime/hf-cache)")"
