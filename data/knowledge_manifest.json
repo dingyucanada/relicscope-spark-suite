@@ -1,0 +1,338 @@
+{
+  "schema_version": "relicscope-knowledge-manifest-v1",
+  "knowledge_base_id": "relicscope-demo-ceramics",
+  "knowledge_space": "demo",
+  "data_level": "DEMO/SYNTHETIC",
+  "version": "relicscope-demo-ceramics-v1@90d7bb2d2f00",
+  "published_at": "2026-08-28T00:00:00Z",
+  "retrieval_config_version": "relicscope-hybrid-retrieval-v1",
+  "vector_dimension": 8,
+  "content_set_sha256": "90d7bb2d2f00501d3b0727570ca233bae100788aef46464bd8d61755cb7a825e",
+  "manifest_sha256": "bf245b1331252c6c8cfd252648affac31ad68bca9039c88a9eea2b7543a633b7",
+  "entries": [
+    {
+      "source_id": "demo:ceramic:rgb-observation:v1",
+      "title": "青花陶瓷 RGB 可见特征观察卡（合成演示）",
+      "publisher": "RelicScope AI Demo Team",
+      "source_type": "synthetic_reference",
+      "published_at": "2026-08-28",
+      "document_version": "1.0-demo",
+      "ingested_at": "2026-08-28T00:00:00Z",
+      "content_sha256": "9ab8b4ad019d2c8e25fc512efdab4cfc5b3cd790e0655b7656850f4a3e7730fb",
+      "license": {
+        "identifier": "RelicScope-Demo-Only-1.0",
+        "statement": "仅限 RelicScope 产品演示和内部测试；不得作为馆藏记录、专家意见或鉴定依据。",
+        "allowed_purposes": ["product_demo", "internal_test"],
+        "access_scopes": ["demo-public", "demo-operator"],
+        "valid_from": "2026-08-28",
+        "valid_until": "2030-12-31",
+        "attribution_required": true
+      },
+      "scope": {
+        "artifact_types": ["陶瓷", "瓷器"],
+        "materials": ["瓷", "釉", "青花料"],
+        "modalities": ["RGB"],
+        "crafts": ["青花", "釉下彩"],
+        "regions": ["器身", "口沿", "足部"],
+        "tags": ["可见光", "纹饰", "釉面", "观察候选"],
+        "limitations": ["只描述可见特征", "不用于真伪或断代结论"]
+      },
+      "location": {
+        "kind": "record",
+        "locator": "DEMO-RGB-01/观察卡全文"
+      },
+      "review_status": {
+        "status": "REVIEWED_DEMO_ONLY",
+        "reviewer": "RelicScope Demo QA（非文物专家审核）",
+        "reviewed_at": "2026-08-28T00:00:00Z",
+        "note": "仅复核演示标签、结构和安全表述。"
+      },
+      "text": "DEMO/SYNTHETIC：青花陶瓷的 RGB 观察应分别记录器形轮廓、纹饰边界、釉面反光、色彩分布和局部缺陷候选区域。可见相似性只能用于召回待比较资料；它不能单独支持窑口、年代、作者或真伪命题。光照不均、白平衡偏移和压缩伪影必须进入观察局限。",
+      "feature_vector": [0.57, 0.65, 0.51, 0.19, 0.36, 0.29, 0.82, 0.73],
+      "knowledge_space": "demo",
+      "data_level": "DEMO/SYNTHETIC",
+      "chunks": [
+        {
+          "chunk_id": "demo:ceramic:rgb-observation:v1#c0",
+          "position": 0,
+          "text": "DEMO/SYNTHETIC：青花陶瓷的 RGB 观察应分别记录器形轮廓、纹饰边界、釉面反光、色彩分布和局部缺陷候选区域。可见相似性只能用于召回待比较资料；它不能单独支持窑口、年代、作者或真伪命题。光照不均、白平衡偏移和压缩伪影必须进入观察局限。",
+          "content_sha256": "9ab8b4ad019d2c8e25fc512efdab4cfc5b3cd790e0655b7656850f4a3e7730fb",
+          "location": {
+            "kind": "record",
+            "locator": "DEMO-RGB-01/段落-1"
+          }
+        }
+      ]
+    },
+    {
+      "source_id": "demo:ceramic:raman-quality:v1",
+      "title": "陶瓷 Raman 质量门控卡（合成演示）",
+      "publisher": "RelicScope AI Demo Team",
+      "source_type": "synthetic_protocol",
+      "published_at": "2026-08-28",
+      "document_version": "1.0-demo",
+      "ingested_at": "2026-08-28T00:00:00Z",
+      "content_sha256": "0c1d1c72a5a5c04629dfa64642707b3a1808fae0be63168502b3775801fa09d1",
+      "license": {
+        "identifier": "RelicScope-Demo-Only-1.0",
+        "statement": "仅限 RelicScope 产品演示和内部测试；阈值为合成值，不适用于真实器物检测。",
+        "allowed_purposes": ["product_demo", "internal_test"],
+        "access_scopes": ["demo-public", "demo-operator"],
+        "valid_from": "2026-08-28",
+        "valid_until": "2030-12-31",
+        "attribution_required": true
+      },
+      "scope": {
+        "artifact_types": ["陶瓷", "瓷器"],
+        "materials": ["釉", "颜料", "青花料"],
+        "modalities": ["Raman"],
+        "crafts": ["青花", "釉上彩", "釉下彩"],
+        "regions": ["器身", "纹饰区"],
+        "tags": ["信噪比", "荧光背景", "质量门控", "风险结算"],
+        "limitations": ["演示阈值", "真实设备需重新校准"]
+      },
+      "location": {
+        "kind": "protocol-section",
+        "locator": "DEMO-P01/Raman-质量门控"
+      },
+      "review_status": {
+        "status": "REVIEWED_DEMO_ONLY",
+        "reviewer": "RelicScope Demo QA（非文物专家审核）",
+        "reviewed_at": "2026-08-28T00:00:00Z",
+        "note": "仅复核演示标签、流程顺序和保守措辞。"
+      },
+      "text": "DEMO/SYNTHETIC：Raman 回放数据必须先按实际或保守暴露结算光照风险，再检查校准、信噪比、饱和与区域配准。低信噪结果应保留原始记录和失败原因，但不得更新材料命题；相同参数应被暂时抑制，并触发其他安全候选的重规划。演示阈值不能直接用于真实设备。",
+      "feature_vector": [0.48, 0.72, 0.67, 0.31, 0.41, 0.18, 0.69, 0.81],
+      "knowledge_space": "demo",
+      "data_level": "DEMO/SYNTHETIC",
+      "chunks": [
+        {
+          "chunk_id": "demo:ceramic:raman-quality:v1#c0",
+          "position": 0,
+          "text": "DEMO/SYNTHETIC：Raman 回放数据必须先按实际或保守暴露结算光照风险，再检查校准、信噪比、饱和与区域配准。低信噪结果应保留原始记录和失败原因，但不得更新材料命题；相同参数应被暂时抑制，并触发其他安全候选的重规划。演示阈值不能直接用于真实设备。",
+          "content_sha256": "0c1d1c72a5a5c04629dfa64642707b3a1808fae0be63168502b3775801fa09d1",
+          "location": {
+            "kind": "protocol-section",
+            "locator": "DEMO-P01/Raman-质量门控/段落-1"
+          }
+        }
+      ]
+    },
+    {
+      "source_id": "demo:ceramic:hsi-observation:v1",
+      "title": "陶瓷 HSI 材料异常观察卡（合成演示）",
+      "publisher": "RelicScope AI Demo Team",
+      "source_type": "synthetic_reference",
+      "published_at": "2026-08-28",
+      "document_version": "1.0-demo",
+      "ingested_at": "2026-08-28T00:00:00Z",
+      "content_sha256": "883eabccac4d82beed7a3b6c2eee900fee4393552588c770767c5a95be21df54",
+      "license": {
+        "identifier": "RelicScope-Demo-Only-1.0",
+        "statement": "仅限 RelicScope 产品演示和内部测试；不得将合成光谱模式解释为真实材料结论。",
+        "allowed_purposes": ["product_demo", "internal_test"],
+        "access_scopes": ["demo-public", "demo-operator"],
+        "valid_from": "2026-08-28",
+        "valid_until": "2030-12-31",
+        "attribution_required": true
+      },
+      "scope": {
+        "artifact_types": ["陶瓷", "瓷器"],
+        "materials": ["瓷", "釉", "颜料"],
+        "modalities": ["HSI"],
+        "crafts": ["青花", "釉上彩", "釉下彩"],
+        "regions": ["器身", "纹饰区", "修复候选区"],
+        "tags": ["高光谱", "空间配准", "材料差异", "观察候选"],
+        "limitations": ["只定位差异候选", "异常不等同于修复或伪造"]
+      },
+      "location": {
+        "kind": "record",
+        "locator": "DEMO-HSI-01/观察规则"
+      },
+      "review_status": {
+        "status": "REVIEWED_DEMO_ONLY",
+        "reviewer": "RelicScope Demo QA（非文物专家审核）",
+        "reviewed_at": "2026-08-28T00:00:00Z",
+        "note": "仅复核演示标签和解释边界。"
+      },
+      "text": "DEMO/SYNTHETIC：HSI 回放可用于展示不同波段响应形成的空间差异候选。结果必须绑定波段范围、参考白板、区域配准和质量状态。通过质量门控的差异仍只表示待复核的材料或表面状态差异；不能自动解释为修复、伪造、确定年代或特定窑口。",
+      "feature_vector": [0.61, 0.79, 0.58, 0.24, 0.44, 0.33, 0.76, 0.84],
+      "knowledge_space": "demo",
+      "data_level": "DEMO/SYNTHETIC",
+      "chunks": [
+        {
+          "chunk_id": "demo:ceramic:hsi-observation:v1#c0",
+          "position": 0,
+          "text": "DEMO/SYNTHETIC：HSI 回放可用于展示不同波段响应形成的空间差异候选。结果必须绑定波段范围、参考白板、区域配准和质量状态。通过质量门控的差异仍只表示待复核的材料或表面状态差异；不能自动解释为修复、伪造、确定年代或特定窑口。",
+          "content_sha256": "883eabccac4d82beed7a3b6c2eee900fee4393552588c770767c5a95be21df54",
+          "location": {
+            "kind": "record",
+            "locator": "DEMO-HSI-01/段落-1"
+          }
+        }
+      ]
+    },
+    {
+      "source_id": "demo:ceramic:xrf-safety:v1",
+      "title": "陶瓷 XRF 风险与解释边界卡（合成演示）",
+      "publisher": "RelicScope AI Demo Team",
+      "source_type": "synthetic_protocol",
+      "published_at": "2026-08-28",
+      "document_version": "1.0-demo",
+      "ingested_at": "2026-08-28T00:00:00Z",
+      "content_sha256": "ffec5138fc3e94e1c55569d01819b4c3ef6ad735165b33e3cdb9efa4589869fd",
+      "license": {
+        "identifier": "RelicScope-Demo-Only-1.0",
+        "statement": "仅限 RelicScope 产品演示和内部测试；不得据此制定真实设备辐射安全参数。",
+        "allowed_purposes": ["product_demo", "internal_test"],
+        "access_scopes": ["demo-public", "demo-operator"],
+        "valid_from": "2026-08-28",
+        "valid_until": "2030-12-31",
+        "attribution_required": true
+      },
+      "scope": {
+        "artifact_types": ["陶瓷", "瓷器"],
+        "materials": ["釉", "颜料", "胎体"],
+        "modalities": ["XRF"],
+        "crafts": ["青花", "釉上彩", "釉下彩"],
+        "regions": ["器身", "纹饰区", "足部"],
+        "tags": ["元素", "电离辐射", "风险预算", "表面测量"],
+        "limitations": ["演示风险值", "元素响应不等同于来源或年代"]
+      },
+      "location": {
+        "kind": "protocol-section",
+        "locator": "DEMO-P01/XRF-安全边界"
+      },
+      "review_status": {
+        "status": "REVIEWED_DEMO_ONLY",
+        "reviewer": "RelicScope Demo QA（非辐射安全审核）",
+        "reviewed_at": "2026-08-28T00:00:00Z",
+        "note": "仅复核超预算阻断的演示逻辑。"
+      },
+      "text": "DEMO/SYNTHETIC：XRF 候选在排序前必须通过电离风险预算和设备安全硬约束；预期暴露超过剩余预算时必须阻断，信息价值不能抵消安全违规。合格结果也只描述受测表层或近表层的元素响应，不能单独推断原料来源、确定年代、窑口或真伪。真实部署需遵守设备与机构辐射安全制度。",
+      "feature_vector": [0.52, 0.68, 0.63, 0.27, 0.34, 0.21, 0.72, 0.77],
+      "knowledge_space": "demo",
+      "data_level": "DEMO/SYNTHETIC",
+      "chunks": [
+        {
+          "chunk_id": "demo:ceramic:xrf-safety:v1#c0",
+          "position": 0,
+          "text": "DEMO/SYNTHETIC：XRF 候选在排序前必须通过电离风险预算和设备安全硬约束；预期暴露超过剩余预算时必须阻断，信息价值不能抵消安全违规。合格结果也只描述受测表层或近表层的元素响应，不能单独推断原料来源、确定年代、窑口或真伪。真实部署需遵守设备与机构辐射安全制度。",
+          "content_sha256": "ffec5138fc3e94e1c55569d01819b4c3ef6ad735165b33e3cdb9efa4589869fd",
+          "location": {
+            "kind": "protocol-section",
+            "locator": "DEMO-P01/XRF-安全边界/段落-1"
+          }
+        }
+      ]
+    },
+    {
+      "source_id": "demo:ceramic:uv-observation:v1",
+      "title": "陶瓷 UV 荧光观察卡（合成演示）",
+      "publisher": "RelicScope AI Demo Team",
+      "source_type": "synthetic_reference",
+      "published_at": "2026-08-28",
+      "document_version": "1.0-demo",
+      "ingested_at": "2026-08-28T00:00:00Z",
+      "content_sha256": "7d1fe8666ac0c39583b342082ff23daf3541afbaaf012a9b7038badfa61d4e05",
+      "license": {
+        "identifier": "RelicScope-Demo-Only-1.0",
+        "statement": "仅限 RelicScope 产品演示和内部测试；合成荧光描述不得当作真实修复证据。",
+        "allowed_purposes": ["product_demo", "internal_test"],
+        "access_scopes": ["demo-public", "demo-operator"],
+        "valid_from": "2026-08-28",
+        "valid_until": "2030-12-31",
+        "attribution_required": true
+      },
+      "scope": {
+        "artifact_types": ["陶瓷", "瓷器"],
+        "materials": ["釉", "粘接剂", "补配材料"],
+        "modalities": ["UV"],
+        "crafts": ["青花", "釉上彩", "釉下彩"],
+        "regions": ["器身", "口沿", "修复候选区"],
+        "tags": ["紫外荧光", "表面差异", "修复候选", "观察边界"],
+        "limitations": ["荧光差异需交叉验证", "不自动判定修复"]
+      },
+      "location": {
+        "kind": "record",
+        "locator": "DEMO-UV-01/观察规则"
+      },
+      "review_status": {
+        "status": "REVIEWED_DEMO_ONLY",
+        "reviewer": "RelicScope Demo QA（非文物专家审核）",
+        "reviewed_at": "2026-08-28T00:00:00Z",
+        "note": "仅复核演示标签和观察边界。"
+      },
+      "text": "DEMO/SYNTHETIC：UV 荧光差异可标记为表面状态或修复材料的观察候选，记录时应绑定照明条件、滤光配置、区域和原始图像哈希。荧光强弱受釉层、污染、保护层与拍摄条件影响；未经其他模态和专家复核，不得把差异直接判定为修复或伪造。",
+      "feature_vector": [0.43, 0.59, 0.46, 0.22, 0.53, 0.38, 0.66, 0.70],
+      "knowledge_space": "demo",
+      "data_level": "DEMO/SYNTHETIC",
+      "chunks": [
+        {
+          "chunk_id": "demo:ceramic:uv-observation:v1#c0",
+          "position": 0,
+          "text": "DEMO/SYNTHETIC：UV 荧光差异可标记为表面状态或修复材料的观察候选，记录时应绑定照明条件、滤光配置、区域和原始图像哈希。荧光强弱受釉层、污染、保护层与拍摄条件影响；未经其他模态和专家复核，不得把差异直接判定为修复或伪造。",
+          "content_sha256": "7d1fe8666ac0c39583b342082ff23daf3541afbaaf012a9b7038badfa61d4e05",
+          "location": {
+            "kind": "record",
+            "locator": "DEMO-UV-01/段落-1"
+          }
+        }
+      ]
+    },
+    {
+      "source_id": "demo:evidence:citation-boundary:v1",
+      "title": "科学证据链与引用边界卡（合成演示）",
+      "publisher": "RelicScope AI Demo Team",
+      "source_type": "synthetic_protocol",
+      "published_at": "2026-08-28",
+      "document_version": "1.0-demo",
+      "ingested_at": "2026-08-28T00:00:00Z",
+      "content_sha256": "f2f3962870caa93c55d9b067bbd20641eb4d37ff67e7611eaf180d9afb999331",
+      "license": {
+        "identifier": "RelicScope-Demo-Only-1.0",
+        "statement": "仅限 RelicScope 产品演示和内部测试；不得作为法律鉴定、行政审核或专家签章材料。",
+        "allowed_purposes": ["product_demo", "internal_test"],
+        "access_scopes": ["demo-public", "demo-operator"],
+        "valid_from": "2026-08-28",
+        "valid_until": "2030-12-31",
+        "attribution_required": true
+      },
+      "scope": {
+        "artifact_types": ["陶瓷", "瓷器"],
+        "materials": ["瓷", "釉", "颜料"],
+        "modalities": ["RGB", "Raman", "HSI", "XRF", "UV"],
+        "crafts": ["青花", "釉上彩", "釉下彩"],
+        "regions": ["器身", "口沿", "足部", "纹饰区"],
+        "tags": ["证据图", "引用", "哈希", "弃权"],
+        "limitations": ["哈希只证明记录完整性", "不证明输入事实真实"]
+      },
+      "location": {
+        "kind": "protocol-section",
+        "locator": "DEMO-EVIDENCE-01/引用与结论边界"
+      },
+      "review_status": {
+        "status": "REVIEWED_DEMO_ONLY",
+        "reviewer": "RelicScope Demo QA（非法律或鉴定审核）",
+        "reviewed_at": "2026-08-28T00:00:00Z",
+        "note": "仅复核引用白名单和弃权文案。"
+      },
+      "text": "DEMO/SYNTHETIC：进入证据图或报告的知识性陈述必须绑定本次检索白名单中的来源标识、知识版本、精确位置和内容哈希。模型虚构或超出适用范围的引用不得进入证据链。哈希链用于发现记录变更，不证明输入事实真实，也不替代机构签名、可信时间戳、专家复核或法律鉴定。",
+      "feature_vector": [0.55, 0.71, 0.54, 0.20, 0.39, 0.25, 0.78, 0.79],
+      "knowledge_space": "demo",
+      "data_level": "DEMO/SYNTHETIC",
+      "chunks": [
+        {
+          "chunk_id": "demo:evidence:citation-boundary:v1#c0",
+          "position": 0,
+          "text": "DEMO/SYNTHETIC：进入证据图或报告的知识性陈述必须绑定本次检索白名单中的来源标识、知识版本、精确位置和内容哈希。模型虚构或超出适用范围的引用不得进入证据链。哈希链用于发现记录变更，不证明输入事实真实，也不替代机构签名、可信时间戳、专家复核或法律鉴定。",
+          "content_sha256": "f2f3962870caa93c55d9b067bbd20641eb4d37ff67e7611eaf180d9afb999331",
+          "location": {
+            "kind": "protocol-section",
+            "locator": "DEMO-EVIDENCE-01/段落-1"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta
+      name="description"
+      content="RelicScope AI 双 Spark 多模态文物科学鉴证演示控制台"
+    />
+    <title>RelicScope AI · Scientific Forensics Console</title>
+    <link rel="icon" href="/static/ceramic-placeholder.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">跳至主工作区</a>
+
+    <div class="demo-boundary" role="note" aria-label="演示数据免责声明">
+      <span class="demo-boundary__label">USER MEDIA / DEMO SCIENCE</span>
+      <span>用户媒体按原始输入登记；仪器检测值与参考资料为回放或演示数据。输出不构成鉴定、断代、估价或法律结论。</span>
+    </div>
+
+    <header class="topbar">
+      <div class="brand-block">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 48 48" focusable="false">
+            <path d="M10 13h28M10 35h28M13 10v28M35 10v28" />
+            <circle cx="24" cy="24" r="8" />
+            <path d="M24 5v6M24 37v6M5 24h6M37 24h6" />
+          </svg>
+        </div>
+        <div>
+          <p class="eyebrow">AI-NATIVE SCIENTIFIC FORENSICS</p>
+          <h1>RelicScope <span>AI</span></h1>
+          <p class="brand-subtitle" id="brand-runtime-subtitle">古陶瓷多模态科学鉴证 · 正在探测运行拓扑</p>
+        </div>
+      </div>
+
+      <div class="topbar__meta">
+        <div class="system-pill" id="global-system-pill">
+          <span class="status-dot status-dot--checking" aria-hidden="true"></span>
+          <span id="global-system-status">正在检查系统</span>
+        </div>
+        <div class="clock-block">
+          <span>LOCAL TIME</span>
+          <time id="local-clock">--:--:--</time>
+        </div>
+      </div>
+    </header>
+
+    <main id="main-content" class="console-shell">
+      <section class="showcase-hero" aria-labelledby="showcase-heading">
+        <div class="showcase-hero__copy">
+          <div class="showcase-kicker">
+            <span class="live-orb" aria-hidden="true"></span>
+            RELICSCOPE VAULT · LOCAL SCIENTIFIC AI
+          </div>
+          <h2 id="showcase-heading">让器物拥有<br /><span>可复核的科学<br class="mobile-title-break" />身份。</span></h2>
+          <p class="showcase-lead">
+            从受控观察出发，让多模态信号进入同一坐标、同一证据图与同一审计链；
+            AI 组织下一步，专家保留最终解释权。
+          </p>
+
+          <div class="showcase-actions">
+            <button class="button button--run button--cinematic" id="run-demo" type="button">
+              <span class="run-icon" aria-hidden="true">▶</span>
+              <span><strong>一键完整演示</strong><small>真实调用本地 API · 约 8 秒</small></span>
+            </button>
+            <a class="text-link" href="#operator-workspace">上传瓷器图片 / 视频 <span aria-hidden="true">↓</span></a>
+          </div>
+
+          <div class="boundary-tags" aria-label="演示科学边界">
+            <span>媒体为用户输入 · 仪器为回放</span>
+            <span>不输出真伪与估价</span>
+            <span>专家复核后签署</span>
+          </div>
+        </div>
+
+        <div class="identity-stage" aria-label="器物数字科学身份舞台">
+          <div class="identity-stage__glow" aria-hidden="true"></div>
+          <div class="identity-orbit identity-orbit--one" aria-hidden="true"></div>
+          <div class="identity-orbit identity-orbit--two" aria-hidden="true"></div>
+          <span class="orbit-label orbit-label--optical">OPTICAL</span>
+          <span class="orbit-label orbit-label--surface">SURFACE</span>
+          <span class="orbit-label orbit-label--material">MATERIAL</span>
+          <span class="orbit-label orbit-label--internal">INTERNAL</span>
+          <img src="/static/ceramic-placeholder.svg" alt="古陶瓷受控观察概念示意；不包含真实检测数据" />
+          <div class="identity-scan" aria-hidden="true"></div>
+
+          <article class="identity-card">
+            <div class="identity-card__head">
+              <span>SCIENTIFIC IDENTITY</span>
+              <span class="badge badge--outline" id="identity-state">WAITING</span>
+            </div>
+            <h3 id="identity-artifact-name">等待建立器物档案</h3>
+            <p id="identity-claim">声明、测量、来源与专家意见将在这里汇合。</p>
+            <dl>
+              <div><dt>Identity</dt><dd id="identity-session" class="mono">NOT ISSUED</dd></div>
+              <div><dt>Evidence</dt><dd id="identity-evidence-count">0 NODES</dd></div>
+              <div><dt>Uncertainty</dt><dd id="identity-uncertainty">0.85</dd></div>
+              <div><dt>Integrity</dt><dd id="identity-integrity">WAITING</dd></div>
+            </dl>
+          </article>
+
+          <p class="stage-boundary">能力与工作流演示 · 当前无真实仪器测量</p>
+        </div>
+      </section>
+
+      <section class="signal-strip" aria-label="当前科学闭环摘要">
+        <article class="signal-card signal-card--action">
+          <div class="signal-card__index">01</div>
+          <div>
+            <p class="eyebrow">NEXT BEST OBSERVATION</p>
+            <h3 id="spotlight-action">等待建立科学命题</h3>
+            <p id="spotlight-action-reason">系统将以信息价值、对象风险、成本和权限共同选择下一步。</p>
+          </div>
+          <span class="badge badge--outline" id="spotlight-action-state">NOT PLANNED</span>
+        </article>
+
+        <article class="signal-card signal-card--compute">
+          <div class="signal-card__index">02</div>
+          <div>
+            <p class="eyebrow">DUAL SPARK · LIVE TOPOLOGY</p>
+            <h3>感知计算与证据推理，本地协同</h3>
+            <div class="spark-pair" aria-label="双 Spark 运行状态">
+              <span><i id="hero-node-a-dot"></i>SPARK A <strong id="hero-node-a-status">CHECKING</strong></span>
+              <b aria-hidden="true">⇄</b>
+              <span><i id="hero-node-b-dot"></i>SPARK B <strong id="hero-node-b-status">CHECKING</strong></span>
+            </div>
+          </div>
+        </article>
+
+        <article class="signal-card signal-card--evidence">
+          <div class="signal-card__index">03</div>
+          <div>
+            <p class="eyebrow">EVIDENCE, NOT A SCORE</p>
+            <h3 id="spotlight-evidence">证据尚未形成</h3>
+            <p id="spotlight-evidence-detail">每项判断都必须回到区域、原始测量、来源和版本。</p>
+          </div>
+          <span class="badge badge--warning" id="spotlight-report-state">INSUFFICIENT</span>
+        </article>
+      </section>
+
+      <section class="demo-progress demo-progress--showcase" id="demo-progress" aria-live="polite">
+        <div class="demo-progress__head">
+          <span>OBJECT → SIGNAL → EVIDENCE → IDENTITY</span>
+          <strong id="demo-progress-status">READY</strong>
+        </div>
+        <ol>
+          <li data-step="session"><span>01</span><div><strong>器物建档</strong><small>建立声明与风险预算</small></div></li>
+          <li data-step="plan-1"><span>02</span><div><strong>首轮规划</strong><small>选择最有价值的检测</small></div></li>
+          <li data-step="raman"><span>03</span><div><strong>Raman 回放</strong><small>质量失败，实际暴露仍结算（回放）</small></div></li>
+          <li data-step="plan-2"><span>04</span><div><strong>主动重规划</strong><small>拒绝原样重试，转向 HSI</small></div></li>
+          <li data-step="hsi"><span>05</span><div><strong>HSI 回放</strong><small>质量通过，更新证据状态</small></div></li>
+          <li data-step="report"><span>06</span><div><strong>科学身份</strong><small>证据图、审计链与报告</small></div></li>
+        </ol>
+      </section>
+
+      <section class="modality-theatre" id="modality-theatre" aria-labelledby="modality-heading">
+        <div class="section-heading modality-heading">
+          <div>
+            <span class="section-index">M</span>
+            <div>
+              <p class="eyebrow">MULTIMODAL OBSERVATION MAP</p>
+              <h2 id="modality-heading">同一件器物，被四种科学视角共同看见</h2>
+            </div>
+          </div>
+          <span class="concept-label">能力地图 · 非仪器输出</span>
+        </div>
+
+        <div class="modality-layout">
+          <div class="modality-tabs" role="tablist" aria-label="跨模态能力选择">
+            <button class="modality-tab is-active" type="button" role="tab" aria-selected="true" data-modality="all">
+              <span>00</span><strong>科学全景</strong><small>四层证据互相约束</small>
+            </button>
+            <button class="modality-tab" type="button" role="tab" aria-selected="false" data-modality="optical">
+              <span>01</span><strong>光学</strong><small>RGB · UV · NIR</small>
+            </button>
+            <button class="modality-tab" type="button" role="tab" aria-selected="false" data-modality="surface">
+              <span>02</span><strong>微表面</strong><small>RTI · 3D</small>
+            </button>
+            <button class="modality-tab" type="button" role="tab" aria-selected="false" data-modality="material">
+              <span>03</span><strong>材料</strong><small>Raman · XRF · HSI</small>
+            </button>
+            <button class="modality-tab" type="button" role="tab" aria-selected="false" data-modality="internal">
+              <span>04</span><strong>内部 / 年代</strong><small>X-ray · CT · TL</small>
+            </button>
+          </div>
+
+          <div class="modality-object" id="modality-object" data-active-modality="all">
+            <div class="modality-object__rings" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+            <img src="/static/ceramic-placeholder.svg" alt="跨模态能力关系概念示意；不表示真实扫描结果" />
+            <div class="modality-object__label"><span id="modality-stage-kicker">FOUR SCIENTIFIC VIEWS</span><strong id="modality-stage-title">从外观到材料，再到内部与年代约束</strong></div>
+            <span class="modality-object__boundary">CONCEPT VIEW · NO MEASUREMENT</span>
+          </div>
+
+          <article class="modality-explainer" aria-live="polite">
+            <p class="eyebrow" id="modality-role">ONE EVIDENCE SYSTEM</p>
+            <h3 id="modality-answer">不同模态回答不同问题</h3>
+            <p id="modality-description">光学、微表面、材料与内部证据回到同一器物坐标；任何单项信号都不被直接解释为真伪结论。</p>
+            <dl>
+              <div><dt>产品角色</dt><dd id="modality-product-role">V1 核心 + 外接接口 + Lab 网络</dd></div>
+              <div><dt>科学边界</dt><dd id="modality-boundary-copy">结果需要标定、参考样本与专家解释</dd></div>
+            </dl>
+          </article>
+        </div>
+      </section>
+
+      <section class="runtime-strip" aria-labelledby="runtime-heading">
+        <div class="section-heading section-heading--compact">
+          <div>
+            <span class="section-index">00</span>
+            <div>
+              <p class="eyebrow">RUNTIME TOPOLOGY</p>
+              <h2 id="runtime-heading">本地运行态势</h2>
+            </div>
+          </div>
+          <button class="button button--ghost button--small" id="refresh-health" type="button">
+            刷新状态
+          </button>
+        </div>
+
+        <div class="runtime-grid">
+          <article class="node-card" id="node-a-card">
+            <div class="node-card__head">
+              <div class="node-code">A</div>
+              <div>
+                <p class="node-name" id="node-a-name">逻辑 A（拓扑检测中）</p>
+                <p class="node-role">Multimodal Compute</p>
+              </div>
+              <span class="badge badge--neutral" id="node-a-status">CHECKING</span>
+            </div>
+            <dl class="metric-list">
+              <div><dt>逻辑角色</dt><dd id="node-a-role">感知 · 向量化 · 检索</dd></div>
+              <div><dt>模型</dt><dd id="node-a-model" class="mono">等待健康响应</dd></div>
+              <div><dt>服务</dt><dd id="node-a-detail">正在探测</dd></div>
+              <div><dt>延迟</dt><dd id="node-a-latency">—</dd></div>
+            </dl>
+          </article>
+
+          <div class="node-link" aria-label="受控私网 API 双向连接">
+            <span class="node-link__line"></span>
+            <span class="node-link__label" id="node-link-label">LOCAL LINK</span>
+            <span class="node-link__line"></span>
+          </div>
+
+          <article class="node-card" id="node-b-card">
+            <div class="node-card__head">
+              <div class="node-code node-code--b">B</div>
+              <div>
+                <p class="node-name" id="node-b-name">逻辑 B（拓扑检测中）</p>
+                <p class="node-role">Evidence Gateway</p>
+              </div>
+              <span class="badge badge--neutral" id="node-b-status">CHECKING</span>
+            </div>
+            <dl class="metric-list">
+              <div><dt>逻辑角色</dt><dd id="node-b-role">编排 · 证据 · 报告</dd></div>
+              <div><dt>模型</dt><dd id="node-b-model" class="mono">等待健康响应</dd></div>
+              <div><dt>服务</dt><dd id="node-b-detail">正在探测</dd></div>
+              <div><dt>延迟</dt><dd id="node-b-latency">—</dd></div>
+            </dl>
+          </article>
+
+          <article class="runtime-summary">
+            <div>
+              <span>运行模式</span>
+              <strong id="runtime-mode">检测中</strong>
+            </div>
+            <div>
+              <span>知识版本</span>
+              <strong id="knowledge-version" class="mono">—</strong>
+            </div>
+            <div>
+              <span>数据边界</span>
+              <strong id="data-boundary">LOCAL / PRIVATE</strong>
+            </div>
+            <div>
+              <span>最近检查</span>
+              <strong id="health-checked-at">—</strong>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <div class="workspace-intro" id="operator-workspace">
+        <div>
+          <p class="eyebrow">START A SCIENTIFIC OBSERVATION</p>
+          <h2>开始一次科学观察</h2>
+        </div>
+        <p>先建立器物档案，再上传图像或环拍视频；分析结果将进入证据链，并明确下一步该观察什么。</p>
+      </div>
+
+      <section class="workspace-grid" aria-label="科学鉴证会话工作区">
+        <article class="panel panel--session">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">ARTIFACT SESSION</p>
+              <h2>器物建档</h2>
+            </div>
+            <span class="badge badge--outline" id="session-state-badge">未建档</span>
+          </div>
+
+          <form id="session-form" class="form-grid">
+            <label class="field field--full">
+              <span>器物名称</span>
+              <input id="artifact-name" name="artifact_name" value="疑似清代青花瓷" required maxlength="120" />
+            </label>
+            <label class="field">
+              <span>声明年代</span>
+              <input id="claim-period" name="period" value="清代" maxlength="80" />
+            </label>
+            <label class="field">
+              <span>声明窑口</span>
+              <input id="claim-kiln" name="kiln" value="景德镇窑" maxlength="80" />
+            </label>
+            <label class="field">
+              <span>声明材料</span>
+              <input id="claim-material" name="material" value="青花瓷" maxlength="80" />
+            </label>
+            <label class="field">
+              <span>操作者</span>
+              <input id="operator" name="operator" value="Demo Operator" maxlength="80" />
+            </label>
+            <label class="field field--full">
+              <span>机构</span>
+              <input id="institution" name="institution" value="RelicScope Demo Lab" maxlength="120" />
+            </label>
+            <label class="field field--full">
+              <span>来源说明</span>
+              <textarea id="provenance-note" name="provenance_note" rows="2" maxlength="240">来源待核验</textarea>
+            </label>
+            <button class="button button--primary field--full" id="create-session" type="submit">
+              <span>创建科学鉴证会话</span>
+              <span aria-hidden="true">↗</span>
+            </button>
+          </form>
+
+          <dl class="session-facts" id="session-facts">
+            <div><dt>SESSION ID</dt><dd class="mono hash-value" id="session-id">等待建档</dd></div>
+            <div><dt>协议</dt><dd id="session-protocol">—</dd></div>
+            <div><dt>版本</dt><dd id="session-version">—</dd></div>
+            <div><dt>下一步</dt><dd id="session-next-step">创建会话</dd></div>
+          </dl>
+        </article>
+
+        <article class="panel panel--capture panel--media-ingest" id="media-ingest">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">CERAMIC MEDIA FORENSICS</p>
+              <h2>图像 / 视频科学入口</h2>
+            </div>
+            <span class="badge badge--demo">USER INPUT · LOCAL</span>
+          </div>
+
+          <div class="media-mode-tabs" role="tablist" aria-label="输入类型">
+            <button class="media-mode-tab is-active" id="media-tab-image" type="button" role="tab" aria-selected="true" aria-controls="image-input-pane" data-media-tab="image">
+              <span>01</span><strong>器物图像</strong><small>质量 · 区域 · 指纹</small>
+            </button>
+            <button class="media-mode-tab" id="media-tab-video" type="button" role="tab" aria-selected="false" aria-controls="video-input-pane" data-media-tab="video">
+              <span>02</span><strong>环拍视频</strong><small>抽帧 · 覆盖 · 稳定性</small>
+            </button>
+          </div>
+
+          <div class="media-input-pane" id="image-input-pane" role="tabpanel" aria-labelledby="media-tab-image">
+            <div class="artifact-viewer media-drop-target" id="image-drop-target">
+              <img id="artifact-preview" src="/static/ceramic-placeholder.svg" alt="古陶瓷图像上传占位示意" />
+              <div id="roi-layer" class="roi-layer" aria-hidden="true"></div>
+              <div class="scan-frame" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+              <div class="drop-instruction" aria-hidden="true"><span>DROP</span><strong>释放以载入图像</strong></div>
+              <p class="artifact-viewer__caption" id="image-caption">拖入或选择本地图像 · 原始文件留在本地系统</p>
+            </div>
+
+            <form id="image-form" class="capture-controls">
+              <label class="file-picker" for="image-file">
+                <span class="file-picker__icon" aria-hidden="true">＋</span>
+                <span><strong>选择器物图像</strong><small>JPEG / PNG / WEBP · 用户提供原始输入</small></span>
+                <input id="image-file" type="file" accept="image/jpeg,image/png,image/webp" />
+              </label>
+              <div class="inline-fields">
+                <label class="field">
+                  <span>采集通道</span>
+                  <select id="image-modality"><option value="RGB">RGB · 可见光</option><option value="UV">UV · 紫外图像</option><option value="NIR">NIR · 近红外图像</option></select>
+                </label>
+                <label class="field">
+                  <span>器物区域</span>
+                  <select id="image-region"><option value="R1">R1 · 外表面观察区</option></select>
+                </label>
+              </div>
+              <button class="button button--secondary" id="analyze-image" type="submit" disabled>建立图像证据</button>
+            </form>
+
+            <div class="analysis-grid post-analysis">
+              <section aria-labelledby="quality-title">
+                <div class="subhead"><h3 id="quality-title">质量门控</h3><span id="image-gate" class="badge badge--neutral">NO DATA</span></div>
+                <div id="quality-metrics" class="quality-metrics empty-copy">上传后显示服务端质量指标</div>
+              </section>
+              <section aria-labelledby="fingerprint-title">
+                <div class="subhead"><h3 id="fingerprint-title">科学指纹</h3><span class="micro-label">DETERMINISTIC</span></div>
+                <dl class="fingerprint-card">
+                  <div><dt>算法</dt><dd id="fingerprint-algorithm">—</dd></div>
+                  <div><dt>Fingerprint</dt><dd id="fingerprint-id" class="mono hash-value">—</dd></div>
+                  <div><dt>Raw SHA-256</dt><dd id="raw-sha" class="mono hash-value">—</dd></div>
+                </dl>
+              </section>
+            </div>
+            <div class="comparison-module post-comparison">
+              <div class="comparison-module__head">
+                <div><p class="eyebrow">RECAPTURE COMPARISON</p><h3>同区域复拍对比</h3></div>
+                <button class="button button--ghost button--small" id="compare-images" type="button" disabled>与上一张复拍对比</button>
+              </div>
+              <div class="comparison-result" id="comparison-result">
+                <span class="badge badge--neutral" id="comparison-status">WAITING</span>
+                <div class="comparison-result__copy"><strong id="comparison-title">至少登记两张同区域、同通道图像</strong><small id="comparison-reason">用于科学身份复检与可见变化候选提示。</small></div>
+                <dl class="comparison-metrics">
+                  <div><dt>感知哈希距离</dt><dd id="comparison-dhash">—</dd></div>
+                  <div><dt>特征距离</dt><dd id="comparison-feature">—</dd></div>
+                  <div><dt>亮度差</dt><dd id="comparison-brightness">—</dd></div>
+                  <div><dt>清晰度差</dt><dd id="comparison-sharpness">—</dd></div>
+                </dl>
+              </div>
+              <p class="comparison-boundary">只比较同构复拍的可见差异；结果不等于劣化、修复、真伪、年代或材料变化。</p>
+            </div>
+          </div>
+
+          <div class="media-input-pane" id="video-input-pane" role="tabpanel" aria-labelledby="media-tab-video" hidden>
+            <div class="artifact-viewer artifact-viewer--video media-drop-target" id="video-drop-target">
+              <video id="artifact-video" controls muted playsinline preload="metadata" aria-label="已选择的器物环拍视频"></video>
+              <div class="video-empty" id="video-empty"><span>360°</span><strong>等待器物环拍视频</strong><small>建议缓慢绕拍一周，保持光照与距离稳定</small></div>
+              <div class="drop-instruction" aria-hidden="true"><span>DROP</span><strong>释放以载入视频</strong></div>
+              <p class="artifact-viewer__caption" id="video-caption">拖入或选择视频 · 浏览器本地抽取代表帧</p>
+            </div>
+
+            <form id="video-form" class="capture-controls">
+              <label class="file-picker" for="video-file">
+                <span class="file-picker__icon" aria-hidden="true">＋</span>
+                <span><strong>选择器物环拍视频</strong><small>MP4 / MOV / WEBM / AVI · 原视频先登记哈希，再提交抽帧</small></span>
+                <input id="video-file" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-msvideo,.mp4,.mov,.webm,.avi" />
+              </label>
+              <div class="inline-fields video-fields">
+                <label class="field">
+                  <span>采集通道</span>
+                  <select id="video-modality"><option value="RGB_VIDEO">RGB · 可见光环拍</option><option value="UV_VIDEO" disabled>UV · 紫外环拍（二期）</option><option value="NIR_VIDEO" disabled>NIR · 近红外环拍（二期）</option></select>
+                </label>
+                <label class="field">
+                  <span>器物区域</span>
+                  <select id="video-region"><option value="R1">R1 · 外表面观察区</option></select>
+                </label>
+                <label class="field field--frame-count">
+                  <span>抽帧数量</span>
+                  <select id="video-frame-count"><option value="8">8 帧</option><option value="10" selected>10 帧</option><option value="12">12 帧</option></select>
+                </label>
+              </div>
+              <button class="button button--secondary" id="analyze-video" type="submit" disabled>登记视频并分析多帧</button>
+            </form>
+
+            <div class="video-process" aria-live="polite">
+              <div class="video-process__head"><span id="video-stage">等待视频输入</span><strong id="video-progress-text">0 / 0</strong></div>
+              <div class="video-progress-track"><span id="video-progress-bar"></span></div>
+            </div>
+            <div class="frame-strip" id="video-frame-strip" aria-label="视频抽帧时间轴">
+              <div class="frame-strip__empty">分析后显示采样时点、质量状态与代表帧</div>
+            </div>
+          </div>
+
+          <section class="media-interpretation post-analysis" aria-labelledby="media-result-heading">
+            <div class="subhead media-interpretation__head">
+              <div><p class="eyebrow">STRUCTURED MEDIA ANALYSIS</p><h3 id="media-result-heading">从像素到可复核观察</h3></div>
+              <span class="badge badge--neutral" id="media-result-state">WAITING</span>
+            </div>
+            <div class="media-kpis" aria-label="媒体分析摘要">
+              <div><span>INPUT</span><strong id="media-input-type">—</strong></div>
+              <div><span>QUALITY</span><strong id="media-quality-summary">—</strong></div>
+              <div><span>COVERAGE</span><strong id="media-coverage">—</strong></div>
+              <div><span>STABILITY</span><strong id="media-stability">—</strong></div>
+              <div><span>REPRESENTATIVE</span><strong id="media-representative">—</strong></div>
+            </div>
+            <div class="media-reading-grid">
+              <article>
+                <p class="micro-label">VISIBLE OBSERVATIONS</p>
+                <ul class="media-list" id="media-observations"><li>等待服务端返回可见性观察</li></ul>
+              </article>
+              <article>
+                <p class="micro-label">CANDIDATE REGIONS</p>
+                <ul class="media-list" id="media-regions"><li>候选区域只用于引导复核与下一步采集</li></ul>
+              </article>
+              <article>
+                <p class="micro-label">EVIDENCE REFERENCES</p>
+                <ul class="media-list media-list--mono" id="media-evidence-refs"><li>完成分析后显示原始输入、派生观察与模型运行引用</li></ul>
+              </article>
+            </div>
+            <div class="next-observation-card">
+              <span class="next-observation-card__index">NEXT</span>
+              <div><p class="eyebrow">NEXT BEST OBSERVATION</p><strong id="media-next-observation">等待形成可复核观察后规划</strong><small id="media-next-reason">建议由服务端根据质量、信息增益、对象风险与可用设备共同生成。</small></div>
+              <span class="badge badge--outline" id="media-next-state">NOT PLANNED</span>
+            </div>
+            <p class="media-boundary"><strong>能力边界：</strong>图像与视频可建立采集质量、可见特征、候选区域和科学指纹；Raman、XRF、HSI、X-ray、CT、TL 等材料、内部与年代证据必须来自对应仪器或实验室。</p>
+          </div>
+        </article>
+
+        <article class="panel panel--science-state session-dependent">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">PROPOSITION STATE</p>
+              <h2>科学命题状态</h2>
+            </div>
+            <span class="badge badge--warning" id="claim-consistency">EVIDENCE INSUFFICIENT</span>
+          </div>
+
+          <div class="uncertainty-block">
+            <div class="uncertainty-gauge" id="uncertainty-gauge" style="--uncertainty: 85">
+              <div>
+                <strong id="uncertainty-value">0.85</strong>
+                <span>UNCERTAINTY</span>
+              </div>
+            </div>
+            <div class="uncertainty-copy">
+              <p class="eyebrow">目标声明</p>
+              <h3 id="claim-summary">等待建立科学命题</h3>
+              <p id="uncertainty-explanation">系统在证据不足、模型超出适用域或多模态冲突时必须拒绝作出确定性判断。</p>
+              <div class="threshold-row"><span>停止阈值 ≤ 0.50</span><span id="threshold-status">尚未达到</span></div>
+            </div>
+          </div>
+
+          <div class="guardrail-box">
+            <span class="guardrail-box__icon" aria-hidden="true">!</span>
+            <div><strong>输出限界已启用</strong><p>仅输出科学测量、声明一致性、证据状态、不确定性与下一步建议。</p></div>
+          </div>
+        </article>
+      </section>
+
+      <div class="session-locked-note" aria-live="polite">
+        <span>下一层</span>
+        <strong>完成建档后展开完整科学闭环</strong>
+        <small>科学命题 · 本地知识 · 主动检测 · 证据图 · 审计链 · 结构化报告</small>
+      </div>
+
+      <section class="panel panel--knowledge session-dependent" aria-labelledby="knowledge-heading">
+        <div class="panel__header panel__header--split">
+          <div>
+            <p class="eyebrow">LOCAL KNOWLEDGE RETRIEVAL</p>
+            <h2 id="knowledge-heading">本地可引用知识</h2>
+          </div>
+          <form id="knowledge-form" class="search-form" role="search">
+            <label class="sr-only" for="knowledge-query">检索本地知识</label>
+            <input id="knowledge-query" value="青花颜料 材料年代冲突 Raman HSI" placeholder="输入材料、工艺或检测问题" />
+            <button class="button button--secondary" id="search-knowledge" type="submit" disabled>本地检索</button>
+          </form>
+        </div>
+        <div class="knowledge-meta">
+          <span>SPACE <strong>DEMO</strong></span>
+          <span>NETWORK <strong>LOCAL ONLY</strong></span>
+          <span>VERSION <strong id="knowledge-snapshot">—</strong></span>
+        </div>
+        <div id="knowledge-results" class="knowledge-results">
+          <div class="empty-state"><span>⌁</span><p>建立会话后检索本地演示知识库</p></div>
+        </div>
+      </section>
+
+      <section class="panel panel--sensing session-dependent" id="active-sensing" aria-labelledby="sensing-heading">
+        <div class="panel__header panel__header--split">
+          <div>
+            <p class="eyebrow">P01 ACTIVE SCIENTIFIC SENSING</p>
+            <h2 id="sensing-heading">区域风险预算与下一最佳检测</h2>
+          </div>
+          <div class="action-cluster">
+            <button class="button button--ghost" id="plan-action" type="button" disabled>规划下一检测</button>
+            <button class="button button--secondary" id="execute-action" type="button" disabled>执行已预留动作</button>
+          </div>
+        </div>
+
+        <div class="sensing-layout">
+          <aside class="budget-panel" aria-labelledby="budget-heading">
+            <div class="subhead"><h3 id="budget-heading">R1 风险账本</h3><span class="micro-label">HARD CONSTRAINT</span></div>
+            <div id="risk-budgets" class="budget-list">
+              <div class="empty-copy">创建会话后载入区域风险预算</div>
+            </div>
+            <div class="budget-rule">
+              <span>安全规则</span>
+              <code>used + reserved + predicted ≤ limit</code>
+            </div>
+          </aside>
+
+          <div class="action-table-wrap">
+            <div class="subhead">
+              <h3>候选动作评估</h3>
+              <span id="current-action" class="badge badge--outline">NO RESERVATION</span>
+            </div>
+            <div class="table-scroll" tabindex="0" aria-label="候选动作比较表，可横向滚动">
+              <table>
+                <thead><tr><th>动作</th><th>信息降低</th><th>成本</th><th>预算占用</th><th>综合效用</th><th>决策</th><th>说明</th></tr></thead>
+                <tbody id="candidate-actions"><tr><td colspan="7" class="table-empty">等待后端规划结果</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <section class="observability-grid session-dependent" id="evidence-story" aria-label="证据与审计工作区">
+        <article class="panel panel--timeline">
+          <div class="panel__header">
+            <div><p class="eyebrow">EXECUTION TRACE</p><h2>检测时间线</h2></div>
+            <span class="badge badge--outline" id="execution-count">0 EVENTS</span>
+          </div>
+          <ol id="execution-timeline" class="timeline">
+            <li class="timeline__empty">尚无检测事件</li>
+          </ol>
+        </article>
+
+        <article class="panel panel--graph">
+          <div class="panel__header panel__header--split">
+            <div><p class="eyebrow">SCIENTIFIC EVIDENCE GRAPH</p><h2>科学证据图谱</h2></div>
+            <button class="button button--ghost button--small" id="refresh-evidence" type="button" disabled>刷新图谱</button>
+          </div>
+          <div class="graph-legend" aria-hidden="true">
+            <span><i class="legend-dot legend-dot--artifact"></i>器物</span>
+            <span><i class="legend-dot legend-dot--claim"></i>声明</span>
+            <span><i class="legend-dot legend-dot--action"></i>动作</span>
+            <span><i class="legend-dot legend-dot--evidence"></i>证据</span>
+            <span><i class="legend-line legend-line--conflict"></i>冲突</span>
+          </div>
+          <div class="graph-canvas" id="graph-canvas">
+            <svg id="evidence-graph" role="img" aria-label="当前会话科学证据关系图" viewBox="0 0 960 440">
+              <text x="480" y="220" text-anchor="middle" class="graph-empty">建立会话后显示可追溯证据关系</text>
+            </svg>
+          </div>
+          <p class="graph-boundary">图谱关系表达支持、冲突、不确定与升级状态；模型观察不能独立形成鉴定结论。</p>
+        </article>
+
+        <article class="panel panel--audit">
+          <div class="panel__header panel__header--split">
+            <div><p class="eyebrow">CHAIN OF CUSTODY</p><h2>哈希审计链</h2></div>
+            <button class="button button--ghost button--small" id="refresh-audit" type="button" disabled>验证审计链</button>
+          </div>
+          <div class="audit-verdict" id="audit-verdict">
+            <span class="audit-verdict__icon" aria-hidden="true">◇</span>
+            <div><strong>等待验证</strong><p>哈希链只能验证记录完整性，不能证明输入事实真实或替代机构签章。</p></div>
+          </div>
+          <div id="audit-events" class="audit-events"><div class="empty-copy">暂无审计事件</div></div>
+        </article>
+      </section>
+
+      <section class="panel panel--report session-dependent" aria-labelledby="report-heading">
+        <div class="report-boundary">
+          <span>USER MEDIA / DEMO SCIENCE</span>
+          <strong>不构成鉴定结论</strong>
+        </div>
+        <div class="panel__header panel__header--split">
+          <div><p class="eyebrow">AUDITABLE SCIENTIFIC REPORT</p><h2 id="report-heading">保守结论与报告</h2></div>
+          <div class="action-cluster">
+            <button class="button button--secondary" id="generate-report" type="button" disabled>生成报告</button>
+            <a class="button button--ghost is-disabled" id="download-json" href="#" aria-disabled="true">下载 JSON</a>
+            <a class="button button--ghost is-disabled" id="download-html" href="#" aria-disabled="true">下载 HTML</a>
+          </div>
+        </div>
+
+        <div class="report-grid">
+          <div class="report-conclusion">
+            <p class="eyebrow">CLAIM CONSISTENCY</p>
+            <h3 id="report-status">EVIDENCE INSUFFICIENT</h3>
+            <p id="report-summary">当前尚无足够证据。系统不会输出真伪、确定年代、价格、文物定级或法律鉴定结论。</p>
+            <div class="report-meta">
+              <span>Report ID <strong id="report-id" class="mono">—</strong></span>
+              <span>Session Version <strong id="report-session-version">—</strong></span>
+              <span>Package Hash <strong id="report-hash" class="mono hash-value">—</strong></span>
+            </div>
+          </div>
+          <div class="report-limitations">
+            <h3>科学边界</h3>
+            <ul id="report-limitations">
+              <li>演示检测值和内置参考资料均为合成或回放数据。</li>
+              <li>相似性检索不能等同于身份、年代或真伪判断。</li>
+              <li>结论需要真实仪器数据、专家复核和适用机构程序。</li>
+            </ul>
+          </div>
+        </div>
+        <div class="report-structure" aria-label="结构化报告章节">
+          <article><span>01</span><div><strong>输入与来源</strong><small id="report-media-source">等待图像或视频登记</small></div></article>
+          <article><span>02</span><div><strong>采集质量</strong><small id="report-media-quality">等待质量门控</small></div></article>
+          <article><span>03</span><div><strong>可见性观察</strong><small id="report-media-observation">等待受控观察</small></div></article>
+          <article><span>04</span><div><strong>证据与引用</strong><small id="report-media-evidence">等待证据节点</small></div></article>
+          <article><span>05</span><div><strong>限制与下一步</strong><small id="report-media-next">保持不确定性，等待规划</small></div></article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="console-footer">
+      <div><strong>RelicScope AI</strong><span>Local Scientific Forensics Prototype</span></div>
+      <p>运行数据边界：本地私网 · 演示资料隔离 · 无外部 CDN</p>
+    </footer>
+
+    <div class="toast-region" id="toast-region" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,3433 @@
+{
+  "artifact": {
+    "artifact_type": "陶瓷",
+    "institution": "RelicScope Local Lab",
+    "name": "媒体闭环自动验收瓷器",
+    "operator": "RelicScope Media Smoke"
+  },
+  "assistant_summary": {
+    "citation_ids": [],
+    "limitations": [
+      "推理服务未配置或不可用。"
+    ],
+    "next_steps": [
+      "由文物保护与材料分析专家复核冲突证据及适用范围。",
+      "如需进一步降低不确定性，转入经批准的外部实验室协议。"
+    ],
+    "summary": "证据包已按确定性模板生成；本地推理模型未参与摘要。"
+  },
+  "audit": {
+    "event_count": 6,
+    "failure_seq": null,
+    "latest_hash": "2c1f1e3be8783c7c9a98b6386bd50d6d9bef835e0a7088e8cc9281ea492b2241",
+    "reason": "ok",
+    "session_state_sha256": "4179eb34c9a7a20b640ebb5a903128ca98865029341b33e84b025610a4884130",
+    "state_integrity_bound": true,
+    "state_integrity_valid": true,
+    "state_tail_hash": "2c1f1e3be8783c7c9a98b6386bd50d6d9bef835e0a7088e8cc9281ea492b2241",
+    "valid": true,
+    "verification_strength": "AUDIT_CHAIN_AND_SESSION_STATE"
+  },
+  "claim": {
+    "kiln": "待核验",
+    "material": "陶瓷",
+    "period": "待核验",
+    "provenance_note": "本地软件验收；不构成鉴定结论"
+  },
+  "claim_consistency": "EVIDENCE_INSUFFICIENT",
+  "conclusion_boundary": "输出仅描述科学测量、证据状态与送检声明的一致性；不构成真伪裁决、确定断代、作者归属、价格、文物定级或法律意见。",
+  "covered_session_version": 6,
+  "disclaimer": "DEMO/SYNTHETIC：本报告包含演示参考资料或仪器回放数据，仅用于验证 RelicScope 工作流；这是非真实鉴定结论，不可用于交易或法律用途。",
+  "evidence_graph": {
+    "edges": [
+      {
+        "relation": "claims_identity_of",
+        "source": "claim:RS-1832B4B6D87E46BC",
+        "status": "neutral",
+        "target": "artifact:RS-1832B4B6D87E46BC",
+        "weight": 1.0
+      },
+      {
+        "relation": "part_of",
+        "source": "region:RS-1832B4B6D87E46BC:R1",
+        "status": "neutral",
+        "target": "artifact:RS-1832B4B6D87E46BC",
+        "weight": 1.0
+      },
+      {
+        "relation": "measured_at",
+        "source": "raw:RS-1832B4B6D87E46BC:FILE-B5CAD98A3D5E4897",
+        "status": "neutral",
+        "target": "region:RS-1832B4B6D87E46BC:R1",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:IMG-32B5D25639AC4A4F",
+        "status": "neutral",
+        "target": "raw:RS-1832B4B6D87E46BC:FILE-B5CAD98A3D5E4897",
+        "weight": 1.0
+      },
+      {
+        "relation": "analyzes",
+        "source": "model-run:RS-1832B4B6D87E46BC:MRUN-0D83CAC024994751",
+        "status": "neutral",
+        "target": "raw:RS-1832B4B6D87E46BC:FILE-B5CAD98A3D5E4897",
+        "weight": 1.0
+      },
+      {
+        "relation": "cites",
+        "source": "observation:RS-1832B4B6D87E46BC:IMG-32B5D25639AC4A4F",
+        "status": "neutral",
+        "target": "reference:demo:ceramic:rgb-observation:v1",
+        "weight": 1.0
+      },
+      {
+        "relation": "cites",
+        "source": "observation:RS-1832B4B6D87E46BC:IMG-32B5D25639AC4A4F",
+        "status": "neutral",
+        "target": "reference:demo:evidence:citation-boundary:v1",
+        "weight": 1.0
+      },
+      {
+        "relation": "measured_at",
+        "source": "raw:RS-1832B4B6D87E46BC:FILE-99934AB84F0046CE",
+        "status": "neutral",
+        "target": "region:RS-1832B4B6D87E46BC:R1",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:IMG-F3F18ABC5B6144A5",
+        "status": "neutral",
+        "target": "raw:RS-1832B4B6D87E46BC:FILE-99934AB84F0046CE",
+        "weight": 1.0
+      },
+      {
+        "relation": "analyzes",
+        "source": "model-run:RS-1832B4B6D87E46BC:MRUN-B59C6207B3DA43F0",
+        "status": "neutral",
+        "target": "raw:RS-1832B4B6D87E46BC:FILE-99934AB84F0046CE",
+        "weight": 1.0
+      },
+      {
+        "relation": "cites",
+        "source": "observation:RS-1832B4B6D87E46BC:IMG-F3F18ABC5B6144A5",
+        "status": "neutral",
+        "target": "reference:demo:ceramic:rgb-observation:v1",
+        "weight": 1.0
+      },
+      {
+        "relation": "cites",
+        "source": "observation:RS-1832B4B6D87E46BC:IMG-F3F18ABC5B6144A5",
+        "status": "neutral",
+        "target": "reference:demo:evidence:citation-boundary:v1",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:CMP-C697AD3C4EF64033",
+        "status": "neutral",
+        "target": "observation:RS-1832B4B6D87E46BC:IMG-32B5D25639AC4A4F",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:CMP-C697AD3C4EF64033",
+        "status": "neutral",
+        "target": "observation:RS-1832B4B6D87E46BC:IMG-F3F18ABC5B6144A5",
+        "weight": 1.0
+      },
+      {
+        "relation": "measured_at",
+        "source": "raw:RS-1832B4B6D87E46BC:FILE-D68899FE5BF8467D",
+        "status": "neutral",
+        "target": "region:RS-1832B4B6D87E46BC:R1",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:VAN-8BD1A1E0543149E1",
+        "status": "neutral",
+        "target": "raw:RS-1832B4B6D87E46BC:FILE-D68899FE5BF8467D",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:FRM-86C7A5A24E4B456D",
+        "status": "neutral",
+        "target": "raw:RS-1832B4B6D87E46BC:FILE-D68899FE5BF8467D",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:VAN-8BD1A1E0543149E1",
+        "status": "neutral",
+        "target": "observation:RS-1832B4B6D87E46BC:FRM-86C7A5A24E4B456D",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:FRM-7C18F660641F45BD",
+        "status": "neutral",
+        "target": "raw:RS-1832B4B6D87E46BC:FILE-D68899FE5BF8467D",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:VAN-8BD1A1E0543149E1",
+        "status": "neutral",
+        "target": "observation:RS-1832B4B6D87E46BC:FRM-7C18F660641F45BD",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:FRM-07FB3D37488C4CDF",
+        "status": "neutral",
+        "target": "raw:RS-1832B4B6D87E46BC:FILE-D68899FE5BF8467D",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:VAN-8BD1A1E0543149E1",
+        "status": "neutral",
+        "target": "observation:RS-1832B4B6D87E46BC:FRM-07FB3D37488C4CDF",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:FRM-152F4EC407B9479B",
+        "status": "neutral",
+        "target": "raw:RS-1832B4B6D87E46BC:FILE-D68899FE5BF8467D",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:VAN-8BD1A1E0543149E1",
+        "status": "neutral",
+        "target": "observation:RS-1832B4B6D87E46BC:FRM-152F4EC407B9479B",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:FRM-0F75BBE76091421D",
+        "status": "neutral",
+        "target": "raw:RS-1832B4B6D87E46BC:FILE-D68899FE5BF8467D",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:VAN-8BD1A1E0543149E1",
+        "status": "neutral",
+        "target": "observation:RS-1832B4B6D87E46BC:FRM-0F75BBE76091421D",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:FRM-DAF20D1EF4C24807",
+        "status": "neutral",
+        "target": "raw:RS-1832B4B6D87E46BC:FILE-D68899FE5BF8467D",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:VAN-8BD1A1E0543149E1",
+        "status": "neutral",
+        "target": "observation:RS-1832B4B6D87E46BC:FRM-DAF20D1EF4C24807",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:FRM-6F821144C03645DA",
+        "status": "neutral",
+        "target": "raw:RS-1832B4B6D87E46BC:FILE-D68899FE5BF8467D",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:VAN-8BD1A1E0543149E1",
+        "status": "neutral",
+        "target": "observation:RS-1832B4B6D87E46BC:FRM-6F821144C03645DA",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:FRM-696EA6BC16EE47AD",
+        "status": "neutral",
+        "target": "raw:RS-1832B4B6D87E46BC:FILE-D68899FE5BF8467D",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:VAN-8BD1A1E0543149E1",
+        "status": "neutral",
+        "target": "observation:RS-1832B4B6D87E46BC:FRM-696EA6BC16EE47AD",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:FRM-64D4ABCB60884493",
+        "status": "neutral",
+        "target": "raw:RS-1832B4B6D87E46BC:FILE-D68899FE5BF8467D",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:VAN-8BD1A1E0543149E1",
+        "status": "neutral",
+        "target": "observation:RS-1832B4B6D87E46BC:FRM-64D4ABCB60884493",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:FRM-B64C8C0367074D36",
+        "status": "neutral",
+        "target": "raw:RS-1832B4B6D87E46BC:FILE-D68899FE5BF8467D",
+        "weight": 1.0
+      },
+      {
+        "relation": "derived_from",
+        "source": "observation:RS-1832B4B6D87E46BC:VAN-8BD1A1E0543149E1",
+        "status": "neutral",
+        "target": "observation:RS-1832B4B6D87E46BC:FRM-B64C8C0367074D36",
+        "weight": 1.0
+      },
+      {
+        "relation": "analyzes",
+        "source": "model-run:RS-1832B4B6D87E46BC:MRUN-1BE4E7264916456D",
+        "status": "neutral",
+        "target": "observation:RS-1832B4B6D87E46BC:FRM-86C7A5A24E4B456D",
+        "weight": 1.0
+      },
+      {
+        "relation": "analyzes",
+        "source": "model-run:RS-1832B4B6D87E46BC:MRUN-13C9F3BED8294EA2",
+        "status": "neutral",
+        "target": "observation:RS-1832B4B6D87E46BC:FRM-696EA6BC16EE47AD",
+        "weight": 1.0
+      },
+      {
+        "relation": "cites",
+        "source": "observation:RS-1832B4B6D87E46BC:VAN-8BD1A1E0543149E1",
+        "status": "neutral",
+        "target": "reference:demo:ceramic:rgb-observation:v1",
+        "weight": 1.0
+      },
+      {
+        "relation": "cites",
+        "source": "observation:RS-1832B4B6D87E46BC:VAN-8BD1A1E0543149E1",
+        "status": "neutral",
+        "target": "reference:demo:evidence:citation-boundary:v1",
+        "weight": 1.0
+      },
+      {
+        "relation": "targets",
+        "source": "action:RS-1832B4B6D87E46BC:VAN-8BD1A1E0543149E1:OBS-RGB-QUALITY",
+        "status": "neutral",
+        "target": "region:RS-1832B4B6D87E46BC:R1",
+        "weight": 1.0
+      },
+      {
+        "relation": "targets",
+        "source": "action:RS-1832B4B6D87E46BC:VAN-8BD1A1E0543149E1:OBS-UV-NIR",
+        "status": "neutral",
+        "target": "region:RS-1832B4B6D87E46BC:R1",
+        "weight": 1.0
+      },
+      {
+        "relation": "targets",
+        "source": "action:RS-1832B4B6D87E46BC:VAN-8BD1A1E0543149E1:OBS-MATERIAL-SCIENCE",
+        "status": "neutral",
+        "target": "region:RS-1832B4B6D87E46BC:R1",
+        "weight": 1.0
+      }
+    ],
+    "nodes": [
+      {
+        "color": "#2b5b8e",
+        "id": "artifact:RS-1832B4B6D87E46BC",
+        "label": "媒体闭环自动验收瓷器",
+        "meta": {},
+        "status": "active",
+        "type": "artifact"
+      },
+      {
+        "color": "#a47b32",
+        "id": "claim:RS-1832B4B6D87E46BC",
+        "label": "送检声明：待核验 · 待核验 · 陶瓷",
+        "meta": {},
+        "status": "uncertain",
+        "type": "claim"
+      },
+      {
+        "color": "#5d806c",
+        "id": "region:RS-1832B4B6D87E46BC:R1",
+        "label": "R1 蓝色纹饰区",
+        "meta": {},
+        "status": "active",
+        "type": "region"
+      },
+      {
+        "color": "#667487",
+        "id": "raw:RS-1832B4B6D87E46BC:FILE-B5CAD98A3D5E4897",
+        "label": "met-vase-42550.jpg",
+        "meta": {
+          "data_level": "RAW_CAPTURE",
+          "sha256": "6e5de088bb3b91aa5c5459e3fe7f7f45caef186b213e5e938a30e5885c1c81d3"
+        },
+        "status": "accepted",
+        "type": "raw"
+      },
+      {
+        "color": "#3977aa",
+        "id": "observation:RS-1832B4B6D87E46BC:IMG-32B5D25639AC4A4F",
+        "label": "RGB 图像质量与视觉指纹",
+        "meta": {
+          "data_level": "DERIVED_MEASUREMENT",
+          "fingerprint_id": "9d3a939c1b7dea7f7dcfa113dfea65f57554d93a256ced6fbd20e5a3c6658a84",
+          "quality_gate": {
+            "checks": {
+              "clipping": true,
+              "dynamic_range": true,
+              "exposure": true,
+              "resolution": true,
+              "sharpness": true
+            },
+            "failed_checks": [],
+            "passed": true
+          }
+        },
+        "status": "accepted",
+        "type": "observation"
+      },
+      {
+        "color": "#735d8c",
+        "id": "model-run:RS-1832B4B6D87E46BC:MRUN-0D83CAC024994751",
+        "label": "本地多模态模型观察",
+        "meta": {
+          "completed_at": "2026-08-30T01:17:51.864+00:00",
+          "error_category": "NotConfigured",
+          "input_hash": "6e5de088bb3b91aa5c5459e3fe7f7f45caef186b213e5e938a30e5885c1c81d3",
+          "input_refs": [
+            "FILE-B5CAD98A3D5E4897",
+            "R1"
+          ],
+          "latency_ms": 0,
+          "mode": "deterministic_fallback",
+          "model": "nvidia/Qwen2.5-VL-7B-Instruct-NVFP4",
+          "node_id": "spark-b",
+          "output_hash": null,
+          "output_ref": null,
+          "role": "multimodal_observation",
+          "run_id": "MRUN-0D83CAC024994751",
+          "started_at": "2026-08-30T01:17:51.864+00:00",
+          "status": "DEGRADED",
+          "template_hash": "67aae4506c7251851392aee7fdacb1cb018105a25264b0a0dbcebb51396733b0"
+        },
+        "status": "degraded",
+        "type": "model_run"
+      },
+      {
+        "color": "#6f7f8e",
+        "id": "reference:demo:ceramic:rgb-observation:v1",
+        "label": "青花陶瓷 RGB 可见特征观察卡（合成演示）",
+        "meta": {
+          "citation": {
+            "chunk_id": "demo:ceramic:rgb-observation:v1#c0",
+            "chunk_sha256": "9ab8b4ad019d2c8e25fc512efdab4cfc5b3cd790e0655b7656850f4a3e7730fb",
+            "content_sha256": "9ab8b4ad019d2c8e25fc512efdab4cfc5b3cd790e0655b7656850f4a3e7730fb",
+            "data_level": "DEMO/SYNTHETIC",
+            "knowledge_base_version": "relicscope-demo-ceramics-v1@90d7bb2d2f00",
+            "knowledge_space": "demo",
+            "location": {
+              "kind": "record",
+              "locator": "DEMO-RGB-01/段落-1"
+            },
+            "source_id": "demo:ceramic:rgb-observation:v1"
+          },
+          "data_level": "DEMO/SYNTHETIC",
+          "score": 0.619633
+        },
+        "status": "demo",
+        "type": "reference"
+      },
+      {
+        "color": "#6f7f8e",
+        "id": "reference:demo:evidence:citation-boundary:v1",
+        "label": "科学证据链与引用边界卡（合成演示）",
+        "meta": {
+          "citation": {
+            "chunk_id": "demo:evidence:citation-boundary:v1#c0",
+            "chunk_sha256": "f2f3962870caa93c55d9b067bbd20641eb4d37ff67e7611eaf180d9afb999331",
+            "content_sha256": "f2f3962870caa93c55d9b067bbd20641eb4d37ff67e7611eaf180d9afb999331",
+            "data_level": "DEMO/SYNTHETIC",
+            "knowledge_base_version": "relicscope-demo-ceramics-v1@90d7bb2d2f00",
+            "knowledge_space": "demo",
+            "location": {
+              "kind": "protocol-section",
+              "locator": "DEMO-EVIDENCE-01/段落-1"
+            },
+            "source_id": "demo:evidence:citation-boundary:v1"
+          },
+          "data_level": "DEMO/SYNTHETIC",
+          "score": 0.50666
+        },
+        "status": "demo",
+        "type": "reference"
+      },
+      {
+        "color": "#667487",
+        "id": "raw:RS-1832B4B6D87E46BC:FILE-99934AB84F0046CE",
+        "label": "met-vase-42550.jpg",
+        "meta": {
+          "data_level": "RAW_CAPTURE",
+          "sha256": "6e5de088bb3b91aa5c5459e3fe7f7f45caef186b213e5e938a30e5885c1c81d3"
+        },
+        "status": "accepted",
+        "type": "raw"
+      },
+      {
+        "color": "#3977aa",
+        "id": "observation:RS-1832B4B6D87E46BC:IMG-F3F18ABC5B6144A5",
+        "label": "RGB 图像质量与视觉指纹",
+        "meta": {
+          "data_level": "DERIVED_MEASUREMENT",
+          "fingerprint_id": "9d3a939c1b7dea7f7dcfa113dfea65f57554d93a256ced6fbd20e5a3c6658a84",
+          "quality_gate": {
+            "checks": {
+              "clipping": true,
+              "dynamic_range": true,
+              "exposure": true,
+              "resolution": true,
+              "sharpness": true
+            },
+            "failed_checks": [],
+            "passed": true
+          }
+        },
+        "status": "accepted",
+        "type": "observation"
+      },
+      {
+        "color": "#735d8c",
+        "id": "model-run:RS-1832B4B6D87E46BC:MRUN-B59C6207B3DA43F0",
+        "label": "本地多模态模型观察",
+        "meta": {
+          "completed_at": "2026-08-30T01:17:52.008+00:00",
+          "error_category": "NotConfigured",
+          "input_hash": "6e5de088bb3b91aa5c5459e3fe7f7f45caef186b213e5e938a30e5885c1c81d3",
+          "input_refs": [
+            "FILE-99934AB84F0046CE",
+            "R1"
+          ],
+          "latency_ms": 0,
+          "mode": "deterministic_fallback",
+          "model": "nvidia/Qwen2.5-VL-7B-Instruct-NVFP4",
+          "node_id": "spark-b",
+          "output_hash": null,
+          "output_ref": null,
+          "role": "multimodal_observation",
+          "run_id": "MRUN-B59C6207B3DA43F0",
+          "started_at": "2026-08-30T01:17:52.008+00:00",
+          "status": "DEGRADED",
+          "template_hash": "67aae4506c7251851392aee7fdacb1cb018105a25264b0a0dbcebb51396733b0"
+        },
+        "status": "degraded",
+        "type": "model_run"
+      },
+      {
+        "color": "#3977aa",
+        "id": "observation:RS-1832B4B6D87E46BC:CMP-C697AD3C4EF64033",
+        "label": "同区域图像变化候选比较",
+        "meta": {
+          "data_level": "DERIVED_MEASUREMENT",
+          "dhash_distance_normalized": 0.0,
+          "feature_distance": 0.0,
+          "status": "STABLE_WITHIN_CAPTURE_TOLERANCE"
+        },
+        "status": "stable_within_capture_tolerance",
+        "type": "observation"
+      },
+      {
+        "color": "#667487",
+        "id": "raw:RS-1832B4B6D87E46BC:FILE-D68899FE5BF8467D",
+        "label": "ceramic-orbit-demo.mp4",
+        "meta": {
+          "container": "ISO-BMFF",
+          "data_level": "RAW_CAPTURE",
+          "media_kind": "VIDEO",
+          "sha256": "f7d73ef49a29e92a1a08b846b2efefb066304c3c5acbbb8f0f3659cb70b9124b"
+        },
+        "status": "accepted",
+        "type": "raw"
+      },
+      {
+        "color": "#3977aa",
+        "id": "observation:RS-1832B4B6D87E46BC:VAN-8BD1A1E0543149E1",
+        "label": "视频多帧结构化观察",
+        "meta": {
+          "data_level": "DERIVED_MEASUREMENT",
+          "quality_gate": {
+            "checks": {
+              "minimum_usable_frames": false,
+              "representative_frames": true,
+              "temporal_coverage": true,
+              "viewpoint_diversity": true
+            },
+            "failed_checks": [
+              "minimum_usable_frames"
+            ],
+            "passed": false
+          },
+          "sampling_summary": {
+            "capture_consistency_score": 0.9872,
+            "duplicate_suppressed_count": 8,
+            "quality_rejected_count": 0,
+            "representative_frame_count": 2,
+            "requested_frame_count": 10,
+            "temporal_span_ratio": 1.0,
+            "usable_frame_count": 2,
+            "viewpoint_diversity_score": 0.0781
+          }
+        },
+        "status": "review",
+        "type": "observation"
+      },
+      {
+        "color": "#3977aa",
+        "id": "observation:RS-1832B4B6D87E46BC:FRM-86C7A5A24E4B456D",
+        "label": "视频帧 0 ms",
+        "meta": {
+          "data_level": "DERIVED_FRAME",
+          "derivation_method": "manual-keyframes-v1",
+          "duplicate_of": null,
+          "file_id": "FILE-03CAB807EEC8402B",
+          "parent_video_id": "VID-755370770DAC493E",
+          "quality_gate": {
+            "checks": {
+              "clipping": true,
+              "dynamic_range": true,
+              "exposure": true,
+              "resolution": true,
+              "sharpness": true
+            },
+            "failed_checks": [],
+            "passed": true
+          },
+          "sha256": "d5d1a48aad10e8c1c8960ef0edba7da5163c8eb4ac72e5b6509f2cbdb5d437de",
+          "timestamp_ms": 0
+        },
+        "status": "accepted",
+        "type": "observation"
+      },
+      {
+        "color": "#3977aa",
+        "id": "observation:RS-1832B4B6D87E46BC:FRM-7C18F660641F45BD",
+        "label": "视频帧 667 ms",
+        "meta": {
+          "data_level": "DERIVED_FRAME",
+          "derivation_method": "manual-keyframes-v1",
+          "duplicate_of": "FRM-86C7A5A24E4B456D",
+          "file_id": "FILE-3A75F4CFD1C24BDC",
+          "parent_video_id": "VID-755370770DAC493E",
+          "quality_gate": {
+            "checks": {
+              "clipping": true,
+              "dynamic_range": true,
+              "exposure": true,
+              "resolution": true,
+              "sharpness": true
+            },
+            "failed_checks": [],
+            "passed": true
+          },
+          "sha256": "fb2fae8ad01142e516e97e0cf7d9dea7a1073dc47683b6cc7334abc21775c6af",
+          "timestamp_ms": 667
+        },
+        "status": "duplicate_suppressed",
+        "type": "observation"
+      },
+      {
+        "color": "#3977aa",
+        "id": "observation:RS-1832B4B6D87E46BC:FRM-07FB3D37488C4CDF",
+        "label": "视频帧 1333 ms",
+        "meta": {
+          "data_level": "DERIVED_FRAME",
+          "derivation_method": "manual-keyframes-v1",
+          "duplicate_of": "FRM-86C7A5A24E4B456D",
+          "file_id": "FILE-A1F5FC6CCC4D49B7",
+          "parent_video_id": "VID-755370770DAC493E",
+          "quality_gate": {
+            "checks": {
+              "clipping": true,
+              "dynamic_range": true,
+              "exposure": true,
+              "resolution": true,
+              "sharpness": true
+            },
+            "failed_checks": [],
+            "passed": true
+          },
+          "sha256": "472c3e38b4e5739e53ba924eb580f76ef3bf0da69485eea08febe944c3697576",
+          "timestamp_ms": 1333
+        },
+        "status": "duplicate_suppressed",
+        "type": "observation"
+      },
+      {
+        "color": "#3977aa",
+        "id": "observation:RS-1832B4B6D87E46BC:FRM-152F4EC407B9479B",
+        "label": "视频帧 2000 ms",
+        "meta": {
+          "data_level": "DERIVED_FRAME",
+          "derivation_method": "manual-keyframes-v1",
+          "duplicate_of": "FRM-86C7A5A24E4B456D",
+          "file_id": "FILE-0A3EF4CF54DF4DDE",
+          "parent_video_id": "VID-755370770DAC493E",
+          "quality_gate": {
+            "checks": {
+              "clipping": true,
+              "dynamic_range": true,
+              "exposure": true,
+              "resolution": true,
+              "sharpness": true
+            },
+            "failed_checks": [],
+            "passed": true
+          },
+          "sha256": "b4a2d35e883618b0c4706934596d61064cf0ab2af93342e50770b838d3b232bb",
+          "timestamp_ms": 2000
+        },
+        "status": "duplicate_suppressed",
+        "type": "observation"
+      },
+      {
+        "color": "#3977aa",
+        "id": "observation:RS-1832B4B6D87E46BC:FRM-0F75BBE76091421D",
+        "label": "视频帧 2667 ms",
+        "meta": {
+          "data_level": "DERIVED_FRAME",
+          "derivation_method": "manual-keyframes-v1",
+          "duplicate_of": "FRM-86C7A5A24E4B456D",
+          "file_id": "FILE-3C205E31514E4484",
+          "parent_video_id": "VID-755370770DAC493E",
+          "quality_gate": {
+            "checks": {
+              "clipping": true,
+              "dynamic_range": true,
+              "exposure": true,
+              "resolution": true,
+              "sharpness": true
+            },
+            "failed_checks": [],
+            "passed": true
+          },
+          "sha256": "2843e466955e107dbc3964b40e5371eaf300b91f6629900d0121fc87cb15d359",
+          "timestamp_ms": 2667
+        },
+        "status": "duplicate_suppressed",
+        "type": "observation"
+      },
+      {
+        "color": "#3977aa",
+        "id": "observation:RS-1832B4B6D87E46BC:FRM-DAF20D1EF4C24807",
+        "label": "视频帧 3333 ms",
+        "meta": {
+          "data_level": "DERIVED_FRAME",
+          "derivation_method": "manual-keyframes-v1",
+          "duplicate_of": "FRM-86C7A5A24E4B456D",
+          "file_id": "FILE-B34F18834AEE4DD1",
+          "parent_video_id": "VID-755370770DAC493E",
+          "quality_gate": {
+            "checks": {
+              "clipping": true,
+              "dynamic_range": true,
+              "exposure": true,
+              "resolution": true,
+              "sharpness": true
+            },
+            "failed_checks": [],
+            "passed": true
+          },
+          "sha256": "c7b03f9bdf3ef177d05874b1be467392e06b24f653f8c982de17707c38f9ebe9",
+          "timestamp_ms": 3333
+        },
+        "status": "duplicate_suppressed",
+        "type": "observation"
+      },
+      {
+        "color": "#3977aa",
+        "id": "observation:RS-1832B4B6D87E46BC:FRM-6F821144C03645DA",
+        "label": "视频帧 4000 ms",
+        "meta": {
+          "data_level": "DERIVED_FRAME",
+          "derivation_method": "manual-keyframes-v1",
+          "duplicate_of": "FRM-86C7A5A24E4B456D",
+          "file_id": "FILE-D8C3353D9DFB4266",
+          "parent_video_id": "VID-755370770DAC493E",
+          "quality_gate": {
+            "checks": {
+              "clipping": true,
+              "dynamic_range": true,
+              "exposure": true,
+              "resolution": true,
+              "sharpness": true
+            },
+            "failed_checks": [],
+            "passed": true
+          },
+          "sha256": "20dc00477e269d00de5d01f89af44fcd3928b905b7b71b22f2476f93cf27145d",
+          "timestamp_ms": 4000
+        },
+        "status": "duplicate_suppressed",
+        "type": "observation"
+      },
+      {
+        "color": "#3977aa",
+        "id": "observation:RS-1832B4B6D87E46BC:FRM-696EA6BC16EE47AD",
+        "label": "视频帧 4667 ms",
+        "meta": {
+          "data_level": "DERIVED_FRAME",
+          "derivation_method": "manual-keyframes-v1",
+          "duplicate_of": null,
+          "file_id": "FILE-A317310B6F2441F9",
+          "parent_video_id": "VID-755370770DAC493E",
+          "quality_gate": {
+            "checks": {
+              "clipping": true,
+              "dynamic_range": true,
+              "exposure": true,
+              "resolution": true,
+              "sharpness": true
+            },
+            "failed_checks": [],
+            "passed": true
+          },
+          "sha256": "0f4365d8baf0aab7d320a0f755a2ddd86db13dfaf4550ab59b6b969cc787b7f1",
+          "timestamp_ms": 4667
+        },
+        "status": "accepted",
+        "type": "observation"
+      },
+      {
+        "color": "#3977aa",
+        "id": "observation:RS-1832B4B6D87E46BC:FRM-64D4ABCB60884493",
+        "label": "视频帧 5333 ms",
+        "meta": {
+          "data_level": "DERIVED_FRAME",
+          "derivation_method": "manual-keyframes-v1",
+          "duplicate_of": "FRM-696EA6BC16EE47AD",
+          "file_id": "FILE-BBB1B69EB6374776",
+          "parent_video_id": "VID-755370770DAC493E",
+          "quality_gate": {
+            "checks": {
+              "clipping": true,
+              "dynamic_range": true,
+              "exposure": true,
+              "resolution": true,
+              "sharpness": true
+            },
+            "failed_checks": [],
+            "passed": true
+          },
+          "sha256": "c51c26d0dec289dab3c615c9bddaf6d82512e0f19d73dda8e6475114a3f056f2",
+          "timestamp_ms": 5333
+        },
+        "status": "duplicate_suppressed",
+        "type": "observation"
+      },
+      {
+        "color": "#3977aa",
+        "id": "observation:RS-1832B4B6D87E46BC:FRM-B64C8C0367074D36",
+        "label": "视频帧 6000 ms",
+        "meta": {
+          "data_level": "DERIVED_FRAME",
+          "derivation_method": "manual-keyframes-v1",
+          "duplicate_of": "FRM-696EA6BC16EE47AD",
+          "file_id": "FILE-502202BCDD5E41C8",
+          "parent_video_id": "VID-755370770DAC493E",
+          "quality_gate": {
+            "checks": {
+              "clipping": true,
+              "dynamic_range": true,
+              "exposure": true,
+              "resolution": true,
+              "sharpness": true
+            },
+            "failed_checks": [],
+            "passed": true
+          },
+          "sha256": "b0662436d04aad80f6c4ba9a0aeb26e546ebc661805cb42f6811dbfd76340693",
+          "timestamp_ms": 6000
+        },
+        "status": "duplicate_suppressed",
+        "type": "observation"
+      },
+      {
+        "color": "#735d8c",
+        "id": "model-run:RS-1832B4B6D87E46BC:MRUN-1BE4E7264916456D",
+        "label": "视频代表帧本地多模态观察",
+        "meta": {
+          "completed_at": "2026-08-30T01:17:52.387+00:00",
+          "error_category": "NotConfigured",
+          "input_hash": "d5d1a48aad10e8c1c8960ef0edba7da5163c8eb4ac72e5b6509f2cbdb5d437de",
+          "input_refs": [
+            "FILE-D68899FE5BF8467D",
+            "FILE-03CAB807EEC8402B",
+            "FRM-86C7A5A24E4B456D"
+          ],
+          "latency_ms": 0,
+          "mode": "deterministic_fallback",
+          "model": "nvidia/Qwen2.5-VL-7B-Instruct-NVFP4",
+          "node_id": "spark-b",
+          "output_hash": null,
+          "output_ref": null,
+          "role": "video_frame_multimodal_observation",
+          "run_id": "MRUN-1BE4E7264916456D",
+          "started_at": "2026-08-30T01:17:52.387+00:00",
+          "status": "DEGRADED",
+          "template_hash": "67aae4506c7251851392aee7fdacb1cb018105a25264b0a0dbcebb51396733b0"
+        },
+        "status": "degraded",
+        "type": "model_run"
+      },
+      {
+        "color": "#735d8c",
+        "id": "model-run:RS-1832B4B6D87E46BC:MRUN-13C9F3BED8294EA2",
+        "label": "视频代表帧本地多模态观察",
+        "meta": {
+          "completed_at": "2026-08-30T01:17:52.387+00:00",
+          "error_category": "NotConfigured",
+          "input_hash": "0f4365d8baf0aab7d320a0f755a2ddd86db13dfaf4550ab59b6b969cc787b7f1",
+          "input_refs": [
+            "FILE-D68899FE5BF8467D",
+            "FILE-A317310B6F2441F9",
+            "FRM-696EA6BC16EE47AD"
+          ],
+          "latency_ms": 0,
+          "mode": "deterministic_fallback",
+          "model": "nvidia/Qwen2.5-VL-7B-Instruct-NVFP4",
+          "node_id": "spark-b",
+          "output_hash": null,
+          "output_ref": null,
+          "role": "video_frame_multimodal_observation",
+          "run_id": "MRUN-13C9F3BED8294EA2",
+          "started_at": "2026-08-30T01:17:52.387+00:00",
+          "status": "DEGRADED",
+          "template_hash": "67aae4506c7251851392aee7fdacb1cb018105a25264b0a0dbcebb51396733b0"
+        },
+        "status": "degraded",
+        "type": "model_run"
+      },
+      {
+        "color": "#9b5c49",
+        "id": "action:RS-1832B4B6D87E46BC:VAN-8BD1A1E0543149E1:OBS-RGB-QUALITY",
+        "label": "补拍稳定的可见光全景",
+        "meta": {
+          "id": "OBS-RGB-QUALITY",
+          "label": "补拍稳定的可见光全景",
+          "modality": "RGB",
+          "priority": 1,
+          "reason": "可用帧不足；使用三脚架、漫射光与固定曝光重新采集。",
+          "risk_class": "NON_CONTACT"
+        },
+        "status": "recommended",
+        "type": "action"
+      },
+      {
+        "color": "#9b5c49",
+        "id": "action:RS-1832B4B6D87E46BC:VAN-8BD1A1E0543149E1:OBS-UV-NIR",
+        "label": "升级至 UV / NIR 表面响应观察",
+        "meta": {
+          "id": "OBS-UV-NIR",
+          "label": "升级至 UV / NIR 表面响应观察",
+          "modality": "UV_NIR",
+          "priority": 4,
+          "reason": "可在不接触器物的前提下复核可见光候选区域；结果仍需质量门控。",
+          "risk_class": "NON_CONTACT_CONTROLLED_LIGHT"
+        },
+        "status": "recommended",
+        "type": "action"
+      },
+      {
+        "color": "#9b5c49",
+        "id": "action:RS-1832B4B6D87E46BC:VAN-8BD1A1E0543149E1:OBS-MATERIAL-SCIENCE",
+        "label": "由专家审批材料科学检测",
+        "meta": {
+          "id": "OBS-MATERIAL-SCIENCE",
+          "label": "由专家审批材料科学检测",
+          "modality": "SCIENTIFIC_INSTRUMENT",
+          "priority": 5,
+          "reason": "图像与视频不能给出元素、分子结构、内部结构或热释光信息；可按风险预算评估 HSI、Raman、XRF、X-ray/CT 或 TL。",
+          "risk_class": "EXPERT_APPROVAL_REQUIRED"
+        },
+        "status": "recommended",
+        "type": "action"
+      }
+    ]
+  },
+  "executions": [],
+  "generated_at": "2026-08-30T01:17:52.442+00:00",
+  "image_analyses": [
+    {
+      "acquisition_guidance": [
+        "保留原始文件，并补拍口沿、腹部、底足与款识的同尺度视角。"
+      ],
+      "conclusion_boundary": "仅描述图像可见信息和采集质量；不据此判断真伪、年代、窑口、材料成分、价值或法律状态。",
+      "file_id": "FILE-B5CAD98A3D5E4897",
+      "fingerprint": {
+        "algorithm": "relicscope-visual-fingerprint-v1",
+        "dhash": "90b2206426238747",
+        "feature_vector": [
+          0.391901,
+          0.768627,
+          0.186359,
+          0.059238,
+          0.154892,
+          0.059894,
+          0.883874,
+          0.934637
+        ],
+        "id": "9d3a939c1b7dea7f7dcfa113dfea65f57554d93a256ced6fbd20e5a3c6658a84"
+      },
+      "id": "IMG-32B5D25639AC4A4F",
+      "knowledge_snapshot_hash": "8c73cda628faff8c17e78c71b2f05eea6fbeffa01a3af559346778e93a81651a",
+      "metrics": {
+        "blue_ratio": 0.0599,
+        "brightness_mean": 99.93,
+        "clipped_black_ratio": 0.0007,
+        "clipped_white_ratio": 0.0,
+        "dynamic_range_p01_p99": 196.0,
+        "edge_density": 0.0592,
+        "entropy_normalized": 0.9346,
+        "height": 4000,
+        "saturation_mean": 0.1549,
+        "sharpness_score": 22.36,
+        "symmetry_score": 0.8839,
+        "width": 2998
+      },
+      "modality": "RGB",
+      "model_observation": {
+        "available": false,
+        "error": "NotConfigured",
+        "mode": "deterministic_fallback",
+        "model": "nvidia/Qwen2.5-VL-7B-Instruct-NVFP4",
+        "prompt_hash": "67aae4506c7251851392aee7fdacb1cb018105a25264b0a0dbcebb51396733b0",
+        "role": "vision"
+      },
+      "next_best_observation": {
+        "id": "OBS-MULTI-VIEW",
+        "label": "采集环绕视频与关键视角",
+        "modality": "RGB_VIDEO",
+        "priority": 2,
+        "reason": "单张图像无法覆盖器形、底足、口沿和款识。",
+        "risk_class": "NON_CONTACT"
+      },
+      "next_best_observations": [
+        {
+          "id": "OBS-MULTI-VIEW",
+          "label": "采集环绕视频与关键视角",
+          "modality": "RGB_VIDEO",
+          "priority": 2,
+          "reason": "单张图像无法覆盖器形、底足、口沿和款识。",
+          "risk_class": "NON_CONTACT"
+        },
+        {
+          "id": "OBS-UV-NIR",
+          "label": "复核 UV / NIR 表面响应",
+          "modality": "UV_NIR",
+          "priority": 3,
+          "reason": "以受控非接触成像复核可见光候选区域。",
+          "risk_class": "NON_CONTACT_CONTROLLED_LIGHT"
+        },
+        {
+          "id": "OBS-MATERIAL-SCIENCE",
+          "label": "由专家审批材料科学检测",
+          "modality": "SCIENTIFIC_INSTRUMENT",
+          "priority": 4,
+          "reason": "图像不能给出元素、分子结构、内部结构或热释光信息。",
+          "risk_class": "EXPERT_APPROVAL_REQUIRED"
+        }
+      ],
+      "quality": {
+        "checks": {
+          "clipping": true,
+          "dynamic_range": true,
+          "exposure": true,
+          "resolution": true,
+          "sharpness": true
+        },
+        "failed_checks": [],
+        "passed": true
+      },
+      "region_id": "R1",
+      "salient_regions": [
+        {
+          "bbox_normalized": [
+            0.3325,
+            0.333,
+            0.6662,
+            0.666
+          ],
+          "id": "ROI-1",
+          "score": 0.0498
+        },
+        {
+          "bbox_normalized": [
+            0.3325,
+            0.666,
+            0.6662,
+            1.0
+          ],
+          "id": "ROI-2",
+          "score": 0.0342
+        }
+      ],
+      "source_category": "DERIVED_MEASUREMENT",
+      "visible_observations": [
+        "已对 2998×4000 像素输入计算曝光、清晰度、边缘分布与视觉指纹。",
+        "蓝色像素候选比例为 6.0%；该数值属于图像统计，不能解释为颜料或元素成分。"
+      ]
+    },
+    {
+      "acquisition_guidance": [
+        "保留原始文件，并补拍口沿、腹部、底足与款识的同尺度视角。"
+      ],
+      "conclusion_boundary": "仅描述图像可见信息和采集质量；不据此判断真伪、年代、窑口、材料成分、价值或法律状态。",
+      "file_id": "FILE-99934AB84F0046CE",
+      "fingerprint": {
+        "algorithm": "relicscope-visual-fingerprint-v1",
+        "dhash": "90b2206426238747",
+        "feature_vector": [
+          0.391901,
+          0.768627,
+          0.186359,
+          0.059238,
+          0.154892,
+          0.059894,
+          0.883874,
+          0.934637
+        ],
+        "id": "9d3a939c1b7dea7f7dcfa113dfea65f57554d93a256ced6fbd20e5a3c6658a84"
+      },
+      "id": "IMG-F3F18ABC5B6144A5",
+      "knowledge_snapshot_hash": "290c424adcf42cc9d1ebe4e4aa09410af5e994a23fd6a1b3af76521ae33b0bf9",
+      "metrics": {
+        "blue_ratio": 0.0599,
+        "brightness_mean": 99.93,
+        "clipped_black_ratio": 0.0007,
+        "clipped_white_ratio": 0.0,
+        "dynamic_range_p01_p99": 196.0,
+        "edge_density": 0.0592,
+        "entropy_normalized": 0.9346,
+        "height": 4000,
+        "saturation_mean": 0.1549,
+        "sharpness_score": 22.36,
+        "symmetry_score": 0.8839,
+        "width": 2998
+      },
+      "modality": "RGB",
+      "model_observation": {
+        "available": false,
+        "error": "NotConfigured",
+        "mode": "deterministic_fallback",
+        "model": "nvidia/Qwen2.5-VL-7B-Instruct-NVFP4",
+        "prompt_hash": "67aae4506c7251851392aee7fdacb1cb018105a25264b0a0dbcebb51396733b0",
+        "role": "vision"
+      },
+      "next_best_observation": {
+        "id": "OBS-MULTI-VIEW",
+        "label": "采集环绕视频与关键视角",
+        "modality": "RGB_VIDEO",
+        "priority": 2,
+        "reason": "单张图像无法覆盖器形、底足、口沿和款识。",
+        "risk_class": "NON_CONTACT"
+      },
+      "next_best_observations": [
+        {
+          "id": "OBS-MULTI-VIEW",
+          "label": "采集环绕视频与关键视角",
+          "modality": "RGB_VIDEO",
+          "priority": 2,
+          "reason": "单张图像无法覆盖器形、底足、口沿和款识。",
+          "risk_class": "NON_CONTACT"
+        },
+        {
+          "id": "OBS-UV-NIR",
+          "label": "复核 UV / NIR 表面响应",
+          "modality": "UV_NIR",
+          "priority": 3,
+          "reason": "以受控非接触成像复核可见光候选区域。",
+          "risk_class": "NON_CONTACT_CONTROLLED_LIGHT"
+        },
+        {
+          "id": "OBS-MATERIAL-SCIENCE",
+          "label": "由专家审批材料科学检测",
+          "modality": "SCIENTIFIC_INSTRUMENT",
+          "priority": 4,
+          "reason": "图像不能给出元素、分子结构、内部结构或热释光信息。",
+          "risk_class": "EXPERT_APPROVAL_REQUIRED"
+        }
+      ],
+      "quality": {
+        "checks": {
+          "clipping": true,
+          "dynamic_range": true,
+          "exposure": true,
+          "resolution": true,
+          "sharpness": true
+        },
+        "failed_checks": [],
+        "passed": true
+      },
+      "region_id": "R1",
+      "salient_regions": [
+        {
+          "bbox_normalized": [
+            0.3325,
+            0.333,
+            0.6662,
+            0.666
+          ],
+          "id": "ROI-1",
+          "score": 0.0498
+        },
+        {
+          "bbox_normalized": [
+            0.3325,
+            0.666,
+            0.6662,
+            1.0
+          ],
+          "id": "ROI-2",
+          "score": 0.0342
+        }
+      ],
+      "source_category": "DERIVED_MEASUREMENT",
+      "visible_observations": [
+        "已对 2998×4000 像素输入计算曝光、清晰度、边缘分布与视觉指纹。",
+        "蓝色像素候选比例为 6.0%；该数值属于图像统计，不能解释为颜料或元素成分。"
+      ]
+    }
+  ],
+  "image_comparisons": [
+    {
+      "baseline_analysis_id": "IMG-32B5D25639AC4A4F",
+      "comparison_analysis_id": "IMG-F3F18ABC5B6144A5",
+      "conclusion_boundary": "该比较只反映两次图像采集的可见差异；不解释为劣化、修复、真伪、年代或材料变化。",
+      "created_at": "2026-08-30T01:17:52.024+00:00",
+      "id": "CMP-C697AD3C4EF64033",
+      "metrics": {
+        "brightness_delta": 0.0,
+        "dhash_distance_bits": 0,
+        "dhash_distance_normalized": 0.0,
+        "feature_distance": 0.0,
+        "sharpness_delta": 0.0
+      },
+      "modality": "RGB",
+      "next_best_observation": {
+        "label": "按同机位、同焦距、同光照和同色卡条件复拍",
+        "reason": "先控制采集差异，再由专家判断可见变化候选是否值得升级检测。",
+        "risk_class": "NON_CONTACT"
+      },
+      "reasons": [
+        "视觉指纹差异处于演示阈值内"
+      ],
+      "region_id": "R1",
+      "source_category": "DERIVED_MEASUREMENT",
+      "status": "STABLE_WITHIN_CAPTURE_TOLERANCE"
+    }
+  ],
+  "integrity": {
+    "algorithm": "SHA-256",
+    "boundary": "完整性摘要不能证明输入事实真实性或机构签章有效性。",
+    "canonicalization": "sorted compact JSON UTF-8",
+    "latest_audit_hash": "2c1f1e3be8783c7c9a98b6386bd50d6d9bef835e0a7088e8cc9281ea492b2241",
+    "report_sha256": "6925cf00cf5eacbbb9b51c5ebce46412fd29451d55faaa8c1de92c6c2834188b"
+  },
+  "knowledge": {
+    "searches": [
+      {
+        "abstention": null,
+        "algorithm": {
+          "embedding_algorithm": "relicscope-signed-hash-embedding-v1",
+          "embedding_model": "deterministic-local-no-network",
+          "embedding_provider": "DeterministicEmbeddingProvider",
+          "fusion": "relicscope-hybrid-retrieval-v1",
+          "lexical": "relicscope-local-token-overlap-v1",
+          "visual": "relicscope-normalized-feature-distance-v1",
+          "weights": {
+            "structured": 0.25,
+            "text": 0.45,
+            "visual": 0.3
+          }
+        },
+        "candidate_set_hash": "6affd121347026f8ecbbbe50eee9c5a0b57f2307686776c2528f58b82d14747d",
+        "citation_whitelist": [
+          {
+            "chunk_id": "demo:ceramic:rgb-observation:v1#c0",
+            "chunk_sha256": "9ab8b4ad019d2c8e25fc512efdab4cfc5b3cd790e0655b7656850f4a3e7730fb",
+            "content_sha256": "9ab8b4ad019d2c8e25fc512efdab4cfc5b3cd790e0655b7656850f4a3e7730fb",
+            "data_level": "DEMO/SYNTHETIC",
+            "knowledge_base_version": "relicscope-demo-ceramics-v1@90d7bb2d2f00",
+            "knowledge_space": "demo",
+            "location": {
+              "kind": "record",
+              "locator": "DEMO-RGB-01/段落-1"
+            },
+            "source_id": "demo:ceramic:rgb-observation:v1"
+          },
+          {
+            "chunk_id": "demo:evidence:citation-boundary:v1#c0",
+            "chunk_sha256": "f2f3962870caa93c55d9b067bbd20641eb4d37ff67e7611eaf180d9afb999331",
+            "content_sha256": "f2f3962870caa93c55d9b067bbd20641eb4d37ff67e7611eaf180d9afb999331",
+            "data_level": "DEMO/SYNTHETIC",
+            "knowledge_base_version": "relicscope-demo-ceramics-v1@90d7bb2d2f00",
+            "knowledge_space": "demo",
+            "location": {
+              "kind": "protocol-section",
+              "locator": "DEMO-EVIDENCE-01/段落-1"
+            },
+            "source_id": "demo:evidence:citation-boundary:v1"
+          }
+        ],
+        "citation_whitelist_hash": "9574558d72c40d1ad24297e65898a2c6c2bfb5c9ea46718d1a2d9821b3761039",
+        "data_boundary": "LOCAL_ONLY",
+        "data_level": "DEMO/SYNTHETIC",
+        "degraded": true,
+        "degraded_reasons": [
+          "EMBEDDING_SERVICE_NOT_CONFIGURED"
+        ],
+        "exclusions": [
+          {
+            "reason": "APPLICABILITY_SCOPE_MISMATCH",
+            "source_id": "demo:ceramic:raman-quality:v1"
+          },
+          {
+            "reason": "APPLICABILITY_SCOPE_MISMATCH",
+            "source_id": "demo:ceramic:hsi-observation:v1"
+          },
+          {
+            "reason": "APPLICABILITY_SCOPE_MISMATCH",
+            "source_id": "demo:ceramic:xrf-safety:v1"
+          },
+          {
+            "reason": "APPLICABILITY_SCOPE_MISMATCH",
+            "source_id": "demo:ceramic:uv-observation:v1"
+          }
+        ],
+        "immutable_version_hash": "bf245b1331252c6c8cfd252648affac31ad68bca9039c88a9eea2b7543a633b7",
+        "interpretation_boundary": "DEMO/SYNTHETIC 本地检索候选，仅用于验证检索与引用流程；非真实馆藏记录、专家结论或鉴定结论。",
+        "knowledge_base_id": "relicscope-demo-ceramics",
+        "knowledge_base_version": "relicscope-demo-ceramics-v1@90d7bb2d2f00",
+        "knowledge_space": "demo",
+        "offline": true,
+        "query": {
+          "access_scope": "demo-public",
+          "attributes": {
+            "artifact_type": "陶瓷",
+            "material": "瓷",
+            "modality": "RGB"
+          },
+          "knowledge_spaces": [
+            "demo"
+          ],
+          "license_allowlist": null,
+          "limit": 3,
+          "minimum_score": 0.08,
+          "purpose": "product_demo",
+          "text": "陶瓷 待核验 可见纹饰、釉面与材料响应参考",
+          "visual_feature_vector": [
+            0.391901,
+            0.768627,
+            0.186359,
+            0.059238,
+            0.154892,
+            0.059894,
+            0.883874,
+            0.934637
+          ]
+        },
+        "query_hash": "5635ac803ed2176669568aeca43a316c9d3b8be264679cde5e20057ac8c336c0",
+        "result_count": 2,
+        "results": [
+          {
+            "applicability_scope": {
+              "artifact_types": [
+                "陶瓷",
+                "瓷器"
+              ],
+              "crafts": [
+                "青花",
+                "釉下彩"
+              ],
+              "limitations": [
+                "只描述可见特征",
+                "不用于真伪或断代结论"
+              ],
+              "materials": [
+                "瓷",
+                "釉",
+                "青花料"
+              ],
+              "modalities": [
+                "RGB"
+              ],
+              "regions": [
+                "器身",
+                "口沿",
+                "足部"
+              ],
+              "tags": [
+                "可见光",
+                "纹饰",
+                "釉面",
+                "观察候选"
+              ]
+            },
+            "citation": {
+              "chunk_id": "demo:ceramic:rgb-observation:v1#c0",
+              "chunk_sha256": "9ab8b4ad019d2c8e25fc512efdab4cfc5b3cd790e0655b7656850f4a3e7730fb",
+              "content_sha256": "9ab8b4ad019d2c8e25fc512efdab4cfc5b3cd790e0655b7656850f4a3e7730fb",
+              "data_level": "DEMO/SYNTHETIC",
+              "knowledge_base_version": "relicscope-demo-ceramics-v1@90d7bb2d2f00",
+              "knowledge_space": "demo",
+              "location": {
+                "kind": "record",
+                "locator": "DEMO-RGB-01/段落-1"
+              },
+              "source_id": "demo:ceramic:rgb-observation:v1"
+            },
+            "component_scores": {
+              "lexical": 0.376165,
+              "structured": 1.0,
+              "text": 0.308303,
+              "text_embedding": 0.182274,
+              "visual": 0.803592
+            },
+            "data_level": "DEMO/SYNTHETIC",
+            "document_version": "1.0-demo",
+            "knowledge_space": "demo",
+            "license": {
+              "identifier": "RelicScope-Demo-Only-1.0",
+              "statement": "仅限 RelicScope 产品演示和内部测试；不得作为馆藏记录、专家意见或鉴定依据。"
+            },
+            "match_explanation": "本地文本、结构化属性与视觉特征的加权检索相似性；该相似性不代表身份、真伪、年代、窑口或作者结论。",
+            "matched_on": [
+              "text",
+              "structured",
+              "visual"
+            ],
+            "published_at": "2026-08-28",
+            "publisher": "RelicScope AI Demo Team",
+            "rank": 1,
+            "score": 0.629814,
+            "snippet": "DEMO/SYNTHETIC：青花陶瓷的 RGB 观察应分别记录器形轮廓、纹饰边界、釉面反光、色彩分布和局部缺陷候选区域。可见相似性只能用于召回待比较资料；它不能单独支持窑口、年代、作者或真伪命题。光照不均、白平衡偏移和压缩伪影必须进入观察局限。",
+            "source_id": "demo:ceramic:rgb-observation:v1",
+            "source_status": {
+              "note": "仅复核演示标签、结构和安全表述。",
+              "reviewed_at": "2026-08-28T00:00:00Z",
+              "reviewer": "RelicScope Demo QA（非文物专家审核）",
+              "status": "REVIEWED_DEMO_ONLY"
+            },
+            "source_type": "synthetic_reference",
+            "title": "青花陶瓷 RGB 可见特征观察卡（合成演示）"
+          },
+          {
+            "applicability_scope": {
+              "artifact_types": [
+                "陶瓷",
+                "瓷器"
+              ],
+              "crafts": [
+                "青花",
+                "釉上彩",
+                "釉下彩"
+              ],
+              "limitations": [
+                "哈希只证明记录完整性",
+                "不证明输入事实真实"
+              ],
+              "materials": [
+                "瓷",
+                "釉",
+                "颜料"
+              ],
+              "modalities": [
+                "RGB",
+                "Raman",
+                "HSI",
+                "XRF",
+                "UV"
+              ],
+              "regions": [
+                "器身",
+                "口沿",
+                "足部",
+                "纹饰区"
+              ],
+              "tags": [
+                "证据图",
+                "引用",
+                "哈希",
+                "弃权"
+              ]
+            },
+            "citation": {
+              "chunk_id": "demo:evidence:citation-boundary:v1#c0",
+              "chunk_sha256": "f2f3962870caa93c55d9b067bbd20641eb4d37ff67e7611eaf180d9afb999331",
+              "content_sha256": "f2f3962870caa93c55d9b067bbd20641eb4d37ff67e7611eaf180d9afb999331",
+              "data_level": "DEMO/SYNTHETIC",
+              "knowledge_base_version": "relicscope-demo-ceramics-v1@90d7bb2d2f00",
+              "knowledge_space": "demo",
+              "location": {
+                "kind": "protocol-section",
+                "locator": "DEMO-EVIDENCE-01/段落-1"
+              },
+              "source_id": "demo:evidence:citation-boundary:v1"
+            },
+            "component_scores": {
+              "lexical": 0.069332,
+              "structured": 1.0,
+              "text": 0.050862,
+              "text_embedding": 0.016562,
+              "visual": 0.807505
+            },
+            "data_level": "DEMO/SYNTHETIC",
+            "document_version": "1.0-demo",
+            "knowledge_space": "demo",
+            "license": {
+              "identifier": "RelicScope-Demo-Only-1.0",
+              "statement": "仅限 RelicScope 产品演示和内部测试；不得作为法律鉴定、行政审核或专家签章材料。"
+            },
+            "match_explanation": "本地文本、结构化属性与视觉特征的加权检索相似性；该相似性不代表身份、真伪、年代、窑口或作者结论。",
+            "matched_on": [
+              "text",
+              "structured",
+              "visual"
+            ],
+            "published_at": "2026-08-28",
+            "publisher": "RelicScope AI Demo Team",
+            "rank": 2,
+            "score": 0.515139,
+            "snippet": "DEMO/SYNTHETIC：进入证据图或报告的知识性陈述必须绑定本次检索白名单中的来源标识、知识版本、精确位置和内容哈希。模型虚构或超出适用范围的引用不得进入证据链。哈希链用于发现记录变更，不证明输入事实真实，也不替代机构签名、可信时间戳、专家复核或法律鉴定。",
+            "source_id": "demo:evidence:citation-boundary:v1",
+            "source_status": {
+              "note": "仅复核引用白名单和弃权文案。",
+              "reviewed_at": "2026-08-28T00:00:00Z",
+              "reviewer": "RelicScope Demo QA（非法律或鉴定审核）",
+              "status": "REVIEWED_DEMO_ONLY"
+            },
+            "source_type": "synthetic_protocol",
+            "title": "科学证据链与引用边界卡（合成演示）"
+          }
+        ],
+        "retrieval_config_version": "relicscope-hybrid-retrieval-v1",
+        "retrieved_at": "2026-08-30T01:17:51.865+00:00",
+        "snapshot_hash": "8c73cda628faff8c17e78c71b2f05eea6fbeffa01a3af559346778e93a81651a",
+        "status": "RESULTS_AVAILABLE"
+      },
+      {
+        "abstention": null,
+        "algorithm": {
+          "embedding_algorithm": "relicscope-signed-hash-embedding-v1",
+          "embedding_model": "deterministic-local-no-network",
+          "embedding_provider": "DeterministicEmbeddingProvider",
+          "fusion": "relicscope-hybrid-retrieval-v1",
+          "lexical": "relicscope-local-token-overlap-v1",
+          "visual": "relicscope-normalized-feature-distance-v1",
+          "weights": {
+            "structured": 0.25,
+            "text": 0.45,
+            "visual": 0.3
+          }
+        },
+        "candidate_set_hash": "6affd121347026f8ecbbbe50eee9c5a0b57f2307686776c2528f58b82d14747d",
+        "citation_whitelist": [
+          {
+            "chunk_id": "demo:ceramic:rgb-observation:v1#c0",
+            "chunk_sha256": "9ab8b4ad019d2c8e25fc512efdab4cfc5b3cd790e0655b7656850f4a3e7730fb",
+            "content_sha256": "9ab8b4ad019d2c8e25fc512efdab4cfc5b3cd790e0655b7656850f4a3e7730fb",
+            "data_level": "DEMO/SYNTHETIC",
+            "knowledge_base_version": "relicscope-demo-ceramics-v1@90d7bb2d2f00",
+            "knowledge_space": "demo",
+            "location": {
+              "kind": "record",
+              "locator": "DEMO-RGB-01/段落-1"
+            },
+            "source_id": "demo:ceramic:rgb-observation:v1"
+          },
+          {
+            "chunk_id": "demo:evidence:citation-boundary:v1#c0",
+            "chunk_sha256": "f2f3962870caa93c55d9b067bbd20641eb4d37ff67e7611eaf180d9afb999331",
+            "content_sha256": "f2f3962870caa93c55d9b067bbd20641eb4d37ff67e7611eaf180d9afb999331",
+            "data_level": "DEMO/SYNTHETIC",
+            "knowledge_base_version": "relicscope-demo-ceramics-v1@90d7bb2d2f00",
+            "knowledge_space": "demo",
+            "location": {
+              "kind": "protocol-section",
+              "locator": "DEMO-EVIDENCE-01/段落-1"
+            },
+            "source_id": "demo:evidence:citation-boundary:v1"
+          }
+        ],
+        "citation_whitelist_hash": "9574558d72c40d1ad24297e65898a2c6c2bfb5c9ea46718d1a2d9821b3761039",
+        "data_boundary": "LOCAL_ONLY",
+        "data_level": "DEMO/SYNTHETIC",
+        "degraded": true,
+        "degraded_reasons": [
+          "EMBEDDING_SERVICE_NOT_CONFIGURED"
+        ],
+        "exclusions": [
+          {
+            "reason": "APPLICABILITY_SCOPE_MISMATCH",
+            "source_id": "demo:ceramic:raman-quality:v1"
+          },
+          {
+            "reason": "APPLICABILITY_SCOPE_MISMATCH",
+            "source_id": "demo:ceramic:hsi-observation:v1"
+          },
+          {
+            "reason": "APPLICABILITY_SCOPE_MISMATCH",
+            "source_id": "demo:ceramic:xrf-safety:v1"
+          },
+          {
+            "reason": "APPLICABILITY_SCOPE_MISMATCH",
+            "source_id": "demo:ceramic:uv-observation:v1"
+          }
+        ],
+        "immutable_version_hash": "bf245b1331252c6c8cfd252648affac31ad68bca9039c88a9eea2b7543a633b7",
+        "interpretation_boundary": "DEMO/SYNTHETIC 本地检索候选，仅用于验证检索与引用流程；非真实馆藏记录、专家结论或鉴定结论。",
+        "knowledge_base_id": "relicscope-demo-ceramics",
+        "knowledge_base_version": "relicscope-demo-ceramics-v1@90d7bb2d2f00",
+        "knowledge_space": "demo",
+        "offline": true,
+        "query": {
+          "access_scope": "demo-public",
+          "attributes": {
+            "artifact_type": "陶瓷",
+            "material": "瓷",
+            "modality": "RGB"
+          },
+          "knowledge_spaces": [
+            "demo"
+          ],
+          "license_allowlist": null,
+          "limit": 3,
+          "minimum_score": 0.08,
+          "purpose": "product_demo",
+          "text": "陶瓷 待核验 可见纹饰、釉面与材料响应参考",
+          "visual_feature_vector": [
+            0.391901,
+            0.768627,
+            0.186359,
+            0.059238,
+            0.154892,
+            0.059894,
+            0.883874,
+            0.934637
+          ]
+        },
+        "query_hash": "5635ac803ed2176669568aeca43a316c9d3b8be264679cde5e20057ac8c336c0",
+        "result_count": 2,
+        "results": [
+          {
+            "applicability_scope": {
+              "artifact_types": [
+                "陶瓷",
+                "瓷器"
+              ],
+              "crafts": [
+                "青花",
+                "釉下彩"
+              ],
+              "limitations": [
+                "只描述可见特征",
+                "不用于真伪或断代结论"
+              ],
+              "materials": [
+                "瓷",
+                "釉",
+                "青花料"
+              ],
+              "modalities": [
+                "RGB"
+              ],
+              "regions": [
+                "器身",
+                "口沿",
+                "足部"
+              ],
+              "tags": [
+                "可见光",
+                "纹饰",
+                "釉面",
+                "观察候选"
+              ]
+            },
+            "citation": {
+              "chunk_id": "demo:ceramic:rgb-observation:v1#c0",
+              "chunk_sha256": "9ab8b4ad019d2c8e25fc512efdab4cfc5b3cd790e0655b7656850f4a3e7730fb",
+              "content_sha256": "9ab8b4ad019d2c8e25fc512efdab4cfc5b3cd790e0655b7656850f4a3e7730fb",
+              "data_level": "DEMO/SYNTHETIC",
+              "knowledge_base_version": "relicscope-demo-ceramics-v1@90d7bb2d2f00",
+              "knowledge_space": "demo",
+              "location": {
+                "kind": "record",
+                "locator": "DEMO-RGB-01/段落-1"
+              },
+              "source_id": "demo:ceramic:rgb-observation:v1"
+            },
+            "component_scores": {
+              "lexical": 0.376165,
+              "structured": 1.0,
+              "text": 0.308303,
+              "text_embedding": 0.182274,
+              "visual": 0.803592
+            },
+            "data_level": "DEMO/SYNTHETIC",
+            "document_version": "1.0-demo",
+            "knowledge_space": "demo",
+            "license": {
+              "identifier": "RelicScope-Demo-Only-1.0",
+              "statement": "仅限 RelicScope 产品演示和内部测试；不得作为馆藏记录、专家意见或鉴定依据。"
+            },
+            "match_explanation": "本地文本、结构化属性与视觉特征的加权检索相似性；该相似性不代表身份、真伪、年代、窑口或作者结论。",
+            "matched_on": [
+              "text",
+              "structured",
+              "visual"
+            ],
+            "published_at": "2026-08-28",
+            "publisher": "RelicScope AI Demo Team",
+            "rank": 1,
+            "score": 0.629814,
+            "snippet": "DEMO/SYNTHETIC：青花陶瓷的 RGB 观察应分别记录器形轮廓、纹饰边界、釉面反光、色彩分布和局部缺陷候选区域。可见相似性只能用于召回待比较资料；它不能单独支持窑口、年代、作者或真伪命题。光照不均、白平衡偏移和压缩伪影必须进入观察局限。",
+            "source_id": "demo:ceramic:rgb-observation:v1",
+            "source_status": {
+              "note": "仅复核演示标签、结构和安全表述。",
+              "reviewed_at": "2026-08-28T00:00:00Z",
+              "reviewer": "RelicScope Demo QA（非文物专家审核）",
+              "status": "REVIEWED_DEMO_ONLY"
+            },
+            "source_type": "synthetic_reference",
+            "title": "青花陶瓷 RGB 可见特征观察卡（合成演示）"
+          },
+          {
+            "applicability_scope": {
+              "artifact_types": [
+                "陶瓷",
+                "瓷器"
+              ],
+              "crafts": [
+                "青花",
+                "釉上彩",
+                "釉下彩"
+              ],
+              "limitations": [
+                "哈希只证明记录完整性",
+                "不证明输入事实真实"
+              ],
+              "materials": [
+                "瓷",
+                "釉",
+                "颜料"
+              ],
+              "modalities": [
+                "RGB",
+                "Raman",
+                "HSI",
+                "XRF",
+                "UV"
+              ],
+              "regions": [
+                "器身",
+                "口沿",
+                "足部",
+                "纹饰区"
+              ],
+              "tags": [
+                "证据图",
+                "引用",
+                "哈希",
+                "弃权"
+              ]
+            },
+            "citation": {
+              "chunk_id": "demo:evidence:citation-boundary:v1#c0",
+              "chunk_sha256": "f2f3962870caa93c55d9b067bbd20641eb4d37ff67e7611eaf180d9afb999331",
+              "content_sha256": "f2f3962870caa93c55d9b067bbd20641eb4d37ff67e7611eaf180d9afb999331",
+              "data_level": "DEMO/SYNTHETIC",
+              "knowledge_base_version": "relicscope-demo-ceramics-v1@90d7bb2d2f00",
+              "knowledge_space": "demo",
+              "location": {
+                "kind": "protocol-section",
+                "locator": "DEMO-EVIDENCE-01/段落-1"
+              },
+              "source_id": "demo:evidence:citation-boundary:v1"
+            },
+            "component_scores": {
+              "lexical": 0.069332,
+              "structured": 1.0,
+              "text": 0.050862,
+              "text_embedding": 0.016562,
+              "visual": 0.807505
+            },
+            "data_level": "DEMO/SYNTHETIC",
+            "document_version": "1.0-demo",
+            "knowledge_space": "demo",
+            "license": {
+              "identifier": "RelicScope-Demo-Only-1.0",
+              "statement": "仅限 RelicScope 产品演示和内部测试；不得作为法律鉴定、行政审核或专家签章材料。"
+            },
+            "match_explanation": "本地文本、结构化属性与视觉特征的加权检索相似性；该相似性不代表身份、真伪、年代、窑口或作者结论。",
+            "matched_on": [
+              "text",
+              "structured",
+              "visual"
+            ],
+            "published_at": "2026-08-28",
+            "publisher": "RelicScope AI Demo Team",
+            "rank": 2,
+            "score": 0.515139,
+            "snippet": "DEMO/SYNTHETIC：进入证据图或报告的知识性陈述必须绑定本次检索白名单中的来源标识、知识版本、精确位置和内容哈希。模型虚构或超出适用范围的引用不得进入证据链。哈希链用于发现记录变更，不证明输入事实真实，也不替代机构签名、可信时间戳、专家复核或法律鉴定。",
+            "source_id": "demo:evidence:citation-boundary:v1",
+            "source_status": {
+              "note": "仅复核引用白名单和弃权文案。",
+              "reviewed_at": "2026-08-28T00:00:00Z",
+              "reviewer": "RelicScope Demo QA（非法律或鉴定审核）",
+              "status": "REVIEWED_DEMO_ONLY"
+            },
+            "source_type": "synthetic_protocol",
+            "title": "科学证据链与引用边界卡（合成演示）"
+          }
+        ],
+        "retrieval_config_version": "relicscope-hybrid-retrieval-v1",
+        "retrieved_at": "2026-08-30T01:17:52.009+00:00",
+        "snapshot_hash": "290c424adcf42cc9d1ebe4e4aa09410af5e994a23fd6a1b3af76521ae33b0bf9",
+        "status": "RESULTS_AVAILABLE"
+      },
+      {
+        "abstention": null,
+        "algorithm": {
+          "embedding_algorithm": "relicscope-signed-hash-embedding-v1",
+          "embedding_model": "deterministic-local-no-network",
+          "embedding_provider": "DeterministicEmbeddingProvider",
+          "fusion": "relicscope-hybrid-retrieval-v1",
+          "lexical": "relicscope-local-token-overlap-v1",
+          "visual": "relicscope-normalized-feature-distance-v1",
+          "weights": {
+            "structured": 0.25,
+            "text": 0.45,
+            "visual": 0.3
+          }
+        },
+        "candidate_set_hash": "61b4e631f4a104c1adcf12031b35c0064b6ec7bd4f05fa0aa991500c7db58372",
+        "citation_whitelist": [
+          {
+            "chunk_id": "demo:ceramic:rgb-observation:v1#c0",
+            "chunk_sha256": "9ab8b4ad019d2c8e25fc512efdab4cfc5b3cd790e0655b7656850f4a3e7730fb",
+            "content_sha256": "9ab8b4ad019d2c8e25fc512efdab4cfc5b3cd790e0655b7656850f4a3e7730fb",
+            "data_level": "DEMO/SYNTHETIC",
+            "knowledge_base_version": "relicscope-demo-ceramics-v1@90d7bb2d2f00",
+            "knowledge_space": "demo",
+            "location": {
+              "kind": "record",
+              "locator": "DEMO-RGB-01/段落-1"
+            },
+            "source_id": "demo:ceramic:rgb-observation:v1"
+          },
+          {
+            "chunk_id": "demo:evidence:citation-boundary:v1#c0",
+            "chunk_sha256": "f2f3962870caa93c55d9b067bbd20641eb4d37ff67e7611eaf180d9afb999331",
+            "content_sha256": "f2f3962870caa93c55d9b067bbd20641eb4d37ff67e7611eaf180d9afb999331",
+            "data_level": "DEMO/SYNTHETIC",
+            "knowledge_base_version": "relicscope-demo-ceramics-v1@90d7bb2d2f00",
+            "knowledge_space": "demo",
+            "location": {
+              "kind": "protocol-section",
+              "locator": "DEMO-EVIDENCE-01/段落-1"
+            },
+            "source_id": "demo:evidence:citation-boundary:v1"
+          }
+        ],
+        "citation_whitelist_hash": "9574558d72c40d1ad24297e65898a2c6c2bfb5c9ea46718d1a2d9821b3761039",
+        "data_boundary": "LOCAL_ONLY",
+        "data_level": "DEMO/SYNTHETIC",
+        "degraded": true,
+        "degraded_reasons": [
+          "EMBEDDING_SERVICE_NOT_CONFIGURED"
+        ],
+        "exclusions": [
+          {
+            "reason": "APPLICABILITY_SCOPE_MISMATCH",
+            "source_id": "demo:ceramic:raman-quality:v1"
+          },
+          {
+            "reason": "APPLICABILITY_SCOPE_MISMATCH",
+            "source_id": "demo:ceramic:hsi-observation:v1"
+          },
+          {
+            "reason": "APPLICABILITY_SCOPE_MISMATCH",
+            "source_id": "demo:ceramic:xrf-safety:v1"
+          },
+          {
+            "reason": "APPLICABILITY_SCOPE_MISMATCH",
+            "source_id": "demo:ceramic:uv-observation:v1"
+          }
+        ],
+        "immutable_version_hash": "bf245b1331252c6c8cfd252648affac31ad68bca9039c88a9eea2b7543a633b7",
+        "interpretation_boundary": "DEMO/SYNTHETIC 本地检索候选，仅用于验证检索与引用流程；非真实馆藏记录、专家结论或鉴定结论。",
+        "knowledge_base_id": "relicscope-demo-ceramics",
+        "knowledge_base_version": "relicscope-demo-ceramics-v1@90d7bb2d2f00",
+        "knowledge_space": "demo",
+        "offline": true,
+        "query": {
+          "access_scope": "demo-public",
+          "attributes": {
+            "artifact_type": "陶瓷",
+            "material": "瓷",
+            "modality": "RGB"
+          },
+          "knowledge_spaces": [
+            "demo"
+          ],
+          "license_allowlist": null,
+          "limit": 3,
+          "minimum_score": 0.08,
+          "purpose": "product_demo",
+          "text": "陶瓷 待核验 环绕视频可见纹饰、器形、釉面与底足观察参考",
+          "visual_feature_vector": [
+            0.389127,
+            0.7705885,
+            0.1737715,
+            0.066845,
+            0.161537,
+            0.058328,
+            0.877799,
+            0.9336735
+          ]
+        },
+        "query_hash": "a56a2a928ca40f4f8ddef7faebb8f28f92370dd92b34937950523d1d4b3c802d",
+        "result_count": 2,
+        "results": [
+          {
+            "applicability_scope": {
+              "artifact_types": [
+                "陶瓷",
+                "瓷器"
+              ],
+              "crafts": [
+                "青花",
+                "釉下彩"
+              ],
+              "limitations": [
+                "只描述可见特征",
+                "不用于真伪或断代结论"
+              ],
+              "materials": [
+                "瓷",
+                "釉",
+                "青花料"
+              ],
+              "modalities": [
+                "RGB"
+              ],
+              "regions": [
+                "器身",
+                "口沿",
+                "足部"
+              ],
+              "tags": [
+                "可见光",
+                "纹饰",
+                "釉面",
+                "观察候选"
+              ]
+            },
+            "citation": {
+              "chunk_id": "demo:ceramic:rgb-observation:v1#c0",
+              "chunk_sha256": "9ab8b4ad019d2c8e25fc512efdab4cfc5b3cd790e0655b7656850f4a3e7730fb",
+              "content_sha256": "9ab8b4ad019d2c8e25fc512efdab4cfc5b3cd790e0655b7656850f4a3e7730fb",
+              "data_level": "DEMO/SYNTHETIC",
+              "knowledge_base_version": "relicscope-demo-ceramics-v1@90d7bb2d2f00",
+              "knowledge_space": "demo",
+              "location": {
+                "kind": "record",
+                "locator": "DEMO-RGB-01/段落-1"
+              },
+              "source_id": "demo:ceramic:rgb-observation:v1"
+            },
+            "component_scores": {
+              "lexical": 0.349346,
+              "structured": 1.0,
+              "text": 0.286683,
+              "text_embedding": 0.170307,
+              "visual": 0.802087
+            },
+            "data_level": "DEMO/SYNTHETIC",
+            "document_version": "1.0-demo",
+            "knowledge_space": "demo",
+            "license": {
+              "identifier": "RelicScope-Demo-Only-1.0",
+              "statement": "仅限 RelicScope 产品演示和内部测试；不得作为馆藏记录、专家意见或鉴定依据。"
+            },
+            "match_explanation": "本地文本、结构化属性与视觉特征的加权检索相似性；该相似性不代表身份、真伪、年代、窑口或作者结论。",
+            "matched_on": [
+              "text",
+              "structured",
+              "visual"
+            ],
+            "published_at": "2026-08-28",
+            "publisher": "RelicScope AI Demo Team",
+            "rank": 1,
+            "score": 0.619633,
+            "snippet": "DEMO/SYNTHETIC：青花陶瓷的 RGB 观察应分别记录器形轮廓、纹饰边界、釉面反光、色彩分布和局部缺陷候选区域。可见相似性只能用于召回待比较资料；它不能单独支持窑口、年代、作者或真伪命题。光照不均、白平衡偏移和压缩伪影必须进入观察局限。",
+            "source_id": "demo:ceramic:rgb-observation:v1",
+            "source_status": {
+              "note": "仅复核演示标签、结构和安全表述。",
+              "reviewed_at": "2026-08-28T00:00:00Z",
+              "reviewer": "RelicScope Demo QA（非文物专家审核）",
+              "status": "REVIEWED_DEMO_ONLY"
+            },
+            "source_type": "synthetic_reference",
+            "title": "青花陶瓷 RGB 可见特征观察卡（合成演示）"
+          },
+          {
+            "applicability_scope": {
+              "artifact_types": [
+                "陶瓷",
+                "瓷器"
+              ],
+              "crafts": [
+                "青花",
+                "釉上彩",
+                "釉下彩"
+              ],
+              "limitations": [
+                "哈希只证明记录完整性",
+                "不证明输入事实真实"
+              ],
+              "materials": [
+                "瓷",
+                "釉",
+                "颜料"
+              ],
+              "modalities": [
+                "RGB",
+                "Raman",
+                "HSI",
+                "XRF",
+                "UV"
+              ],
+              "regions": [
+                "器身",
+                "口沿",
+                "足部",
+                "纹饰区"
+              ],
+              "tags": [
+                "证据图",
+                "引用",
+                "哈希",
+                "弃权"
+              ]
+            },
+            "citation": {
+              "chunk_id": "demo:evidence:citation-boundary:v1#c0",
+              "chunk_sha256": "f2f3962870caa93c55d9b067bbd20641eb4d37ff67e7611eaf180d9afb999331",
+              "content_sha256": "f2f3962870caa93c55d9b067bbd20641eb4d37ff67e7611eaf180d9afb999331",
+              "data_level": "DEMO/SYNTHETIC",
+              "knowledge_base_version": "relicscope-demo-ceramics-v1@90d7bb2d2f00",
+              "knowledge_space": "demo",
+              "location": {
+                "kind": "protocol-section",
+                "locator": "DEMO-EVIDENCE-01/段落-1"
+              },
+              "source_id": "demo:evidence:citation-boundary:v1"
+            },
+            "component_scores": {
+              "lexical": 0.050624,
+              "structured": 1.0,
+              "text": 0.032906,
+              "text_embedding": 0.0,
+              "visual": 0.806175
+            },
+            "data_level": "DEMO/SYNTHETIC",
+            "document_version": "1.0-demo",
+            "knowledge_space": "demo",
+            "license": {
+              "identifier": "RelicScope-Demo-Only-1.0",
+              "statement": "仅限 RelicScope 产品演示和内部测试；不得作为法律鉴定、行政审核或专家签章材料。"
+            },
+            "match_explanation": "本地文本、结构化属性与视觉特征的加权检索相似性；该相似性不代表身份、真伪、年代、窑口或作者结论。",
+            "matched_on": [
+              "text",
+              "structured",
+              "visual"
+            ],
+            "published_at": "2026-08-28",
+            "publisher": "RelicScope AI Demo Team",
+            "rank": 2,
+            "score": 0.50666,
+            "snippet": "DEMO/SYNTHETIC：进入证据图或报告的知识性陈述必须绑定本次检索白名单中的来源标识、知识版本、精确位置和内容哈希。模型虚构或超出适用范围的引用不得进入证据链。哈希链用于发现记录变更，不证明输入事实真实，也不替代机构签名、可信时间戳、专家复核或法律鉴定。",
+            "source_id": "demo:evidence:citation-boundary:v1",
+            "source_status": {
+              "note": "仅复核引用白名单和弃权文案。",
+              "reviewed_at": "2026-08-28T00:00:00Z",
+              "reviewer": "RelicScope Demo QA（非法律或鉴定审核）",
+              "status": "REVIEWED_DEMO_ONLY"
+            },
+            "source_type": "synthetic_protocol",
+            "title": "科学证据链与引用边界卡（合成演示）"
+          }
+        ],
+        "retrieval_config_version": "relicscope-hybrid-retrieval-v1",
+        "retrieved_at": "2026-08-30T01:17:52.388+00:00",
+        "snapshot_hash": "466a5510d2389f7d8300ccf14e8d1644580012cc0f5ea120edc62131ab0de19f",
+        "status": "RESULTS_AVAILABLE"
+      }
+    ],
+    "version": "relicscope-demo-ceramics-v1@90d7bb2d2f00"
+  },
+  "limitations": [
+    "内置知识条目和仪器数据为演示内容，尚未经过机构专家审核。",
+    "哈希链可发现记录变化，但不等同于可信时间戳或机构数字签章。",
+    "模型观察只描述图像可见信息，不能替代材料检测与专家复核。",
+    "浏览器抽取的视频帧保留字节、时间戳、父视频与 SHA-256；抽帧仍不等于仪器采集。"
+  ],
+  "media_summary": {
+    "admitted_frame_count": 2,
+    "boundary": "媒体分析描述可见信息、采集质量和候选复核区；不能替代材料科学检测或专家审查。",
+    "image_analysis_count": 2,
+    "image_comparison_count": 1,
+    "registered_video_count": 1,
+    "sampled_frame_count": 10,
+    "video_analysis_count": 1
+  },
+  "model_runs": [
+    {
+      "completed_at": "2026-08-30T01:17:51.864+00:00",
+      "error_category": "NotConfigured",
+      "input_hash": "6e5de088bb3b91aa5c5459e3fe7f7f45caef186b213e5e938a30e5885c1c81d3",
+      "input_refs": [
+        "FILE-B5CAD98A3D5E4897",
+        "R1"
+      ],
+      "latency_ms": 0,
+      "mode": "deterministic_fallback",
+      "model": "nvidia/Qwen2.5-VL-7B-Instruct-NVFP4",
+      "node_id": "spark-b",
+      "output": null,
+      "output_hash": null,
+      "output_ref": null,
+      "role": "multimodal_observation",
+      "run_id": "MRUN-0D83CAC024994751",
+      "started_at": "2026-08-30T01:17:51.864+00:00",
+      "status": "DEGRADED",
+      "template_hash": "67aae4506c7251851392aee7fdacb1cb018105a25264b0a0dbcebb51396733b0"
+    },
+    {
+      "completed_at": "2026-08-30T01:17:52.008+00:00",
+      "error_category": "NotConfigured",
+      "input_hash": "6e5de088bb3b91aa5c5459e3fe7f7f45caef186b213e5e938a30e5885c1c81d3",
+      "input_refs": [
+        "FILE-99934AB84F0046CE",
+        "R1"
+      ],
+      "latency_ms": 0,
+      "mode": "deterministic_fallback",
+      "model": "nvidia/Qwen2.5-VL-7B-Instruct-NVFP4",
+      "node_id": "spark-b",
+      "output": null,
+      "output_hash": null,
+      "output_ref": null,
+      "role": "multimodal_observation",
+      "run_id": "MRUN-B59C6207B3DA43F0",
+      "started_at": "2026-08-30T01:17:52.008+00:00",
+      "status": "DEGRADED",
+      "template_hash": "67aae4506c7251851392aee7fdacb1cb018105a25264b0a0dbcebb51396733b0"
+    },
+    {
+      "completed_at": "2026-08-30T01:17:52.387+00:00",
+      "error_category": "NotConfigured",
+      "input_hash": "d5d1a48aad10e8c1c8960ef0edba7da5163c8eb4ac72e5b6509f2cbdb5d437de",
+      "input_refs": [
+        "FILE-D68899FE5BF8467D",
+        "FILE-03CAB807EEC8402B",
+        "FRM-86C7A5A24E4B456D"
+      ],
+      "latency_ms": 0,
+      "mode": "deterministic_fallback",
+      "model": "nvidia/Qwen2.5-VL-7B-Instruct-NVFP4",
+      "node_id": "spark-b",
+      "output": null,
+      "output_hash": null,
+      "output_ref": null,
+      "role": "video_frame_multimodal_observation",
+      "run_id": "MRUN-1BE4E7264916456D",
+      "started_at": "2026-08-30T01:17:52.387+00:00",
+      "status": "DEGRADED",
+      "template_hash": "67aae4506c7251851392aee7fdacb1cb018105a25264b0a0dbcebb51396733b0"
+    },
+    {
+      "completed_at": "2026-08-30T01:17:52.387+00:00",
+      "error_category": "NotConfigured",
+      "input_hash": "0f4365d8baf0aab7d320a0f755a2ddd86db13dfaf4550ab59b6b969cc787b7f1",
+      "input_refs": [
+        "FILE-D68899FE5BF8467D",
+        "FILE-A317310B6F2441F9",
+        "FRM-696EA6BC16EE47AD"
+      ],
+      "latency_ms": 0,
+      "mode": "deterministic_fallback",
+      "model": "nvidia/Qwen2.5-VL-7B-Instruct-NVFP4",
+      "node_id": "spark-b",
+      "output": null,
+      "output_hash": null,
+      "output_ref": null,
+      "role": "video_frame_multimodal_observation",
+      "run_id": "MRUN-13C9F3BED8294EA2",
+      "started_at": "2026-08-30T01:17:52.387+00:00",
+      "status": "DEGRADED",
+      "template_hash": "67aae4506c7251851392aee7fdacb1cb018105a25264b0a0dbcebb51396733b0"
+    },
+    {
+      "citation_ids": [],
+      "completed_at": "2026-08-30T01:17:52.444+00:00",
+      "error_category": "NotConfigured",
+      "input_hash": "951048a951a695f47937c8ad623d5d1a6cce1cc341cd452ce5e658e6a9c72e7d",
+      "input_refs": [
+        "RPT-FB407DB41B624594"
+      ],
+      "latency_ms": 0,
+      "mode": "deterministic_fallback",
+      "model": "nvidia/Qwen3-14B-NVFP4",
+      "node_id": "spark-b",
+      "output_hash": null,
+      "output_ref": "RPT-FB407DB41B624594",
+      "role": "evidence_report_summary",
+      "run_id": "MRUN-AC27890F9CD44F2F",
+      "started_at": "2026-08-30T01:17:52.444+00:00",
+      "status": "DEGRADED",
+      "template_hash": "47e878ba54538658969e2fad41259e27c33d5ab0e356870a28183d3c8082df4e"
+    }
+  ],
+  "next_best_observations": [
+    {
+      "id": "OBS-RGB-QUALITY",
+      "label": "补拍稳定的可见光全景",
+      "modality": "RGB",
+      "priority": 1,
+      "reason": "可用帧不足；使用三脚架、漫射光与固定曝光重新采集。",
+      "risk_class": "NON_CONTACT"
+    },
+    {
+      "id": "OBS-UV-NIR",
+      "label": "升级至 UV / NIR 表面响应观察",
+      "modality": "UV_NIR",
+      "priority": 4,
+      "reason": "可在不接触器物的前提下复核可见光候选区域；结果仍需质量门控。",
+      "risk_class": "NON_CONTACT_CONTROLLED_LIGHT"
+    },
+    {
+      "id": "OBS-MATERIAL-SCIENCE",
+      "label": "由专家审批材料科学检测",
+      "modality": "SCIENTIFIC_INSTRUMENT",
+      "priority": 5,
+      "reason": "图像与视频不能给出元素、分子结构、内部结构或热释光信息；可按风险预算评估 HSI、Raman、XRF、X-ray/CT 或 TL。",
+      "risk_class": "EXPERT_APPROVAL_REQUIRED"
+    }
+  ],
+  "next_steps": [
+    "由文物保护与材料分析专家复核冲突证据及适用范围。",
+    "如需进一步降低不确定性，转入经批准的外部实验室协议。"
+  ],
+  "plan_history": [],
+  "protocol": {
+    "id": "P01-ACTIVE-SENSING-DEMO-V1",
+    "minimum_information_gain": 0.25,
+    "minimum_utility": 0.1,
+    "name": "古陶瓷主动科学检测演示协议",
+    "status": "DEMO/NOT-VALIDATED-FOR-REAL-ARTIFACTS",
+    "stop_uncertainty": 0.5,
+    "version": "1.0.0"
+  },
+  "raw_files": [
+    {
+      "byte_length": 1786234,
+      "derivation_method": null,
+      "filename": "met-vase-42550.jpg",
+      "frame_id": null,
+      "id": "FILE-B5CAD98A3D5E4897",
+      "media_kind": "IMAGE",
+      "mime_type": "image/jpeg",
+      "modality": "RGB",
+      "parent_file_id": null,
+      "region_id": "R1",
+      "sha256": "6e5de088bb3b91aa5c5459e3fe7f7f45caef186b213e5e938a30e5885c1c81d3",
+      "source_category": "USER_UPLOAD",
+      "timestamp_ms": null,
+      "video_id": null
+    },
+    {
+      "byte_length": 1786234,
+      "derivation_method": null,
+      "filename": "met-vase-42550.jpg",
+      "frame_id": null,
+      "id": "FILE-99934AB84F0046CE",
+      "media_kind": "IMAGE",
+      "mime_type": "image/jpeg",
+      "modality": "RGB",
+      "parent_file_id": null,
+      "region_id": "R1",
+      "sha256": "6e5de088bb3b91aa5c5459e3fe7f7f45caef186b213e5e938a30e5885c1c81d3",
+      "source_category": "USER_UPLOAD",
+      "timestamp_ms": null,
+      "video_id": null
+    },
+    {
+      "byte_length": 510438,
+      "derivation_method": null,
+      "filename": "ceramic-orbit-demo.mp4",
+      "frame_id": null,
+      "id": "FILE-D68899FE5BF8467D",
+      "media_kind": "VIDEO",
+      "mime_type": "video/mp4",
+      "modality": "RGB_VIDEO",
+      "parent_file_id": null,
+      "region_id": "R1",
+      "sha256": "f7d73ef49a29e92a1a08b846b2efefb066304c3c5acbbb8f0f3659cb70b9124b",
+      "source_category": "USER_UPLOAD",
+      "timestamp_ms": null,
+      "video_id": "VID-755370770DAC493E"
+    },
+    {
+      "byte_length": 68389,
+      "derivation_method": "manual-keyframes-v1",
+      "filename": "VID-755370770DAC493E-0ms.jpg",
+      "frame_id": "FRM-86C7A5A24E4B456D",
+      "id": "FILE-03CAB807EEC8402B",
+      "media_kind": "VIDEO_FRAME",
+      "mime_type": "image/jpeg",
+      "modality": "RGB_VIDEO",
+      "parent_file_id": "FILE-D68899FE5BF8467D",
+      "region_id": "R1",
+      "sha256": "d5d1a48aad10e8c1c8960ef0edba7da5163c8eb4ac72e5b6509f2cbdb5d437de",
+      "source_category": "DERIVED_FRAME",
+      "timestamp_ms": 0,
+      "video_id": "VID-755370770DAC493E"
+    },
+    {
+      "byte_length": 66643,
+      "derivation_method": "manual-keyframes-v1",
+      "filename": "VID-755370770DAC493E-667ms.jpg",
+      "frame_id": "FRM-7C18F660641F45BD",
+      "id": "FILE-3A75F4CFD1C24BDC",
+      "media_kind": "VIDEO_FRAME",
+      "mime_type": "image/jpeg",
+      "modality": "RGB_VIDEO",
+      "parent_file_id": "FILE-D68899FE5BF8467D",
+      "region_id": "R1",
+      "sha256": "fb2fae8ad01142e516e97e0cf7d9dea7a1073dc47683b6cc7334abc21775c6af",
+      "source_category": "DERIVED_FRAME",
+      "timestamp_ms": 667,
+      "video_id": "VID-755370770DAC493E"
+    },
+    {
+      "byte_length": 68225,
+      "derivation_method": "manual-keyframes-v1",
+      "filename": "VID-755370770DAC493E-1333ms.jpg",
+      "frame_id": "FRM-07FB3D37488C4CDF",
+      "id": "FILE-A1F5FC6CCC4D49B7",
+      "media_kind": "VIDEO_FRAME",
+      "mime_type": "image/jpeg",
+      "modality": "RGB_VIDEO",
+      "parent_file_id": "FILE-D68899FE5BF8467D",
+      "region_id": "R1",
+      "sha256": "472c3e38b4e5739e53ba924eb580f76ef3bf0da69485eea08febe944c3697576",
+      "source_category": "DERIVED_FRAME",
+      "timestamp_ms": 1333,
+      "video_id": "VID-755370770DAC493E"
+    },
+    {
+      "byte_length": 68348,
+      "derivation_method": "manual-keyframes-v1",
+      "filename": "VID-755370770DAC493E-2000ms.jpg",
+      "frame_id": "FRM-152F4EC407B9479B",
+      "id": "FILE-0A3EF4CF54DF4DDE",
+      "media_kind": "VIDEO_FRAME",
+      "mime_type": "image/jpeg",
+      "modality": "RGB_VIDEO",
+      "parent_file_id": "FILE-D68899FE5BF8467D",
+      "region_id": "R1",
+      "sha256": "b4a2d35e883618b0c4706934596d61064cf0ab2af93342e50770b838d3b232bb",
+      "source_category": "DERIVED_FRAME",
+      "timestamp_ms": 2000,
+      "video_id": "VID-755370770DAC493E"
+    },
+    {
+      "byte_length": 68058,
+      "derivation_method": "manual-keyframes-v1",
+      "filename": "VID-755370770DAC493E-2667ms.jpg",
+      "frame_id": "FRM-0F75BBE76091421D",
+      "id": "FILE-3C205E31514E4484",
+      "media_kind": "VIDEO_FRAME",
+      "mime_type": "image/jpeg",
+      "modality": "RGB_VIDEO",
+      "parent_file_id": "FILE-D68899FE5BF8467D",
+      "region_id": "R1",
+      "sha256": "2843e466955e107dbc3964b40e5371eaf300b91f6629900d0121fc87cb15d359",
+      "source_category": "DERIVED_FRAME",
+      "timestamp_ms": 2667,
+      "video_id": "VID-755370770DAC493E"
+    },
+    {
+      "byte_length": 68678,
+      "derivation_method": "manual-keyframes-v1",
+      "filename": "VID-755370770DAC493E-3333ms.jpg",
+      "frame_id": "FRM-DAF20D1EF4C24807",
+      "id": "FILE-B34F18834AEE4DD1",
+      "media_kind": "VIDEO_FRAME",
+      "mime_type": "image/jpeg",
+      "modality": "RGB_VIDEO",
+      "parent_file_id": "FILE-D68899FE5BF8467D",
+      "region_id": "R1",
+      "sha256": "c7b03f9bdf3ef177d05874b1be467392e06b24f653f8c982de17707c38f9ebe9",
+      "source_category": "DERIVED_FRAME",
+      "timestamp_ms": 3333,
+      "video_id": "VID-755370770DAC493E"
+    },
+    {
+      "byte_length": 70129,
+      "derivation_method": "manual-keyframes-v1",
+      "filename": "VID-755370770DAC493E-4000ms.jpg",
+      "frame_id": "FRM-6F821144C03645DA",
+      "id": "FILE-D8C3353D9DFB4266",
+      "media_kind": "VIDEO_FRAME",
+      "mime_type": "image/jpeg",
+      "modality": "RGB_VIDEO",
+      "parent_file_id": "FILE-D68899FE5BF8467D",
+      "region_id": "R1",
+      "sha256": "20dc00477e269d00de5d01f89af44fcd3928b905b7b71b22f2476f93cf27145d",
+      "source_category": "DERIVED_FRAME",
+      "timestamp_ms": 4000,
+      "video_id": "VID-755370770DAC493E"
+    },
+    {
+      "byte_length": 69516,
+      "derivation_method": "manual-keyframes-v1",
+      "filename": "VID-755370770DAC493E-4667ms.jpg",
+      "frame_id": "FRM-696EA6BC16EE47AD",
+      "id": "FILE-A317310B6F2441F9",
+      "media_kind": "VIDEO_FRAME",
+      "mime_type": "image/jpeg",
+      "modality": "RGB_VIDEO",
+      "parent_file_id": "FILE-D68899FE5BF8467D",
+      "region_id": "R1",
+      "sha256": "0f4365d8baf0aab7d320a0f755a2ddd86db13dfaf4550ab59b6b969cc787b7f1",
+      "source_category": "DERIVED_FRAME",
+      "timestamp_ms": 4667,
+      "video_id": "VID-755370770DAC493E"
+    },
+    {
+      "byte_length": 70447,
+      "derivation_method": "manual-keyframes-v1",
+      "filename": "VID-755370770DAC493E-5333ms.jpg",
+      "frame_id": "FRM-64D4ABCB60884493",
+      "id": "FILE-BBB1B69EB6374776",
+      "media_kind": "VIDEO_FRAME",
+      "mime_type": "image/jpeg",
+      "modality": "RGB_VIDEO",
+      "parent_file_id": "FILE-D68899FE5BF8467D",
+      "region_id": "R1",
+      "sha256": "c51c26d0dec289dab3c615c9bddaf6d82512e0f19d73dda8e6475114a3f056f2",
+      "source_category": "DERIVED_FRAME",
+      "timestamp_ms": 5333,
+      "video_id": "VID-755370770DAC493E"
+    },
+    {
+      "byte_length": 69829,
+      "derivation_method": "manual-keyframes-v1",
+      "filename": "VID-755370770DAC493E-6000ms.jpg",
+      "frame_id": "FRM-B64C8C0367074D36",
+      "id": "FILE-502202BCDD5E41C8",
+      "media_kind": "VIDEO_FRAME",
+      "mime_type": "image/jpeg",
+      "modality": "RGB_VIDEO",
+      "parent_file_id": "FILE-D68899FE5BF8467D",
+      "region_id": "R1",
+      "sha256": "b0662436d04aad80f6c4ba9a0aeb26e546ebc661805cb42f6811dbfd76340693",
+      "source_category": "DERIVED_FRAME",
+      "timestamp_ms": 6000,
+      "video_id": "VID-755370770DAC493E"
+    }
+  ],
+  "report_id": "RPT-FB407DB41B624594",
+  "report_version": 1,
+  "risk_budgets": {
+    "R1": {
+      "ionizing": {
+        "limit": 2.0,
+        "locked": false,
+        "reserved": 0.0,
+        "unit": "mGy",
+        "used": 1.5
+      },
+      "photochemical": {
+        "limit": 1.0,
+        "locked": false,
+        "reserved": 0.0,
+        "unit": "J/cm²",
+        "used": 0.55
+      }
+    }
+  },
+  "source_category": "DEMO/SYNTHETIC",
+  "status": "ready",
+  "uncertainty": 0.85,
+  "video_analyses": [
+    {
+      "conclusion_boundary": "只输出可见观察、采集质量、候选复核区和下一步建议；不判断真伪、年代、窑口、成分、价值或法律状态。",
+      "created_at": "2026-08-30T01:17:52.388+00:00",
+      "duration_ms": 6000,
+      "file_id": "FILE-D68899FE5BF8467D",
+      "frames": [
+        {
+          "admission_status": "ACCEPTED",
+          "byte_length": 68389,
+          "derivation_method": "manual-keyframes-v1",
+          "duplicate_distance": null,
+          "duplicate_of": null,
+          "file_id": "FILE-03CAB807EEC8402B",
+          "fingerprint": {
+            "algorithm": "relicscope-visual-fingerprint-v1",
+            "dhash": "90b2206426238747",
+            "feature_vector": [
+              0.391672,
+              0.764706,
+              0.17279,
+              0.06377,
+              0.150556,
+              0.054256,
+              0.883819,
+              0.933159
+            ],
+            "id": "ba19b75d281ed60b20d7d3fa7874caaeb9744cdfa52615dc5a5cbb64d447db1a"
+          },
+          "id": "FRM-86C7A5A24E4B456D",
+          "metrics": {
+            "blue_ratio": 0.0543,
+            "brightness_mean": 99.88,
+            "clipped_black_ratio": 0.0006,
+            "clipped_white_ratio": 0.0,
+            "dynamic_range_p01_p99": 195.0,
+            "edge_density": 0.0638,
+            "entropy_normalized": 0.9332,
+            "height": 960,
+            "saturation_mean": 0.1506,
+            "sharpness_score": 20.73,
+            "symmetry_score": 0.8838,
+            "width": 720
+          },
+          "mime_type": "image/jpeg",
+          "model_run_id": "MRUN-1BE4E7264916456D",
+          "quality": {
+            "checks": {
+              "clipping": true,
+              "dynamic_range": true,
+              "exposure": true,
+              "resolution": true,
+              "sharpness": true
+            },
+            "failed_checks": [],
+            "passed": true
+          },
+          "quality_score": 0.8759,
+          "salient_regions": [
+            {
+              "bbox_normalized": [
+                0.3333,
+                0.3333,
+                0.6667,
+                0.6667
+              ],
+              "id": "ROI-1",
+              "score": 0.049
+            },
+            {
+              "bbox_normalized": [
+                0.3333,
+                0.6667,
+                0.6667,
+                1.0
+              ],
+              "id": "ROI-2",
+              "score": 0.0311
+            }
+          ],
+          "selected": true,
+          "sha256": "d5d1a48aad10e8c1c8960ef0edba7da5163c8eb4ac72e5b6509f2cbdb5d437de",
+          "source_category": "DERIVED_FRAME",
+          "timestamp_ms": 0
+        },
+        {
+          "admission_status": "DUPLICATE_SUPPRESSED",
+          "byte_length": 66643,
+          "derivation_method": "manual-keyframes-v1",
+          "duplicate_distance": 1,
+          "duplicate_of": "FRM-86C7A5A24E4B456D",
+          "file_id": "FILE-3A75F4CFD1C24BDC",
+          "fingerprint": {
+            "algorithm": "relicscope-visual-fingerprint-v1",
+            "dhash": "92b2206426238747",
+            "feature_vector": [
+              0.39066,
+              0.768627,
+              0.171636,
+              0.065399,
+              0.151799,
+              0.054993,
+              0.882233,
+              0.933261
+            ],
+            "id": "27f94fc881ac49d10c957221f578cac3005bb5a232c4083e94413cec960ac7ad"
+          },
+          "id": "FRM-7C18F660641F45BD",
+          "metrics": {
+            "blue_ratio": 0.055,
+            "brightness_mean": 99.62,
+            "clipped_black_ratio": 0.0004,
+            "clipped_white_ratio": 0.0001,
+            "dynamic_range_p01_p99": 196.0,
+            "edge_density": 0.0654,
+            "entropy_normalized": 0.9333,
+            "height": 960,
+            "saturation_mean": 0.1518,
+            "sharpness_score": 20.6,
+            "symmetry_score": 0.8822,
+            "width": 720
+          },
+          "mime_type": "image/jpeg",
+          "model_run_id": null,
+          "quality": {
+            "checks": {
+              "clipping": true,
+              "dynamic_range": true,
+              "exposure": true,
+              "resolution": true,
+              "sharpness": true
+            },
+            "failed_checks": [],
+            "passed": true
+          },
+          "quality_score": 0.8757,
+          "salient_regions": [
+            {
+              "bbox_normalized": [
+                0.3333,
+                0.3333,
+                0.6667,
+                0.6667
+              ],
+              "id": "ROI-1",
+              "score": 0.0489
+            },
+            {
+              "bbox_normalized": [
+                0.3333,
+                0.6667,
+                0.6667,
+                1.0
+              ],
+              "id": "ROI-2",
+              "score": 0.0311
+            }
+          ],
+          "selected": false,
+          "sha256": "fb2fae8ad01142e516e97e0cf7d9dea7a1073dc47683b6cc7334abc21775c6af",
+          "source_category": "DERIVED_FRAME",
+          "timestamp_ms": 667
+        },
+        {
+          "admission_status": "DUPLICATE_SUPPRESSED",
+          "byte_length": 68225,
+          "derivation_method": "manual-keyframes-v1",
+          "duplicate_distance": 1,
+          "duplicate_of": "FRM-86C7A5A24E4B456D",
+          "file_id": "FILE-A1F5FC6CCC4D49B7",
+          "fingerprint": {
+            "algorithm": "relicscope-visual-fingerprint-v1",
+            "dhash": "92b2206426238747",
+            "feature_vector": [
+              0.390404,
+              0.772549,
+              0.173044,
+              0.066131,
+              0.157501,
+              0.05727,
+              0.880583,
+              0.933055
+            ],
+            "id": "dee0af91d465342bbcf719992c43c4efba2ce9a6051a76b57e268d01f21fd3cf"
+          },
+          "id": "FRM-07FB3D37488C4CDF",
+          "metrics": {
+            "blue_ratio": 0.0573,
+            "brightness_mean": 99.55,
+            "clipped_black_ratio": 0.0005,
+            "clipped_white_ratio": 0.0,
+            "dynamic_range_p01_p99": 197.0,
+            "edge_density": 0.0661,
+            "entropy_normalized": 0.9331,
+            "height": 960,
+            "saturation_mean": 0.1575,
+            "sharpness_score": 20.77,
+            "symmetry_score": 0.8806,
+            "width": 720
+          },
+          "mime_type": "image/jpeg",
+          "model_run_id": null,
+          "quality": {
+            "checks": {
+              "clipping": true,
+              "dynamic_range": true,
+              "exposure": true,
+              "resolution": true,
+              "sharpness": true
+            },
+            "failed_checks": [],
+            "passed": true
+          },
+          "quality_score": 0.8759,
+          "salient_regions": [
+            {
+              "bbox_normalized": [
+                0.3333,
+                0.3333,
+                0.6667,
+                0.6667
+              ],
+              "id": "ROI-1",
+              "score": 0.0479
+            },
+            {
+              "bbox_normalized": [
+                0.3333,
+                0.6667,
+                0.6667,
+                1.0
+              ],
+              "id": "ROI-2",
+              "score": 0.0315
+            }
+          ],
+          "selected": false,
+          "sha256": "472c3e38b4e5739e53ba924eb580f76ef3bf0da69485eea08febe944c3697576",
+          "source_category": "DERIVED_FRAME",
+          "timestamp_ms": 1333
+        },
+        {
+          "admission_status": "DUPLICATE_SUPPRESSED",
+          "byte_length": 68348,
+          "derivation_method": "manual-keyframes-v1",
+          "duplicate_distance": 1,
+          "duplicate_of": "FRM-86C7A5A24E4B456D",
+          "file_id": "FILE-0A3EF4CF54DF4DDE",
+          "fingerprint": {
+            "algorithm": "relicscope-visual-fingerprint-v1",
+            "dhash": "92b2206426238747",
+            "feature_vector": [
+              0.389023,
+              0.772549,
+              0.172999,
+              0.066937,
+              0.160454,
+              0.058346,
+              0.87873,
+              0.933141
+            ],
+            "id": "23d9be61dd72de231b3cef39e4f6167a8ebf689afadffcfd512e2035897cb752"
+          },
+          "id": "FRM-152F4EC407B9479B",
+          "metrics": {
+            "blue_ratio": 0.0583,
+            "brightness_mean": 99.2,
+            "clipped_black_ratio": 0.0006,
+            "clipped_white_ratio": 0.0001,
+            "dynamic_range_p01_p99": 197.0,
+            "edge_density": 0.0669,
+            "entropy_normalized": 0.9331,
+            "height": 960,
+            "saturation_mean": 0.1605,
+            "sharpness_score": 20.76,
+            "symmetry_score": 0.8787,
+            "width": 720
+          },
+          "mime_type": "image/jpeg",
+          "model_run_id": null,
+          "quality": {
+            "checks": {
+              "clipping": true,
+              "dynamic_range": true,
+              "exposure": true,
+              "resolution": true,
+              "sharpness": true
+            },
+            "failed_checks": [],
+            "passed": true
+          },
+          "quality_score": 0.8759,
+          "salient_regions": [
+            {
+              "bbox_normalized": [
+                0.3333,
+                0.3333,
+                0.6667,
+                0.6667
+              ],
+              "id": "ROI-1",
+              "score": 0.0474
+            },
+            {
+              "bbox_normalized": [
+                0.3333,
+                0.6667,
+                0.6667,
+                1.0
+              ],
+              "id": "ROI-2",
+              "score": 0.0319
+            }
+          ],
+          "selected": false,
+          "sha256": "b4a2d35e883618b0c4706934596d61064cf0ab2af93342e50770b838d3b232bb",
+          "source_category": "DERIVED_FRAME",
+          "timestamp_ms": 2000
+        },
+        {
+          "admission_status": "DUPLICATE_SUPPRESSED",
+          "byte_length": 68058,
+          "derivation_method": "manual-keyframes-v1",
+          "duplicate_distance": 3,
+          "duplicate_of": "FRM-86C7A5A24E4B456D",
+          "file_id": "FILE-3C205E31514E4484",
+          "fingerprint": {
+            "algorithm": "relicscope-visual-fingerprint-v1",
+            "dhash": "b2b2606426238747",
+            "feature_vector": [
+              0.388359,
+              0.772549,
+              0.17234,
+              0.067962,
+              0.161964,
+              0.058388,
+              0.877145,
+              0.933171
+            ],
+            "id": "c9aa0af78652f1ccd820d855a28731dc69613feaab0e69c0175c48de80c7fc6d"
+          },
+          "id": "FRM-0F75BBE76091421D",
+          "metrics": {
+            "blue_ratio": 0.0584,
+            "brightness_mean": 99.03,
+            "clipped_black_ratio": 0.0005,
+            "clipped_white_ratio": 0.0,
+            "dynamic_range_p01_p99": 197.0,
+            "edge_density": 0.068,
+            "entropy_normalized": 0.9332,
+            "height": 960,
+            "saturation_mean": 0.162,
+            "sharpness_score": 20.68,
+            "symmetry_score": 0.8771,
+            "width": 720
+          },
+          "mime_type": "image/jpeg",
+          "model_run_id": null,
+          "quality": {
+            "checks": {
+              "clipping": true,
+              "dynamic_range": true,
+              "exposure": true,
+              "resolution": true,
+              "sharpness": true
+            },
+            "failed_checks": [],
+            "passed": true
+          },
+          "quality_score": 0.8758,
+          "salient_regions": [
+            {
+              "bbox_normalized": [
+                0.3333,
+                0.3333,
+                0.6667,
+                0.6667
+              ],
+              "id": "ROI-1",
+              "score": 0.0467
+            },
+            {
+              "bbox_normalized": [
+                0.3333,
+                0.6667,
+                0.6667,
+                1.0
+              ],
+              "id": "ROI-2",
+              "score": 0.0324
+            }
+          ],
+          "selected": false,
+          "sha256": "2843e466955e107dbc3964b40e5371eaf300b91f6629900d0121fc87cb15d359",
+          "source_category": "DERIVED_FRAME",
+          "timestamp_ms": 2667
+        },
+        {
+          "admission_status": "DUPLICATE_SUPPRESSED",
+          "byte_length": 68678,
+          "derivation_method": "manual-keyframes-v1",
+          "duplicate_distance": 3,
+          "duplicate_of": "FRM-86C7A5A24E4B456D",
+          "file_id": "FILE-B34F18834AEE4DD1",
+          "fingerprint": {
+            "algorithm": "relicscope-visual-fingerprint-v1",
+            "dhash": "b2b2606426238747",
+            "feature_vector": [
+              0.388558,
+              0.776471,
+              0.172686,
+              0.068484,
+              0.165853,
+              0.060404,
+              0.875286,
+              0.933425
+            ],
+            "id": "95a349ef597434ddf6ad258b0e472d28315a1f5da0563219dcc388b7bfb0674b"
+          },
+          "id": "FRM-DAF20D1EF4C24807",
+          "metrics": {
+            "blue_ratio": 0.0604,
+            "brightness_mean": 99.08,
+            "clipped_black_ratio": 0.0006,
+            "clipped_white_ratio": 0.0001,
+            "dynamic_range_p01_p99": 198.0,
+            "edge_density": 0.0685,
+            "entropy_normalized": 0.9334,
+            "height": 960,
+            "saturation_mean": 0.1659,
+            "sharpness_score": 20.72,
+            "symmetry_score": 0.8753,
+            "width": 720
+          },
+          "mime_type": "image/jpeg",
+          "model_run_id": null,
+          "quality": {
+            "checks": {
+              "clipping": true,
+              "dynamic_range": true,
+              "exposure": true,
+              "resolution": true,
+              "sharpness": true
+            },
+            "failed_checks": [],
+            "passed": true
+          },
+          "quality_score": 0.8758,
+          "salient_regions": [
+            {
+              "bbox_normalized": [
+                0.3333,
+                0.3333,
+                0.6667,
+                0.6667
+              ],
+              "id": "ROI-1",
+              "score": 0.0462
+            },
+            {
+              "bbox_normalized": [
+                0.3333,
+                0.6667,
+                0.6667,
+                1.0
+              ],
+              "id": "ROI-2",
+              "score": 0.0322
+            }
+          ],
+          "selected": false,
+          "sha256": "c7b03f9bdf3ef177d05874b1be467392e06b24f653f8c982de17707c38f9ebe9",
+          "source_category": "DERIVED_FRAME",
+          "timestamp_ms": 3333
+        },
+        {
+          "admission_status": "DUPLICATE_SUPPRESSED",
+          "byte_length": 70129,
+          "derivation_method": "manual-keyframes-v1",
+          "duplicate_distance": 4,
+          "duplicate_of": "FRM-86C7A5A24E4B456D",
+          "file_id": "FILE-D8C3353D9DFB4266",
+          "fingerprint": {
+            "algorithm": "relicscope-visual-fingerprint-v1",
+            "dhash": "b2b26064262387c7",
+            "feature_vector": [
+              0.387229,
+              0.776471,
+              0.174256,
+              0.069492,
+              0.170965,
+              0.062141,
+              0.873661,
+              0.933902
+            ],
+            "id": "46825bb4a79796d90c485ab319b75396a985238b5b8e680e7cf1ddcc60152f16"
+          },
+          "id": "FRM-6F821144C03645DA",
+          "metrics": {
+            "blue_ratio": 0.0621,
+            "brightness_mean": 98.74,
+            "clipped_black_ratio": 0.0005,
+            "clipped_white_ratio": 0.0,
+            "dynamic_range_p01_p99": 198.0,
+            "edge_density": 0.0695,
+            "entropy_normalized": 0.9339,
+            "height": 960,
+            "saturation_mean": 0.171,
+            "sharpness_score": 20.91,
+            "symmetry_score": 0.8737,
+            "width": 720
+          },
+          "mime_type": "image/jpeg",
+          "model_run_id": null,
+          "quality": {
+            "checks": {
+              "clipping": true,
+              "dynamic_range": true,
+              "exposure": true,
+              "resolution": true,
+              "sharpness": true
+            },
+            "failed_checks": [],
+            "passed": true
+          },
+          "quality_score": 0.8761,
+          "salient_regions": [
+            {
+              "bbox_normalized": [
+                0.3333,
+                0.3333,
+                0.6667,
+                0.6667
+              ],
+              "id": "ROI-1",
+              "score": 0.0455
+            },
+            {
+              "bbox_normalized": [
+                0.3333,
+                0.6667,
+                0.6667,
+                1.0
+              ],
+              "id": "ROI-2",
+              "score": 0.0329
+            }
+          ],
+          "selected": false,
+          "sha256": "20dc00477e269d00de5d01f89af44fcd3928b905b7b71b22f2476f93cf27145d",
+          "source_category": "DERIVED_FRAME",
+          "timestamp_ms": 4000
+        },
+        {
+          "admission_status": "ACCEPTED",
+          "byte_length": 69516,
+          "derivation_method": "manual-keyframes-v1",
+          "duplicate_distance": null,
+          "duplicate_of": null,
+          "file_id": "FILE-A317310B6F2441F9",
+          "fingerprint": {
+            "algorithm": "relicscope-visual-fingerprint-v1",
+            "dhash": "b2b26066262387c7",
+            "feature_vector": [
+              0.386582,
+              0.776471,
+              0.174753,
+              0.06992,
+              0.172518,
+              0.0624,
+              0.871779,
+              0.934188
+            ],
+            "id": "33ef0a7907b0da94451edaa59597b984460c31140c00be03e891e8da049e8866"
+          },
+          "id": "FRM-696EA6BC16EE47AD",
+          "metrics": {
+            "blue_ratio": 0.0624,
+            "brightness_mean": 98.58,
+            "clipped_black_ratio": 0.0005,
+            "clipped_white_ratio": 0.0001,
+            "dynamic_range_p01_p99": 198.0,
+            "edge_density": 0.0699,
+            "entropy_normalized": 0.9342,
+            "height": 960,
+            "saturation_mean": 0.1725,
+            "sharpness_score": 20.97,
+            "symmetry_score": 0.8718,
+            "width": 720
+          },
+          "mime_type": "image/jpeg",
+          "model_run_id": "MRUN-13C9F3BED8294EA2",
+          "quality": {
+            "checks": {
+              "clipping": true,
+              "dynamic_range": true,
+              "exposure": true,
+              "resolution": true,
+              "sharpness": true
+            },
+            "failed_checks": [],
+            "passed": true
+          },
+          "quality_score": 0.8762,
+          "salient_regions": [
+            {
+              "bbox_normalized": [
+                0.3333,
+                0.3333,
+                0.6667,
+                0.6667
+              ],
+              "id": "ROI-1",
+              "score": 0.0449
+            },
+            {
+              "bbox_normalized": [
+                0.3333,
+                0.6667,
+                0.6667,
+                1.0
+              ],
+              "id": "ROI-2",
+              "score": 0.0334
+            }
+          ],
+          "selected": true,
+          "sha256": "0f4365d8baf0aab7d320a0f755a2ddd86db13dfaf4550ab59b6b969cc787b7f1",
+          "source_category": "DERIVED_FRAME",
+          "timestamp_ms": 4667
+        },
+        {
+          "admission_status": "DUPLICATE_SUPPRESSED",
+          "byte_length": 70447,
+          "derivation_method": "manual-keyframes-v1",
+          "duplicate_distance": 2,
+          "duplicate_of": "FRM-696EA6BC16EE47AD",
+          "file_id": "FILE-BBB1B69EB6374776",
+          "fingerprint": {
+            "algorithm": "relicscope-visual-fingerprint-v1",
+            "dhash": "b2b2606426238787",
+            "feature_vector": [
+              0.386631,
+              0.776471,
+              0.174991,
+              0.070619,
+              0.177659,
+              0.064444,
+              0.869968,
+              0.934821
+            ],
+            "id": "c9bd6951a0388f5c990ca0b2eac2a98ecfde487b26f1500b56feff4d08077e8a"
+          },
+          "id": "FRM-64D4ABCB60884493",
+          "metrics": {
+            "blue_ratio": 0.0644,
+            "brightness_mean": 98.59,
+            "clipped_black_ratio": 0.0006,
+            "clipped_white_ratio": 0.0,
+            "dynamic_range_p01_p99": 198.0,
+            "edge_density": 0.0706,
+            "entropy_normalized": 0.9348,
+            "height": 960,
+            "saturation_mean": 0.1777,
+            "sharpness_score": 21.0,
+            "symmetry_score": 0.87,
+            "width": 720
+          },
+          "mime_type": "image/jpeg",
+          "model_run_id": null,
+          "quality": {
+            "checks": {
+              "clipping": true,
+              "dynamic_range": true,
+              "exposure": true,
+              "resolution": true,
+              "sharpness": true
+            },
+            "failed_checks": [],
+            "passed": true
+          },
+          "quality_score": 0.8762,
+          "salient_regions": [
+            {
+              "bbox_normalized": [
+                0.3333,
+                0.3333,
+                0.6667,
+                0.6667
+              ],
+              "id": "ROI-1",
+              "score": 0.0442
+            },
+            {
+              "bbox_normalized": [
+                0.3333,
+                0.6667,
+                0.6667,
+                1.0
+              ],
+              "id": "ROI-2",
+              "score": 0.0333
+            }
+          ],
+          "selected": false,
+          "sha256": "c51c26d0dec289dab3c615c9bddaf6d82512e0f19d73dda8e6475114a3f056f2",
+          "source_category": "DERIVED_FRAME",
+          "timestamp_ms": 5333
+        },
+        {
+          "admission_status": "DUPLICATE_SUPPRESSED",
+          "byte_length": 69829,
+          "derivation_method": "manual-keyframes-v1",
+          "duplicate_distance": 1,
+          "duplicate_of": "FRM-696EA6BC16EE47AD",
+          "file_id": "FILE-502202BCDD5E41C8",
+          "fingerprint": {
+            "algorithm": "relicscope-visual-fingerprint-v1",
+            "dhash": "b2b2606626238787",
+            "feature_vector": [
+              0.386534,
+              0.780392,
+              0.174061,
+              0.071257,
+              0.179003,
+              0.064443,
+              0.868419,
+              0.934957
+            ],
+            "id": "874cacfa495d2ae2a2e9c795f1147bb0f4df3d94c407523f87f7bfd741101bcc"
+          },
+          "id": "FRM-B64C8C0367074D36",
+          "metrics": {
+            "blue_ratio": 0.0644,
+            "brightness_mean": 98.57,
+            "clipped_black_ratio": 0.0006,
+            "clipped_white_ratio": 0.0,
+            "dynamic_range_p01_p99": 199.0,
+            "edge_density": 0.0713,
+            "entropy_normalized": 0.935,
+            "height": 960,
+            "saturation_mean": 0.179,
+            "sharpness_score": 20.89,
+            "symmetry_score": 0.8684,
+            "width": 720
+          },
+          "mime_type": "image/jpeg",
+          "model_run_id": null,
+          "quality": {
+            "checks": {
+              "clipping": true,
+              "dynamic_range": true,
+              "exposure": true,
+              "resolution": true,
+              "sharpness": true
+            },
+            "failed_checks": [],
+            "passed": true
+          },
+          "quality_score": 0.8761,
+          "salient_regions": [
+            {
+              "bbox_normalized": [
+                0.3333,
+                0.3333,
+                0.6667,
+                0.6667
+              ],
+              "id": "ROI-1",
+              "score": 0.0436
+            },
+            {
+              "bbox_normalized": [
+                0.3333,
+                0.6667,
+                0.6667,
+                1.0
+              ],
+              "id": "ROI-2",
+              "score": 0.0337
+            }
+          ],
+          "selected": false,
+          "sha256": "b0662436d04aad80f6c4ba9a0aeb26e546ebc661805cb42f6811dbfd76340693",
+          "source_category": "DERIVED_FRAME",
+          "timestamp_ms": 6000
+        }
+      ],
+      "id": "VAN-8BD1A1E0543149E1",
+      "knowledge_snapshot_hash": "466a5510d2389f7d8300ccf14e8d1644580012cc0f5ea120edc62131ab0de19f",
+      "limitations": [
+        "抽帧由浏览器媒体引擎完成；服务端保留每帧字节、时间戳、父视频和哈希以供复核。",
+        "跨帧稳定性衡量采集一致性，不表示器物状态长期稳定。",
+        "图像与视频不能给出元素、分子结构、内部结构、热释光或真伪结论。"
+      ],
+      "modality": "RGB_VIDEO",
+      "next_best_observation": {
+        "id": "OBS-RGB-QUALITY",
+        "label": "补拍稳定的可见光全景",
+        "modality": "RGB",
+        "priority": 1,
+        "reason": "可用帧不足；使用三脚架、漫射光与固定曝光重新采集。",
+        "risk_class": "NON_CONTACT"
+      },
+      "next_best_observations": [
+        {
+          "id": "OBS-RGB-QUALITY",
+          "label": "补拍稳定的可见光全景",
+          "modality": "RGB",
+          "priority": 1,
+          "reason": "可用帧不足；使用三脚架、漫射光与固定曝光重新采集。",
+          "risk_class": "NON_CONTACT"
+        },
+        {
+          "id": "OBS-UV-NIR",
+          "label": "升级至 UV / NIR 表面响应观察",
+          "modality": "UV_NIR",
+          "priority": 4,
+          "reason": "可在不接触器物的前提下复核可见光候选区域；结果仍需质量门控。",
+          "risk_class": "NON_CONTACT_CONTROLLED_LIGHT"
+        },
+        {
+          "id": "OBS-MATERIAL-SCIENCE",
+          "label": "由专家审批材料科学检测",
+          "modality": "SCIENTIFIC_INSTRUMENT",
+          "priority": 5,
+          "reason": "图像与视频不能给出元素、分子结构、内部结构或热释光信息；可按风险预算评估 HSI、Raman、XRF、X-ray/CT 或 TL。",
+          "risk_class": "EXPERT_APPROVAL_REQUIRED"
+        }
+      ],
+      "quality": {
+        "checks": {
+          "minimum_usable_frames": false,
+          "representative_frames": true,
+          "temporal_coverage": true,
+          "viewpoint_diversity": true
+        },
+        "failed_checks": [
+          "minimum_usable_frames"
+        ],
+        "passed": false
+      },
+      "region_id": "R1",
+      "representative_frame_ids": [
+        "FRM-86C7A5A24E4B456D",
+        "FRM-696EA6BC16EE47AD"
+      ],
+      "review_regions": [
+        {
+          "boundary": "算法显著区域，不代表裂纹、修复或材料异常。",
+          "frame_id": "FRM-86C7A5A24E4B456D",
+          "label": "高边缘响应候选复核区",
+          "regions": [
+            {
+              "bbox_normalized": [
+                0.3333,
+                0.3333,
+                0.6667,
+                0.6667
+              ],
+              "id": "ROI-1",
+              "score": 0.049
+            },
+            {
+              "bbox_normalized": [
+                0.3333,
+                0.6667,
+                0.6667,
+                1.0
+              ],
+              "id": "ROI-2",
+              "score": 0.0311
+            }
+          ],
+          "timestamp_ms": 0
+        },
+        {
+          "boundary": "算法显著区域，不代表裂纹、修复或材料异常。",
+          "frame_id": "FRM-696EA6BC16EE47AD",
+          "label": "高边缘响应候选复核区",
+          "regions": [
+            {
+              "bbox_normalized": [
+                0.3333,
+                0.3333,
+                0.6667,
+                0.6667
+              ],
+              "id": "ROI-1",
+              "score": 0.0449
+            },
+            {
+              "bbox_normalized": [
+                0.3333,
+                0.6667,
+                0.6667,
+                1.0
+              ],
+              "id": "ROI-2",
+              "score": 0.0334
+            }
+          ],
+          "timestamp_ms": 4667
+        }
+      ],
+      "sampling_strategy": "manual-keyframes-v1",
+      "sampling_summary": {
+        "capture_consistency_score": 0.9872,
+        "duplicate_suppressed_count": 8,
+        "quality_rejected_count": 0,
+        "representative_frame_count": 2,
+        "requested_frame_count": 10,
+        "temporal_span_ratio": 1.0,
+        "usable_frame_count": 2,
+        "viewpoint_diversity_score": 0.0781
+      },
+      "source_category": "DERIVED_MEASUREMENT",
+      "video_id": "VID-755370770DAC493E",
+      "visible_observations": [
+        "已将原始视频哈希与 10 个浏览器抽样帧绑定，其中 2 帧通过逐帧准入。",
+        "跨帧指标描述拍摄覆盖、画面质量与视觉一致性；不等同于材料成分、内部结构或年代证据。"
+      ]
+    }
+  ],
+  "videos": [
+    {
+      "byte_length": 510438,
+      "capture_note": "media-smoke.py local acceptance",
+      "container": "ISO-BMFF",
+      "duration_ms": 6000,
+      "file_id": "FILE-D68899FE5BF8467D",
+      "filename": "ceramic-orbit-demo.mp4",
+      "frame_extraction": "CLIENT_SIDE_BROWSER",
+      "id": "VID-755370770DAC493E",
+      "latest_analysis_id": "VAN-8BD1A1E0543149E1",
+      "mime_type": "video/mp4",
+      "modality": "RGB_VIDEO",
+      "region_id": "R1",
+      "registered_at": "2026-08-30T01:17:52.038+00:00",
+      "sha256": "f7d73ef49a29e92a1a08b846b2efefb066304c3c5acbbb8f0f3659cb70b9124b",
+      "source_category": "USER_UPLOAD",
+      "status": "ANALYZED"
+    }
+  ]
+}

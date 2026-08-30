@@ -1,0 +1,187 @@
+from __future__ import annotations
+
+import ipaddress
+import os
+from dataclasses import dataclass
+from pathlib import Path
+from urllib.parse import urlparse
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _service_url_is_private(url: str) -> bool:
+    """Accept only local/private endpoints when the offline boundary is enabled."""
+    if not url:
+        return True
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        return False
+    hostname = parsed.hostname.lower()
+    if hostname in {"localhost", "host.docker.internal"} or hostname.endswith(".local"):
+        return True
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        # Docker Compose service names contain no dots and resolve only in the
+        # private project network. Public DNS names are rejected by default.
+        return "." not in hostname
+    return bool(address.is_private or address.is_loopback or address.is_link_local)
+
+
+_INSECURE_API_KEY_PLACEHOLDERS = {
+    "change-me",
+    "changeme",
+    "demo",
+    "demo-key",
+    "password",
+    "replace-me",
+    "secret",
+    "test",
+}
+
+
+def _api_key_is_configured(value: str) -> bool:
+    normalized = value.strip()
+    return bool(normalized) and normalized.lower() not in _INSECURE_API_KEY_PLACEHOLDERS
+
+
+@dataclass(frozen=True)
+class Settings:
+    project_root: Path
+    data_dir: Path
+    db_path: Path
+    upload_dir: Path
+    host: str
+    port: int
+    max_upload_bytes: int
+    max_request_bytes: int
+    max_video_bytes: int
+    max_video_frames: int
+    max_frame_bytes: int
+    demo_mode: bool
+    offline_mode: bool
+    runtime_mode: str
+    service_version: str
+    node_id: str
+    compute_node_id: str
+    knowledge_manifest_path: Path
+    vision_base_url: str
+    vision_api_key: str
+    vision_model: str
+    embedding_base_url: str
+    embedding_api_key: str
+    embedding_model: str
+    reasoner_base_url: str
+    reasoner_api_key: str
+    reasoner_model: str
+    model_timeout_seconds: float
+    require_private_endpoints: bool
+
+    @classmethod
+    def from_env(cls) -> "Settings":
+        project_root = Path(__file__).resolve().parents[1]
+        data_dir = Path(os.getenv("RELICSCOPE_DATA_DIR", project_root / "runtime")).expanduser()
+        max_upload_bytes = int(
+            os.getenv("RELICSCOPE_MAX_UPLOAD_BYTES", str(8 * 1024 * 1024))
+        )
+        default_request_bytes = ((max_upload_bytes + 2) // 3) * 4 + 256 * 1024
+        max_video_bytes = int(
+            os.getenv("RELICSCOPE_MAX_VIDEO_BYTES", str(256 * 1024 * 1024))
+        )
+        max_frame_bytes = int(
+            os.getenv(
+                "RELICSCOPE_MAX_FRAME_BYTES",
+                str(min(max_upload_bytes, 2 * 1024 * 1024)),
+            )
+        )
+        return cls(
+            project_root=project_root,
+            data_dir=data_dir,
+            db_path=data_dir / "relicscope_demo.sqlite3",
+            upload_dir=data_dir / "uploads",
+            host=os.getenv("RELICSCOPE_HOST", "0.0.0.0"),
+            port=int(os.getenv("RELICSCOPE_PORT", "8088")),
+            max_upload_bytes=max_upload_bytes,
+            max_request_bytes=int(
+                os.getenv("RELICSCOPE_MAX_REQUEST_BYTES", str(default_request_bytes))
+            ),
+            max_video_bytes=max_video_bytes,
+            max_video_frames=int(os.getenv("RELICSCOPE_MAX_VIDEO_FRAMES", "12")),
+            max_frame_bytes=max_frame_bytes,
+            demo_mode=_env_bool("RELICSCOPE_DEMO_MODE", True),
+            offline_mode=_env_bool("RELICSCOPE_OFFLINE_MODE", True),
+            runtime_mode=os.getenv("RELICSCOPE_RUNTIME_MODE", "single-degraded"),
+            service_version=os.getenv("RELICSCOPE_SERVICE_VERSION", "1.1.0"),
+            node_id=os.getenv("RELICSCOPE_NODE_ID", "spark-b"),
+            compute_node_id=os.getenv("RELICSCOPE_COMPUTE_NODE_ID", "spark-a"),
+            knowledge_manifest_path=Path(
+                os.getenv(
+                    "RELICSCOPE_KNOWLEDGE_MANIFEST",
+                    project_root / "data" / "knowledge_manifest.json",
+                )
+            ).expanduser(),
+            vision_base_url=os.getenv("VISION_BASE_URL", "").rstrip("/"),
+            vision_api_key=os.getenv("VISION_API_KEY", ""),
+            vision_model=os.getenv(
+                "VISION_MODEL", "nvidia/Qwen2.5-VL-7B-Instruct-NVFP4"
+            ),
+            embedding_base_url=os.getenv("EMBEDDING_BASE_URL", "").rstrip("/"),
+            embedding_api_key=os.getenv("EMBEDDING_API_KEY", ""),
+            embedding_model=os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3"),
+            reasoner_base_url=os.getenv("REASONER_BASE_URL", "").rstrip("/"),
+            reasoner_api_key=os.getenv("REASONER_API_KEY", ""),
+            reasoner_model=os.getenv("REASONER_MODEL", "nvidia/Qwen3-14B-NVFP4"),
+            model_timeout_seconds=float(os.getenv("MODEL_TIMEOUT_SECONDS", "45")),
+            require_private_endpoints=_env_bool("RELICSCOPE_REQUIRE_PRIVATE_ENDPOINTS", True),
+        )
+
+    def ensure_runtime_dirs(self) -> None:
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.upload_dir.mkdir(parents=True, exist_ok=True)
+
+    def validate_runtime(self) -> None:
+        if self.runtime_mode not in {"dual-node", "single-degraded", "local-development"}:
+            raise ValueError(f"unsupported runtime mode: {self.runtime_mode}")
+        if (
+            self.max_upload_bytes <= 0
+            or self.max_request_bytes <= 0
+            or self.max_video_bytes <= 0
+            or self.max_frame_bytes <= 0
+        ):
+            raise ValueError("request and upload limits must be positive")
+        if not 3 <= self.max_video_frames <= 24:
+            raise ValueError("video frame limit must be between 3 and 24")
+        endpoints = {
+            "VISION_BASE_URL": self.vision_base_url,
+            "EMBEDDING_BASE_URL": self.embedding_base_url,
+            "REASONER_BASE_URL": self.reasoner_base_url,
+        }
+        if self.require_private_endpoints:
+            invalid = [
+                name for name, value in endpoints.items() if not _service_url_is_private(value)
+            ]
+            if invalid:
+                raise ValueError(
+                    "external model endpoints are blocked by the local-data boundary: "
+                    + ", ".join(invalid)
+                )
+        endpoint_credentials = {
+            "VISION_API_KEY": (self.vision_base_url, self.vision_api_key),
+            "EMBEDDING_API_KEY": (self.embedding_base_url, self.embedding_api_key),
+            "REASONER_API_KEY": (self.reasoner_base_url, self.reasoner_api_key),
+        }
+        missing_credentials = [
+            name
+            for name, (endpoint, credential) in endpoint_credentials.items()
+            if endpoint and not _api_key_is_configured(credential)
+        ]
+        if missing_credentials:
+            raise ValueError(
+                "configured model endpoints require non-default API keys: "
+                + ", ".join(missing_credentials)
+            )

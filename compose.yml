@@ -1,0 +1,158 @@
+services:
+  app:
+    platform: linux/arm64
+    image: ${APP_IMAGE:-relicscope-ai-demo:1.1.0-arm64}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.12.11-slim-bookworm}
+        PYPI_INDEX_URL: ${PYPI_INDEX_URL:-https://pypi.org/simple}
+        APP_UID: ${APP_UID:-1000}
+        APP_GID: ${APP_GID:-1000}
+    restart: unless-stopped
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    secrets:
+      - service_api_key
+    environment:
+      RELICSCOPE_DATA_DIR: /var/lib/relicscope
+      RELICSCOPE_HOST: 0.0.0.0
+      RELICSCOPE_PORT: "8088"
+      RELICSCOPE_DEMO_MODE: ${RELICSCOPE_DEMO_MODE:-true}
+      RELICSCOPE_RUNTIME_MODE: ${RELICSCOPE_RUNTIME_MODE:-dual-node}
+      RELICSCOPE_NODE_ID: ${RELICSCOPE_NODE_ID:-spark-b}
+      RELICSCOPE_COMPUTE_NODE_ID: ${RELICSCOPE_COMPUTE_NODE_ID:-spark-a}
+      RELICSCOPE_SERVICE_VERSION: ${RELICSCOPE_SERVICE_VERSION:-1.1.0}
+      RELICSCOPE_OFFLINE_MODE: ${RELICSCOPE_OFFLINE_MODE:-true}
+      RELICSCOPE_REQUIRE_PRIVATE_ENDPOINTS: ${RELICSCOPE_REQUIRE_PRIVATE_ENDPOINTS:-true}
+      RELICSCOPE_MAX_UPLOAD_BYTES: ${RELICSCOPE_MAX_UPLOAD_BYTES:-8388608}
+      RELICSCOPE_MAX_VIDEO_BYTES: ${RELICSCOPE_MAX_VIDEO_BYTES:-268435456}
+      RELICSCOPE_MAX_VIDEO_FRAMES: ${RELICSCOPE_MAX_VIDEO_FRAMES:-12}
+      RELICSCOPE_MAX_FRAME_BYTES: ${RELICSCOPE_MAX_FRAME_BYTES:-2097152}
+      MODEL_TIMEOUT_SECONDS: ${MODEL_TIMEOUT_SECONDS:-45}
+      VISION_BASE_URL: ${VISION_BASE_URL:-}
+      VISION_MODEL: ${VISION_MODEL:-nvidia/Qwen2.5-VL-7B-Instruct-NVFP4}
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-Qwen/Qwen3-VL-Embedding-2B}
+      REASONER_BASE_URL: ${REASONER_BASE_URL:-}
+      REASONER_MODEL: ${REASONER_MODEL:-nvidia/Qwen3-14B-NVFP4}
+      HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-1}
+      TRANSFORMERS_OFFLINE: ${TRANSFORMERS_OFFLINE:-1}
+      HF_HUB_DISABLE_TELEMETRY: ${HF_HUB_DISABLE_TELEMETRY:-1}
+      DO_NOT_TRACK: ${DO_NOT_TRACK:-1}
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        service_key="$$(cat /run/secrets/service_api_key)"
+        if [ "$${#service_key}" -lt 32 ]; then
+          echo "FATAL: service API key is missing or shorter than 32 characters" >&2
+          exit 78
+        fi
+        export VISION_API_KEY="$$service_key"
+        export EMBEDDING_API_KEY="$$service_key"
+        export REASONER_API_KEY="$$service_key"
+        exec python -m uvicorn app.main:app --host 0.0.0.0 --port 8088 --no-access-log
+    ports:
+      - "${APP_BIND_IP:-127.0.0.1}:${RELICSCOPE_PORT:-8088}:8088"
+    volumes:
+      - type: bind
+        source: ${RELICSCOPE_DATA_HOST_DIR:-./runtime/data}
+        target: /var/lib/relicscope
+      - type: bind
+        source: ./data
+        target: /opt/relicscope/data
+        read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    networks:
+      - relicscope-private
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8088/health/ready', timeout=3).read()"
+      interval: 15s
+      timeout: 4s
+      start_period: 20s
+      retries: 4
+    labels:
+      ai.relicscope.node: ${RELICSCOPE_NODE_ID:-spark-b}
+      ai.relicscope.role: gateway-evidence-orchestrator
+      ai.relicscope.runtime: dual-independent-not-tp
+      ai.relicscope.version: ${RELICSCOPE_SERVICE_VERSION:-1.1.0}
+
+  reasoner:
+    profiles: ["reasoner"]
+    platform: linux/arm64
+    image: ${VLLM_IMAGE:-nvcr.io/nvidia/vllm:26.05.post1-py3}
+    restart: unless-stopped
+    init: true
+    ipc: host
+    shm_size: 16gb
+    gpus: all
+    security_opt:
+      - no-new-privileges:true
+    secrets:
+      - service_api_key
+    environment:
+      REASONER_MODEL: ${REASONER_MODEL:-nvidia/Qwen3-14B-NVFP4}
+      REASONER_MAX_MODEL_LEN: ${REASONER_MAX_MODEL_LEN:-8192}
+      REASONER_GPU_MEMORY_UTILIZATION: ${REASONER_GPU_MEMORY_UTILIZATION:-0.70}
+      HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-1}
+      TRANSFORMERS_OFFLINE: ${TRANSFORMERS_OFFLINE:-1}
+      HF_HUB_DISABLE_TELEMETRY: ${HF_HUB_DISABLE_TELEMETRY:-1}
+      DO_NOT_TRACK: ${DO_NOT_TRACK:-1}
+      VLLM_LOGGING_LEVEL: WARNING
+      VLLM_SERVER_DEV_MODE: "0"
+    entrypoint: ["/bin/bash", "-ec"]
+    command:
+      - |
+        service_key="$$(cat /run/secrets/service_api_key)"
+        if [ "$${#service_key}" -lt 32 ]; then
+          echo "FATAL: service API key is missing or shorter than 32 characters" >&2
+          exit 78
+        fi
+        export VLLM_API_KEY="$$service_key"
+        exec vllm serve "$$REASONER_MODEL" \
+          --host 0.0.0.0 \
+          --port 8000 \
+          --max-model-len "$$REASONER_MAX_MODEL_LEN" \
+          --gpu-memory-utilization "$$REASONER_GPU_MEMORY_UTILIZATION" \
+          --max-num-seqs 2
+    volumes:
+      - type: bind
+        source: ${HF_CACHE_DIR:-./runtime/hf-cache}
+        target: /root/.cache/huggingface
+        read_only: true
+      - type: bind
+        source: ${VLLM_CACHE_DIR:-./runtime/vllm-cache}
+        target: /root/.cache/vllm
+    networks:
+      - relicscope-private
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()\" || exit 1"]
+      interval: 20s
+      timeout: 5s
+      start_period: 15m
+      retries: 5
+    labels:
+      ai.relicscope.node: ${RELICSCOPE_NODE_ID:-spark-b}
+      ai.relicscope.role: optional-report-reasoner
+      ai.relicscope.runtime: independent-service-not-tp
+
+networks:
+  relicscope-private:
+    driver: bridge
+    labels:
+      ai.relicscope.scope: private-application-plane
+
+secrets:
+  service_api_key:
+    file: ${SERVICE_API_KEY_FILE:-./secrets/service_api_key}

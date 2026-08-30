@@ -1,0 +1,10 @@
+# Allowlist the only inputs used by Dockerfile. In particular, never send
+# .env, secrets/, runtime databases, uploaded artifacts, or model caches to
+# the build context.
+*
+!Dockerfile
+!requirements.lock
+!app/
+!app/**
+!data/
+!data/**

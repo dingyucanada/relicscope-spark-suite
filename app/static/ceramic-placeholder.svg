@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 520" role="img" aria-labelledby="title desc">
+  <title id="title">古陶瓷受控成像占位示意</title>
+  <desc id="desc">深色科学仪器背景中的青花瓷瓶轮廓、坐标网格与区域扫描标记。</desc>
+  <defs>
+    <radialGradient id="halo" cx="50%" cy="45%" r="52%">
+      <stop offset="0" stop-color="#3b91c0" stop-opacity=".22"/>
+      <stop offset=".68" stop-color="#164567" stop-opacity=".07"/>
+      <stop offset="1" stop-color="#07111f" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="porcelain" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f1f5eb"/>
+      <stop offset=".42" stop-color="#b9d6db"/>
+      <stop offset=".72" stop-color="#e8eee5"/>
+      <stop offset="1" stop-color="#8cafb8"/>
+    </linearGradient>
+    <linearGradient id="glaze" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".8"/>
+      <stop offset=".4" stop-color="#d8ebe9" stop-opacity=".18"/>
+      <stop offset="1" stop-color="#6f9da8" stop-opacity=".28"/>
+    </linearGradient>
+    <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse">
+      <path d="M28 0H0V28" fill="none" stroke="#65cbd2" stroke-opacity=".08" stroke-width="1"/>
+    </pattern>
+    <clipPath id="bodyClip">
+      <path d="M330 89c1 32-1 58-17 77-19 23-64 43-77 94-17 67 3 151 40 192 24 27 185 27 209 0 37-41 57-125 40-192-13-51-58-71-77-94-16-19-18-45-17-77z"/>
+    </clipPath>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="13"/>
+      <feOffset dy="12"/>
+      <feComponentTransfer><feFuncA type="linear" slope=".42"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="760" height="520" fill="#07111f"/>
+  <rect width="760" height="520" fill="url(#grid)"/>
+  <ellipse cx="380" cy="248" rx="290" ry="245" fill="url(#halo)"/>
+
+  <g fill="none" stroke="#66dbe0" stroke-opacity=".28" stroke-width="1">
+    <path d="M55 55h58M55 55v58M705 55h-58M705 55v58M55 465h58M55 465v-58M705 465h-58M705 465v-58"/>
+    <ellipse cx="380" cy="477" rx="176" ry="13" stroke-opacity=".12"/>
+    <path d="M380 38v36M380 446v38M178 260h62M520 260h62" stroke-dasharray="3 6"/>
+  </g>
+
+  <g filter="url(#shadow)">
+    <ellipse cx="380" cy="89" rx="51" ry="13" fill="#749ba5"/>
+    <path d="M330 89c1 32-1 58-17 77-19 23-64 43-77 94-17 67 3 151 40 192 24 27 185 27 209 0 37-41 57-125 40-192-13-51-58-71-77-94-16-19-18-45-17-77z" fill="url(#porcelain)" stroke="#cfe4e4" stroke-width="2"/>
+    <ellipse cx="380" cy="89" rx="49" ry="11" fill="#dceae5" stroke="#8fb7be" stroke-width="2"/>
+    <ellipse cx="380" cy="89" rx="34" ry="6" fill="#244a62"/>
+    <ellipse cx="380" cy="455" rx="103" ry="20" fill="#789da5" opacity=".55"/>
+
+    <g clip-path="url(#bodyClip)" fill="none" stroke="#245e9a" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M238 276c48-37 82-14 113 7 34 23 69 34 109 13 25-13 41-37 70-32" stroke-width="13" opacity=".88"/>
+      <path d="M243 285c51-31 77-4 108 13 41 23 84 27 119-1 18-14 29-29 57-27" stroke="#e4eee8" stroke-width="5" opacity=".78"/>
+      <path d="M278 211c20-25 42-31 61-13 13 12 18 35 41 39 24 4 37-19 56-29 24-13 46-2 57 18" stroke-width="8"/>
+      <path d="M273 361c37-22 71-16 102 7 34 26 69 29 109 7" stroke-width="9"/>
+      <g stroke-width="5">
+        <path d="M311 177c10-18 24-25 39-17-5 13-15 24-31 32m130-15c-10-18-24-25-39-17 5 13 15 24 31 32"/>
+        <path d="M329 327c9-18 24-26 40-17-4 17-17 28-35 35m98-18c-9-18-24-26-40-17 4 17 17 28 35 35"/>
+      </g>
+      <g fill="#245e9a" stroke="none">
+        <circle cx="305" cy="242" r="6"/><circle cx="458" cy="248" r="7"/><circle cx="382" cy="188" r="5"/>
+        <circle cx="291" cy="393" r="5"/><circle cx="466" cy="398" r="5"/>
+      </g>
+    </g>
+    <path d="M330 89c1 32-1 58-17 77-19 23-64 43-77 94-17 67 3 151 40 192 24 27 185 27 209 0 37-41 57-125 40-192-13-51-58-71-77-94-16-19-18-45-17-77z" fill="url(#glaze)"/>
+  </g>
+
+  <g fill="none" stroke="#f0ba63" stroke-width="1.5">
+    <rect x="422" y="218" width="96" height="104" rx="4" stroke-dasharray="5 5"/>
+    <path d="M518 218h29"/>
+  </g>
+  <g font-family="ui-monospace, monospace">
+    <rect x="547" y="206" width="118" height="28" rx="4" fill="#171b1e" stroke="#f0ba63" stroke-opacity=".6"/>
+    <text x="558" y="224" fill="#f0ba63" font-size="10">R1 · TARGET REGION</text>
+    <text x="70" y="82" fill="#6d879d" font-size="9">CONTROLLED CAPTURE / RGB</text>
+    <text x="70" y="445" fill="#6d879d" font-size="8">NO SCIENTIFIC DATA · UPLOAD A LOCAL IMAGE</text>
+    <text x="650" y="445" fill="#50d8df" font-size="8" text-anchor="end">LOCAL ONLY</text>
+  </g>
+</svg>

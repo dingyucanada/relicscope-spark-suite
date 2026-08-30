@@ -1,0 +1,25 @@
+[Unit]
+Description=RelicScope AI Spark B knowledge, evidence and report services
+Documentation=file://@PROJECT_DIR@/docs/DUAL_SPARK_DEPLOYMENT.md
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+ConditionPathExists=@PROJECT_DIR@/.env
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=@RUN_USER@
+Group=@RUN_GROUP@
+WorkingDirectory=@PROJECT_DIR@
+Environment=ENV_FILE=@PROJECT_DIR@/.env
+ExecStart=@PROJECT_DIR@/deploy/service-control.sh start --role spark-b --no-wait
+ExecStop=@PROJECT_DIR@/deploy/service-control.sh stop --role spark-b
+TimeoutStartSec=0
+TimeoutStopSec=180
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
