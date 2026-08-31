@@ -13,15 +13,49 @@ SYSTEMD_ARGS ?=
 ACCEPT_ARGS ?=
 REFERENCE_ARGS ?=
 REFERENCE_SCAFFOLD_DIR ?= runtime/data/reference-library-intake
+V2_ENV_FILE ?= .env.v2
+V2_LAB_ENV_FILE ?= .env.v2.lab
+V2_BACKUP_ARGS ?=
+V2_RESTORE_ARGS ?=
+V2_LAB_PREPARE_ARGS ?=
+V2_LAB_BENCHMARK_ARGS ?=
+SCOUT_NAME ?= RelicScope Scout
+SCOUT_SERVER_URL ?= https://scout.spark.local:8443
+SCOUT_DEVICE_ARGS ?=
+SCOUT_SMOKE_ARGS ?=
 
 .PHONY: help require-role require-archive install prefetch preflight start stop restart \
 	health status backup restore package package-offline install-systemd remove-systemd check \
 	demo demo-install demo-check demo-media-check demo-media-smoke demo-media-generate test \
 	accept-single-spark ab-single-spark \
-	reference-scaffold reference-verify reference-import reference-build reference-evaluate reference-seal reference-status
+	reference-scaffold reference-verify reference-import reference-build reference-evaluate reference-seal reference-status \
+	v2-install v2-prepare-online v2-preflight v2-start v2-stop v2-health \
+	v2-enroll v2-export-ca v2-smoke v2-backup v2-restore \
+	v2-lab-install v2-lab-prepare-online v2-lab-preflight v2-lab-start \
+	v2-lab-stop v2-lab-health v2-lab-benchmark
 
 help:
 	@printf '%s\n' \
+	  'RelicScope V2: Android Scout + local DGX Spark appliance' \
+	  '' \
+	  '  make v2-install                       # initialize a fresh Spark without downloading' \
+	  '  make v2-prepare-online                # explicit approved model/container download window' \
+	  '  make v2-preflight                     # verify target Spark and frozen runtime inputs' \
+	  '  make v2-start                         # start HTTPS gateway + local VLM' \
+	  '  make v2-enroll SCOUT_NAME="Scout 01" SCOUT_DEVICE_ARGS="--output runtime/provisioning/scout-01.json"' \
+	  '  make v2-export-ca                     # export the local CA for Android trust setup' \
+	  '  make v2-smoke SCOUT_SMOKE_ARGS="..."  # real capture/job/result API test' \
+	  '  make v2-backup V2_BACKUP_ARGS="--output-dir /absolute/backup"' \
+	  '  make v2-restore V2_RESTORE_ARGS="--archive /absolute/backup.tar.gz --confirm-restore"' \
+	  '' \
+	  'Second Spark: isolated candidate-model / evaluation node' \
+	  '' \
+	  '  make v2-lab-install' \
+	  '  make v2-lab-prepare-online            # explicit approved download window' \
+	  '  make v2-lab-start                     # preflight + offline start' \
+	  '  make v2-lab-health' \
+	  '  make v2-lab-benchmark V2_LAB_BENCHMARK_ARGS="..."' \
+	  '' \
 	  'RelicScope single-Spark operations (dual-node expansion remains available)' \
 	  '' \
 	  '  make install ROLE=single INSTALL_ARGS="--generate-key"' \
@@ -59,6 +93,69 @@ help:
 	  '  make demo-media-generate                # optional; requires ffmpeg' \
 	  '  make test                               # run tests in the local .venv' \
 	  '  make check'
+
+v2-install:
+	V2_ENV_FILE="$(abspath $(V2_ENV_FILE))" ./deploy/v2-install.sh
+
+v2-prepare-online:
+	V2_ENV_FILE="$(abspath $(V2_ENV_FILE))" ./deploy/v2-prepare-online.sh --allow-network
+
+v2-preflight:
+	V2_ENV_FILE="$(abspath $(V2_ENV_FILE))" ./deploy/v2-preflight.sh
+
+v2-start: v2-preflight
+	docker compose --env-file "$(V2_ENV_FILE)" -f compose.v2.yml up -d --no-build --pull never
+
+v2-stop:
+	docker compose --env-file "$(V2_ENV_FILE)" -f compose.v2.yml down
+
+v2-health:
+	V2_ENV_FILE="$(abspath $(V2_ENV_FILE))" ./deploy/v2-health.sh
+
+v2-enroll:
+	@test -x .venv-v2/bin/python || { printf '%s\n' 'Run make v2-prepare-online first.' >&2; exit 2; }
+	@test -f "$(abspath $(V2_ENV_FILE))" || { printf '%s\n' '.env.v2 is missing.' >&2; exit 2; }
+	@data_dir="$$(.venv-v2/bin/python deploy/read-v2-env.py \
+	    --file "$(abspath $(V2_ENV_FILE))" --key RELICSCOPE_DATA_HOST_DIR \
+	    --default ./runtime/v2-data)"; \
+	  case "$$data_dir" in /*) ;; *) data_dir="$(CURDIR)/$$data_dir" ;; esac; \
+	  RELICSCOPE_DATA_DIR="$$data_dir" .venv-v2/bin/python scripts/scout-device.py enroll \
+	    --name "$(SCOUT_NAME)" --server-url "$(SCOUT_SERVER_URL)" $(SCOUT_DEVICE_ARGS)
+
+v2-export-ca:
+	V2_ENV_FILE="$(abspath $(V2_ENV_FILE))" ./deploy/export-scout-ca.sh
+
+v2-smoke:
+	@test -x .venv-v2/bin/python || { printf '%s\n' 'Run make v2-prepare-online first.' >&2; exit 2; }
+	.venv-v2/bin/python scripts/scout-smoke.py $(SCOUT_SMOKE_ARGS)
+
+v2-backup:
+	V2_ENV_FILE="$(abspath $(V2_ENV_FILE))" ./deploy/v2-backup.sh $(V2_BACKUP_ARGS)
+
+v2-restore:
+	V2_ENV_FILE="$(abspath $(V2_ENV_FILE))" ./deploy/v2-restore.sh $(V2_RESTORE_ARGS)
+
+v2-lab-install:
+	V2_LAB_ENV_FILE="$(abspath $(V2_LAB_ENV_FILE))" ./deploy/v2-lab-install.sh
+
+v2-lab-prepare-online:
+	V2_LAB_ENV_FILE="$(abspath $(V2_LAB_ENV_FILE))" ./deploy/v2-lab-prepare-online.sh --allow-network $(V2_LAB_PREPARE_ARGS)
+
+v2-lab-preflight:
+	V2_LAB_ENV_FILE="$(abspath $(V2_LAB_ENV_FILE))" ./deploy/v2-lab-preflight.sh
+
+v2-lab-start: v2-lab-preflight
+	docker compose --env-file "$(V2_LAB_ENV_FILE)" -f compose.v2.lab.yml up -d --no-build --pull never
+
+v2-lab-stop:
+	docker compose --env-file "$(V2_LAB_ENV_FILE)" -f compose.v2.lab.yml down
+
+v2-lab-health:
+	V2_LAB_ENV_FILE="$(abspath $(V2_LAB_ENV_FILE))" ./deploy/v2-lab-health.sh
+
+v2-lab-benchmark:
+	@test -x .venv-v2/bin/python || { printf '%s\n' 'Run make v2-lab-prepare-online first.' >&2; exit 2; }
+	.venv-v2/bin/python scripts/benchmark-scout-vlm.py $(V2_LAB_BENCHMARK_ARGS)
 
 demo:
 	./scripts/reproduce-demo.sh

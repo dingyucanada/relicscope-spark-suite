@@ -71,6 +71,21 @@ def test_compliant_vision_output_is_accepted():
         "It was painted by a named artist.",
         "The painting is by Pablo Picasso.",
         "The artist is Zhang Daqian.",
+        "器形倾向于康熙时期。",
+        "约为十八世纪中期制作。",
+        "这是一件大开门的老货。",
+        "釉光老气，应当到代。",
+        "底足符合景德镇烧造特征。",
+        "具有很好的收藏价值和升值空间。",
+        "行家会认为这件很开门，包老保真。",
+        "市场价格约为人民币二十万元。",
+        "This could be from the late 18th century.",
+        "The glaze appears consistent with the Qianlong era.",
+        "This may be late Qing.",
+        "It is probably Jingdezhen ware.",
+        "It is likely from Jingdezhen.",
+        "This is a museum-quality collectible.",
+        "The auction estimate is USD 25,000.",
     ],
 )
 def test_vision_verdicts_are_rejected(text):
@@ -109,6 +124,37 @@ def test_guardrail_does_not_reject_scientific_abstention_language():
         "citation_ids": [],
     }
     assert validate_reasoner_output(value) == value
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "底部款识逐字转录：「大清乾隆年制」。",
+        "Mark transcription: 'Da Qing Qianlong Nian Zhi'.",
+    ],
+)
+def test_guardrail_preserves_literal_mark_transcription_without_interpretation(text):
+    value = {
+        "observations": [text],
+        "suggested_regions": [],
+        "limitations": ["款识文字仅作逐字记录，不据此形成结论。"],
+        "ood_risk": "LOW",
+    }
+    assert validate_vision_output(value) == value
+
+
+def test_literal_mark_exception_does_not_hide_interpretation_suffix():
+    with pytest.raises(ValueError, match="conclusion boundary"):
+        validate_vision_output(
+            {
+                "observations": [
+                    "底部款识逐字转录：「大清乾隆年制」；因此器物属于乾隆时期。"
+                ],
+                "suggested_regions": [],
+                "limitations": [],
+                "ood_risk": "LOW",
+            }
+        )
 
 
 def test_reasoner_citations_must_be_bound_to_report_results():

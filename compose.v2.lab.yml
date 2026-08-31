@@ -1,0 +1,138 @@
+services:
+  lab-vision:
+    platform: linux/arm64
+    image: ${LAB_VLLM_IMAGE:?run deploy/v2-lab-prepare-online.sh to pin the vLLM image}
+    pull_policy: never
+    user: "${LAB_UID:?run deploy/v2-lab-install.sh}:${LAB_GID:?run deploy/v2-lab-install.sh}"
+    restart: unless-stopped
+    init: true
+    shm_size: 16gb
+    gpus: all
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    secrets:
+      - lab_api_key
+    environment:
+      LAB_MODEL_PROFILE: ${LAB_MODEL_PROFILE:-nemotron3-nano-omni}
+      LAB_MODEL: ${LAB_MODEL:?set the candidate model}
+      LAB_MODEL_REVISION: ${LAB_MODEL_REVISION:?set an immutable cached revision}
+      LAB_MAX_MODEL_LEN: ${LAB_MAX_MODEL_LEN:-32768}
+      LAB_GPU_MEMORY_UTILIZATION: ${LAB_GPU_MEMORY_UTILIZATION:-0.70}
+      LAB_MAX_NUM_BATCHED_TOKENS: ${LAB_MAX_NUM_BATCHED_TOKENS:-32768}
+      LAB_VIDEO_FPS: ${LAB_VIDEO_FPS:-2}
+      LAB_VIDEO_MAX_FRAMES: ${LAB_VIDEO_MAX_FRAMES:-128}
+      HOME: /tmp
+      HF_HOME: /model-cache
+      HUGGINGFACE_HUB_CACHE: /model-cache/hub
+      VLLM_CACHE_ROOT: /vllm-cache
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      DO_NOT_TRACK: "1"
+    entrypoint: ["/bin/bash", "-ec"]
+    command:
+      - |
+        api_key="$$(cat /run/secrets/lab_api_key)"
+        if [ "$${#api_key}" -lt 32 ]; then
+          echo "FATAL: lab API key is missing or shorter than 32 characters" >&2
+          exit 78
+        fi
+        export VLLM_API_KEY="$$api_key"
+        unset api_key
+        common_args=(
+          "$$LAB_MODEL"
+          --served-model-name "$$LAB_MODEL"
+          --host 0.0.0.0
+          --port 8000
+          --revision "$$LAB_MODEL_REVISION"
+          --max-model-len "$$LAB_MAX_MODEL_LEN"
+          --gpu-memory-utilization "$$LAB_GPU_MEMORY_UTILIZATION"
+          --max-num-seqs 1
+        )
+        case "$$LAB_MODEL_PROFILE" in
+          nemotron3-nano-omni)
+            exec vllm serve "$${common_args[@]}" \
+              --trust-remote-code \
+              --reasoning-parser nemotron_v3 \
+              --video-pruning-rate 0.5 \
+              --enable-prefix-caching \
+              --max-num-batched-tokens "$$LAB_MAX_NUM_BATCHED_TOKENS" \
+              --limit-mm-per-prompt '{"image": 8, "video": 1, "audio": 0}' \
+              --media-io-kwargs '{"video":{"fps":'"$$LAB_VIDEO_FPS"',"num_frames":'"$$LAB_VIDEO_MAX_FRAMES"'}}'
+            ;;
+          generic-vlm)
+            exec vllm serve "$${common_args[@]}" \
+              --limit-mm-per-prompt '{"image": 8, "video": 0}'
+            ;;
+          *)
+            echo "FATAL: unsupported LAB_MODEL_PROFILE=$$LAB_MODEL_PROFILE" >&2
+            exit 78
+            ;;
+        esac
+    volumes:
+      - type: bind
+        source: ${LAB_HF_CACHE_DIR:-./runtime/lab-hf-cache}
+        target: /model-cache
+        read_only: true
+      - type: bind
+        source: ${LAB_VLLM_CACHE_DIR:-./runtime/lab-vllm-cache}
+        target: /vllm-cache
+    tmpfs:
+      - /tmp:size=2g,mode=1777
+    networks:
+      - lab-private
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "python3 -c \"import pathlib,urllib.request; k=pathlib.Path('/run/secrets/lab_api_key').read_text().strip(); r=urllib.request.Request('http://127.0.0.1:8000/v1/models',headers={'Authorization':'Bearer '+k}); urllib.request.urlopen(r,timeout=5).read()\" || exit 1"
+      interval: 20s
+      timeout: 7s
+      start_period: 20m
+      retries: 5
+
+  lab-ingress:
+    image: ${LAB_CADDY_IMAGE:?run deploy/v2-lab-prepare-online.sh to pin the Caddy image}
+    pull_policy: never
+    user: "${LAB_UID:?run deploy/v2-lab-install.sh}:${LAB_GID:?run deploy/v2-lab-install.sh}"
+    restart: unless-stopped
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      LAB_HOSTNAME: ${LAB_HOSTNAME:-spark-lab.local}
+      LAB_HTTPS_PORT: ${LAB_HTTPS_PORT:-8444}
+    ports:
+      - "${LAB_BIND_IP:-127.0.0.1}:${LAB_HTTPS_PORT:-8444}:${LAB_HTTPS_PORT:-8444}"
+    volumes:
+      - type: bind
+        source: ./deploy/Caddyfile.v2-lab
+        target: /etc/caddy/Caddyfile
+        read_only: true
+      - type: bind
+        source: ${LAB_CADDY_DATA_DIR:-./runtime/lab-caddy/data}
+        target: /data
+      - type: bind
+        source: ${LAB_CADDY_CONFIG_DIR:-./runtime/lab-caddy/config}
+        target: /config
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    networks:
+      - lab-edge
+      - lab-private
+
+networks:
+  lab-edge:
+    driver: bridge
+  lab-private:
+    driver: bridge
+    internal: true
+
+secrets:
+  lab_api_key:
+    file: ${LAB_API_KEY_FILE:-./secrets/lab_api_key}

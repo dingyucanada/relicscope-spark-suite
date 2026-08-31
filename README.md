@@ -1,4 +1,45 @@
-# RelicScope Spark Suite v1.2.0｜单台 DGX Spark 真实多模态分析与可追溯报告
+# RelicScope V2｜Scout + DGX Spark 本地 AI 基础设施
+
+`v2-scout-spark-platform` 分支聚焦客户当前最需要的结果：Android Scout
+完成现场拍摄与端侧质检，DGX Spark 接收经过认证且可恢复的任务，在本地 GPU
+上运行多模态模型，再把结构化结果返回 Scout。
+
+```text
+Android Scout → HTTPS 网关 → 本地持久任务 → 私有 Spark VLM → 结构化结果
+```
+
+当前 V2 在一台 Spark 上即可完整运行。第二台 Spark 用于独立候选模型、视频
+模型、评测、微调、批处理或人工切换备用。参考库、RAG、Agent、Scientific
+Evidence Graph 和仪器适配器保留为可选扩展，不进入当前必选链路。
+
+从这里开始：
+
+- [V2 产品边界与技术规划](docs/V2_SCOUT_SPARK_PRODUCT_SCOPE.md)
+- [V2 单台 Spark 部署](docs/V2_SCOUT_SPARK_DEPLOYMENT.md)
+- [V2 现场验收表](docs/V2_SPARK_ACCEPTANCE.md)
+- [Scout Android 参考客户端](scout-android/README.md)
+- [第二台 Spark：候选模型与备用节点](docs/V2_SECOND_SPARK_LAB.md)
+- [主 Spark 备份与恢复](docs/V2_BACKUP_RESTORE.md)
+- `compose.v2.yml` 与 `app.scout_main:app`
+
+在第一台 DGX Spark 上的唯一顺序：
+
+```bash
+git switch v2-scout-spark-platform
+make v2-install
+# 编辑 .env.v2：填写私有 SCOUT_BIND_IP、经批准的模型及 immutable revision
+make v2-prepare-online
+# 关闭获批下载通道后
+make v2-start       # 会再次执行 v2-preflight
+make v2-health      # readiness；不能替代真实多图 completion
+make v2-enroll SCOUT_NAME="Scout 01" \
+  SCOUT_DEVICE_ARGS="--output runtime/provisioning/scout-01.json"
+# 按部署文档使用显式 VIEW=FILE 运行 v2-smoke，作为现场放行门
+```
+
+以下 v1.2.0 浏览器与科学工作流继续保留，供未来模块复用。V2 手机入口不会公开其演示和管理接口。
+
+## Legacy v1.2.0｜单台 DGX Spark 多模态分析与可追溯报告
 
 本仓库交付一个可真实运行、可审计、可离线演示的古陶瓷科学鉴证工作流原型。v1.2.0 的默认部署是一台 DGX Spark：Qwen3-VL 作为中文陶瓷图像主基线，并在同一视频上提供 A/B 对照；Nemotron 3 Nano Omni 作为原生视频候选，用冻结输入顺序 A/B。共享私有 VLM 完成可见观察和受约束报告摘要，独立的 Qwen3-VL-Embedding-2B 私有 sidecar 负责 50 件多视角参考库的实例检索。主闭环为：瓷器图片 / 视频 → 原始哈希登记 → 质量门控 → 本地参考/知识检索 → Scientific Evidence Graph → Next Best Observation → JSON / HTML 结构化报告。
 

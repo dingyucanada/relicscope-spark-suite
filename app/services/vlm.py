@@ -33,6 +33,99 @@ lighting, occlusion, or incomplete coverage limits the observation. Use Chinese 
 natural-language fields when supported; otherwise use English consistently and record the
 language limitation. The application makes all scientific decisions."""
 
+SCOUT_MULTI_VIEW_SYSTEM_PROMPT = """You are a cultural-heritage multi-view observation
+assistant. Return JSON only with keys: observations (array of objects containing exactly
+capture_id, view_code, text), cross_view_observations (array of short visible facts),
+limitations (array of strings), capture_issues (array of objects containing capture_id and
+issue), ood_risk (LOW|MEDIUM|HIGH). Use only capture_id and view_code values provided by
+the application. Use Chinese for natural-language fields. Record visible shape,
+decoration, glaze, base, mark, condition, and capture limits. A literal mark or inscription
+may be copied only as `逐字转录：「...」`; do not interpret it. Do not authenticate, date,
+price, attribute, identify kiln, identify a production centre, or identify the object as
+genuine or fake. Do not use auction, collecting, connoisseurship, or art-market verdict
+jargon."""
+
+SCOUT_OBSERVATION_INSTRUCTION = (
+    "将所有合格视角作为同一器物的一组观察输入；仅记录可见形态、"
+    "纹饰、釉面、底足、款识、保存状态与跨视角一致性。不得输出真伪、"
+    "断代、窑口、作者或价格结论。操作员标签未经验证，不可作为模型观察"
+    "或结论依据。"
+)
+
+
+def model_request_options(model: str, *, video: bool = False) -> Dict[str, Any]:
+    """Return model-card-specific options shared by runtime and acceptance tools."""
+
+    normalized = model.lower()
+    if "nemotron" not in normalized or "omni" not in normalized:
+        return {}
+    options: Dict[str, Any] = {
+        "top_k": 1,
+        "chat_template_kwargs": {"enable_thinking": False},
+    }
+    if video:
+        options["mm_processor_kwargs"] = {"use_audio_in_video": False}
+    return options
+
+
+def model_output_hash(value: Dict[str, Any]) -> str:
+    """Hash validated model output exactly as the production evidence record does."""
+
+    return hashlib.sha256(
+        json.dumps(value, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+
+
+def build_scout_multi_view_payload(
+    model: str,
+    images: list[Dict[str, Any]],
+    metadata: Dict[str, Any],
+) -> tuple[Dict[str, Any], Dict[str, str]]:
+    """Build the exact production Scout request and its capture allowlist."""
+
+    if not 1 <= len(images) <= 8:
+        raise ValueError("Scout multi-view request must contain one to eight images")
+    allowed_captures: Dict[str, str] = {}
+    content: list[Dict[str, Any]] = [
+        {
+            "type": "text",
+            "text": (
+                "Inspect all views as one object-observation set. Bind every per-view "
+                "observation to the exact capture identifier and declared view. "
+                "Context metadata: "
+                + json.dumps(metadata, ensure_ascii=False, sort_keys=True)
+            ),
+        }
+    ]
+    for item in images:
+        capture_id = str(item["capture_id"])
+        view_code = str(item["view_code"])
+        image_data_url = str(item["image_data_url"])
+        if capture_id in allowed_captures:
+            raise ValueError("Scout multi-view capture identifiers must be unique")
+        allowed_captures[capture_id] = view_code
+        content.extend(
+            [
+                {
+                    "type": "text",
+                    "text": f"capture_id={capture_id}; view_code={view_code}",
+                },
+                {"type": "image_url", "image_url": {"url": image_data_url}},
+            ]
+        )
+    payload: Dict[str, Any] = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": SCOUT_MULTI_VIEW_SYSTEM_PROMPT},
+            {"role": "user", "content": content},
+        ],
+        "temperature": 0.0,
+        "max_tokens": 1200,
+        "response_format": {"type": "json_object"},
+    }
+    payload.update(model_request_options(model))
+    return payload, allowed_captures
+
 FORBIDDEN_VERDICT_PATTERNS = [
     r"(?:真品|赝品|仿品|高仿|伪作|真迹|正品|复制品|摹本)",
     r"(?:确定|明确|判定|认定|断定)(?:该|此|其|本)?(?:器物|作品)?(?:的)?(?:年代|时期|朝代|作者|创作者|作者归属|归属|窑口)",
@@ -42,6 +135,10 @@ FORBIDDEN_VERDICT_PATTERNS = [
     r"(?:该|此|本)(?:器物|作品|画作).{0,4}(?:为|是|属于)(?:唐|宋|元|明|清|民国)(?:代|朝|时期)",
     r"(?:估价|市场价格|价值为|售价)",
     r"(?:法律鉴定|行政认定|文物定级为)",
+    r"(?:可能|疑似|似为|或为|推测|倾向于).{0,24}(?:真品|赝品|仿制|伪作|复制|唐代|宋代|元代|明代|清代|民国|窑口|窑烧)",
+    r"(?:唐|宋|元|明|清)(?:代|朝|时期).{0,16}(?:风格|制式|烧造|制作|器物|作品)",
+    r"(?:景德镇|龙泉|汝|官|哥|定|钧|越|德化|磁州|耀州|建|吉州).{0,3}窑",
+    r"(?:现代|当代|近代).{0,12}(?:仿|复制|伪)",
     r"\b(?:authentic(?:ity)?|genuine(?:ness)?|counterfeit|fake|forg(?:ery|ed)|replica|imitation|reproduction|facsimile)\b",
     r"\b(?:dates?|dated|dating)\s+(?:to|from)\b",
     r"\b(?:made|created|painted|produced|manufactured|fired)\s+(?:in|during|circa|c\.)\s+(?:the\s+)?(?:\d{3,4}|\d{1,2}(?:st|nd|rd|th)[- ]century|[a-z]+\s+dynasty)",
@@ -51,11 +148,67 @@ FORBIDDEN_VERDICT_PATTERNS = [
     r"\b(?:object|artifact|work|painting)\s+(?:is|was)\s+from\s+(?:the\s+)?(?:[a-z]+\s+dynasty|\d{3,4}|\d{1,2}(?:st|nd|rd|th)[- ]century)",
     r"\b(?:artist|author|maker|painter|workshop)\s+(?:is|was|:)\b",
     r"\b(?:market value|legally certified)\b",
+    # A named chronology is itself a dating claim in an observation-only result. Literal
+    # inscriptions are removed by _redact_literal_marks before these checks run.
+    r"(?:先秦|秦汉|汉代|魏晋|南北朝|隋代|唐代|五代|宋代|辽代|金代|元代|明代|清代|民国(?:时期)?)",
+    r"(?:明|清)(?:初|中|晚|末|早期|中期|晚期|朝|代)",
+    r"(?:洪武|建文|永乐|洪熙|宣德|正统|景泰|天顺|成化|弘治|正德|嘉靖|隆庆|万历|泰昌|天启|崇祯|顺治|康熙|雍正|乾隆|嘉庆|道光|咸丰|同治|光绪|宣统)(?:年间|时期|朝|代|年制|年造)?",
+    r"(?:约|大约|公元)?\s*(?:第)?[0-9一二三四五六七八九十百]{1,4}\s*世纪(?:上半叶|下半叶|早期|中期|晚期|前后)?",
+    r"(?:公元前?\s*)?\d{3,4}\s*年(?:前后|左右|代)?",
+    # Kiln/production-centre attribution, including common shorthand without '窑'.
+    r"[一-鿿]{1,8}窑(?:口|系|场|址|烧|造|产|器)?",
+    r"(?:景德镇|龙泉|德化|磁州|耀州|吉州|建阳|越州)(?:制|产|烧|造|系|风格)?",
+    r"(?:窑口|产地|烧造地|作坊).{0,16}(?:为|是|属于|可能|疑似|推测|倾向|指向|符合)",
+    # Connoisseurship and art-market shorthand can smuggle an authenticity or value
+    # verdict without using the formal words above.
+    r"(?:大开门|开门货|(?:很|颇|十分|比较)?开门(?:器|度高|特征|感强|[，。；、！？\s]|$)|一眼真|一眼老|看真|到代|保到代|包老|保真|老货|老器|行货|生坑|熟坑|传世品|原装|老气|贼光|火气|新仿|后仿|臆造|做旧|改款|后加彩|接底|国宝帮)",
+    r"(?:估值|估价|市场价|成交价|拍卖价|行情|保值|升值空间|收藏价值|投资价值|值得收藏|捡漏)",
+    r"(?:价值|价格|售价|身价).{0,12}(?:人民币|港币|美元|欧元|英镑|元|万|千|百)",
+    # English chronology, including hedged dating and style-based dating.
+    r"\b(?:shang|zhou|qin|han|sui|tang|song|liao|jin|yuan|ming|qing)[- ]+(?:dynasty|period|era|style)\b",
+    r"\b(?:early|mid(?:dle)?|late)[- ]+(?:shang|zhou|qin|han|sui|tang|song|liao|jin|yuan|ming|qing)\b",
+    r"\b(?:hongwu|yongle|xuande|chenghua|jiajing|wanli|shunzhi|kangxi|yongzheng|qianlong|jiaqing|daoguang|xianfeng|tongzhi|guangxu|xuantong)(?:[- ](?:period|era|reign|style))?\b",
+    r"\b(?:early|mid(?:dle)?|late)?[- ]*\d{1,2}(?:st|nd|rd|th)[- ]century\b",
+    r"\b(?:circa|ca\.?|c\.)\s*\d{3,4}\b|\b\d{3,4}s\b|\b\d{3,4}\s*(?:ce|ad|bce|bc)\b",
+    r"\b(?:may|might|could|probably|possibly|likely|apparently|seemingly)\b.{0,40}\b(?:dynasty|period|era|century|dated?|dating|made|fired|produced)\b",
+    r"\b(?:may be|might be|could be|probably|possibly|likely|appears? to be|seems? to be)\b.{0,32}\b(?:shang|zhou|qin|han|sui|tang|song|liao|jin|yuan|ming|qing|antique|period piece)\b",
+    r"\b(?:appears?|seems?|suggests?|indicates?|consistent with|indicative of)\b.{0,40}\b(?:dynasty|period|era|century|date|dating|reign|antique)\b",
+    r"\b(?:jingdezhen|longquan|dehua|cizhou|yaozhou|jian|jizhou|ru|guan|ge|ding|jun)\b.{0,16}\b(?:kiln|ware|workshop|production|made|fired)\b",
+    r"\b(?:likely|probably|possibly|perhaps|apparently)\b.{0,24}\b(?:jingdezhen|longquan|dehua|cizhou|yaozhou|jian|jizhou)\b",
+    r"\b(?:auction estimate|auction record|market price|market value|collectible|investment[- ]grade|museum[- ]quality|blue[- ]chip|appraisal value|replacement value)\b",
+    r"(?:[$¥€£]|\b(?:usd|cny|rmb|hkd|eur|gbp)\b)\s*\d[\d,.]*",
 ]
 
 
+_LITERAL_MARK_PATTERN = re.compile(
+    r"(?:款识|底款|款文|铭文|印文|题款|落款|戳记|mark|inscription)"
+    r"\s*(?:文字)?\s*(?:逐字)?\s*(?:转录|可见|读作|reads?|transcription)?"
+    r"\s*(?:为|是|[:：])?\s*[「『“\"']([^\u300d』”\"']{1,120})[」』”\"']",
+    flags=re.IGNORECASE,
+)
+
+
+def _guardrail_strings(value: Any) -> Iterable[str]:
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for item in value.values():
+            yield from _guardrail_strings(item)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            yield from _guardrail_strings(item)
+
+
+def _redact_literal_marks(text: str) -> str:
+    """Keep literal transcription usable without allowing an interpretation suffix."""
+
+    return _LITERAL_MARK_PATTERN.sub("款识逐字转录：「<LITERAL_MARK>」", text)
+
+
 def _guardrail_text(value: Any) -> None:
-    serialized = json.dumps(value, ensure_ascii=False).lower()
+    serialized = "\n".join(
+        _redact_literal_marks(text).lower() for text in _guardrail_strings(value)
+    )
     for pattern in FORBIDDEN_VERDICT_PATTERNS:
         if re.search(pattern, serialized, flags=re.IGNORECASE):
             raise ValueError("model output crossed the scientific conclusion boundary")
@@ -91,6 +244,72 @@ def validate_native_video_output(value: Dict[str, Any]) -> Dict[str, Any]:
         isinstance(item, str) for item in temporal
     ):
         raise ValueError("temporal_observations must be an array of strings")
+    return value
+
+
+def validate_scout_multi_view_output(
+    value: Dict[str, Any], allowed_captures: Dict[str, str]
+) -> Dict[str, Any]:
+    required = {
+        "observations",
+        "cross_view_observations",
+        "limitations",
+        "capture_issues",
+        "ood_risk",
+    }
+    if set(value) != required:
+        raise ValueError("Scout multi-view output fields are invalid")
+    if value["ood_risk"] not in {"LOW", "MEDIUM", "HIGH"}:
+        raise ValueError("Scout multi-view ood_risk is invalid")
+    for field in ("cross_view_observations", "limitations"):
+        if not isinstance(value[field], list) or not all(
+            isinstance(item, str) and 0 < len(item.strip()) <= 500
+            for item in value[field]
+        ):
+            raise ValueError(f"Scout multi-view {field} must be an array of strings")
+        if len(value[field]) > 32:
+            raise ValueError(f"Scout multi-view {field} is too long")
+        if len(value[field]) != len(dict.fromkeys(value[field])):
+            raise ValueError(f"Scout multi-view {field} must not contain duplicates")
+    observations = value["observations"]
+    if not isinstance(observations, list) or len(observations) > 64:
+        raise ValueError("Scout multi-view observations must be an array")
+    represented_captures: set[str] = set()
+    for item in observations:
+        if not isinstance(item, dict) or set(item) != {
+            "capture_id",
+            "view_code",
+            "text",
+        }:
+            raise ValueError("Scout observation fields are invalid")
+        capture_id = item["capture_id"]
+        if (
+            not isinstance(capture_id, str)
+            or capture_id not in allowed_captures
+            or item["view_code"] != allowed_captures[capture_id]
+            or not isinstance(item["text"], str)
+            or not item["text"].strip()
+            or len(item["text"]) > 500
+        ):
+            raise ValueError("Scout observation is not bound to an allowed capture")
+        represented_captures.add(capture_id)
+    issues = value["capture_issues"]
+    if not isinstance(issues, list) or len(issues) > 16:
+        raise ValueError("Scout capture_issues must be an array")
+    for item in issues:
+        if (
+            not isinstance(item, dict)
+            or set(item) != {"capture_id", "issue"}
+            or item.get("capture_id") not in allowed_captures
+            or not isinstance(item.get("issue"), str)
+            or not item["issue"].strip()
+            or len(item["issue"]) > 500
+        ):
+            raise ValueError("Scout capture issue is invalid")
+        represented_captures.add(item["capture_id"])
+    if represented_captures != set(allowed_captures):
+        raise ValueError("every Scout input must have an observation or capture issue")
+    _guardrail_text(value)
     return value
 
 
@@ -153,6 +372,7 @@ class OpenAICompatibleClient:
         timeout_seconds: float = 45.0,
         *,
         model_profile: str = "unknown",
+        runtime_image: str = "unknown",
         model_source: str = "unknown",
         model_revision: str = "unknown",
         deployment_git_commit: str = "unknown",
@@ -162,6 +382,7 @@ class OpenAICompatibleClient:
         self.model = model
         self.timeout_seconds = timeout_seconds
         self.model_profile = model_profile
+        self.runtime_image = runtime_image
         self.model_source = model_source
         self.model_revision = model_revision
         self.deployment_git_commit = deployment_git_commit
@@ -169,6 +390,7 @@ class OpenAICompatibleClient:
     def _runtime_metadata(self) -> Dict[str, Any]:
         return {
             "model_profile": self.model_profile,
+            "runtime_image": self.runtime_image,
             "model_source": self.model_source,
             "model_revision": self.model_revision,
             "deployment_git_commit": self.deployment_git_commit,
@@ -180,16 +402,7 @@ class OpenAICompatibleClient:
 
     def _model_request_options(self, *, video: bool = False) -> Dict[str, Any]:
         """Apply model-card-safe options without changing the shared evidence schema."""
-
-        if not self.is_nemotron_omni:
-            return {}
-        options: Dict[str, Any] = {
-            "top_k": 1,
-            "chat_template_kwargs": {"enable_thinking": False},
-        }
-        if video:
-            options["mm_processor_kwargs"] = {"use_audio_in_video": False}
-        return options
+        return model_request_options(self.model, video=video)
 
     @property
     def configured(self) -> bool:
@@ -324,6 +537,33 @@ class OpenAICompatibleClient:
             payload, VISION_SYSTEM_PROMPT, "vision", validate_vision_output
         )
 
+    async def vision_observe_many(
+        self,
+        images: list[Dict[str, Any]],
+        metadata: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        payload, allowed_captures = build_scout_multi_view_payload(
+            self.model, images, metadata
+        )
+        if not self.configured:
+            return {
+                "available": False,
+                "mode": "deterministic_fallback",
+                "role": "scout_multi_view",
+                "model": self.model,
+                "prompt_hash": hashlib.sha256(
+                    SCOUT_MULTI_VIEW_SYSTEM_PROMPT.encode("utf-8")
+                ).hexdigest(),
+                "error": "NotConfigured",
+                **self._runtime_metadata(),
+            }
+        return await self._completion(
+            payload,
+            SCOUT_MULTI_VIEW_SYSTEM_PROMPT,
+            "scout_multi_view",
+            lambda value: validate_scout_multi_view_output(value, allowed_captures),
+        )
+
     async def summarize_report(self, report: Dict[str, Any]) -> Dict[str, Any]:
         if not self.configured:
             return {
@@ -416,7 +656,15 @@ class OpenAICompatibleClient:
         validator: Callable[[Dict[str, Any]], Dict[str, Any]],
     ) -> Dict[str, Any]:
         started = time.perf_counter()
-        prompt_hash = hashlib.sha256(system_prompt.encode("utf-8")).hexdigest()
+        system_prompt_hash = hashlib.sha256(system_prompt.encode("utf-8")).hexdigest()
+        request_payload_hash = hashlib.sha256(
+            json.dumps(
+                payload,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
         try:
             async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
                 response = await client.post(
@@ -434,9 +682,7 @@ class OpenAICompatibleClient:
                 raise ValueError("completion did not finish cleanly")
             content = choice["message"]["content"]
             parsed = validator(self._parse_json_content(content))
-            output_hash = hashlib.sha256(
-                json.dumps(parsed, ensure_ascii=False, sort_keys=True).encode("utf-8")
-            ).hexdigest()
+            output_hash = model_output_hash(parsed)
             return {
                 "available": True,
                 "mode": "local_vllm",
@@ -451,7 +697,10 @@ class OpenAICompatibleClient:
                     if isinstance(value, (int, float))
                 },
                 "finish_reason": choice.get("finish_reason"),
-                "prompt_hash": prompt_hash,
+                # prompt_hash remains as a compatibility alias for older V1 evidence.
+                "prompt_hash": system_prompt_hash,
+                "system_prompt_hash": system_prompt_hash,
+                "request_payload_hash": request_payload_hash,
                 "latency_ms": int((time.perf_counter() - started) * 1000),
                 "output_hash": output_hash,
                 "output": parsed,
@@ -463,7 +712,9 @@ class OpenAICompatibleClient:
                 "mode": "deterministic_fallback",
                 "role": role,
                 "model": self.model,
-                "prompt_hash": prompt_hash,
+                "prompt_hash": system_prompt_hash,
+                "system_prompt_hash": system_prompt_hash,
+                "request_payload_hash": request_payload_hash,
                 "latency_ms": int((time.perf_counter() - started) * 1000),
                 "error": type(exc).__name__,
                 **self._runtime_metadata(),

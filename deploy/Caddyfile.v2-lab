@@ -1,0 +1,23 @@
+https://{$LAB_HOSTNAME}:{$LAB_HTTPS_PORT} {
+    tls internal
+    request_body {
+        max_size 128MB
+    }
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options "nosniff"
+        -Server
+    }
+    @allowed path /v1/models /v1/chat/completions
+    handle @allowed {
+        reverse_proxy lab-vision:8000 {
+            transport http {
+                dial_timeout 5s
+                response_header_timeout 300s
+            }
+        }
+    }
+    handle {
+        respond "Not Found" 404
+    }
+}

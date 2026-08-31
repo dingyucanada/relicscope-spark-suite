@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>RelicScope Scout · Spark V2</title>
+    <link rel="stylesheet" href="/scout-assets/styles.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <p class="eyebrow">RELICSCOPE · LOCAL AI APPLIANCE</p>
+          <h1>Scout → Spark</h1>
+          <p class="lead">现场采集在手持设备完成；这里仅显示本地 AI 服务是否已经就绪。</p>
+        </div>
+        <div class="status" id="overall"><i></i><span>正在检查</span></div>
+      </header>
+
+      <section class="flow" aria-label="V2 主流程">
+        <article>
+          <span>01</span>
+          <strong>Scout</strong>
+          <p>拍摄 · 端侧质检 · 离线队列</p>
+        </article>
+        <b aria-hidden="true">→</b>
+        <article>
+          <span>02</span>
+          <strong>Local Spark</strong>
+          <p>设备认证 · 持久任务 · 本地 VLM</p>
+        </article>
+        <b aria-hidden="true">→</b>
+        <article>
+          <span>03</span>
+          <strong>Result</strong>
+          <p>可见观察 · 运行证明 · 补拍建议</p>
+        </article>
+      </section>
+
+      <section class="proof">
+        <div>
+          <p>GATEWAY</p>
+          <strong id="gateway-state">CHECKING</strong>
+          <small id="gateway-detail">等待本地服务响应</small>
+        </div>
+        <div>
+          <p>MODEL</p>
+          <strong id="model-state">CHECKING</strong>
+          <small id="model-detail">等待模型身份与端点状态</small>
+        </div>
+        <div>
+          <p>QUEUE</p>
+          <strong id="worker-state">CHECKING</strong>
+          <small>任务由 Spark 本地持久队列处理</small>
+        </div>
+      </section>
+
+      <footer>
+        <p>V2 运维状态页 · 正式采集入口是 Android Scout</p>
+        <p>当前结果只记录图像质量与可见特征，不输出真伪、断代或估价。</p>
+      </footer>
+    </main>
+    <script src="/scout-assets/app.js" defer></script>
+  </body>
+</html>

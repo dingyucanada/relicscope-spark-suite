@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+!.env.v2.example
+!.env.v2.lab.example
 secrets/
 .envrc
 .netrc
@@ -35,6 +37,7 @@ vllm-cache/
 
 # Python environments and generated files
 .venv/
+.venv-v2/
 venv/
 env/
 __pycache__/

@@ -1,0 +1,23 @@
+#!/bin/sh
+
+# Minimal POSIX launcher for the official Gradle wrapper JAR in this repository.
+set -eu
+
+script_path=$0
+case "$script_path" in
+  /*) app_home=${script_path%/*} ;;
+  *) app_home=$(cd "${script_path%/*}" && pwd -P) ;;
+esac
+
+if [ -n "${JAVA_HOME:-}" ]; then
+  java_command="$JAVA_HOME/bin/java"
+else
+  java_command=java
+fi
+
+exec "$java_command" \
+  ${JAVA_OPTS:-} \
+  ${GRADLE_OPTS:-} \
+  -Dorg.gradle.appname=gradlew \
+  -classpath "$app_home/gradle/wrapper/gradle-wrapper.jar" \
+  org.gradle.wrapper.GradleWrapperMain "$@"

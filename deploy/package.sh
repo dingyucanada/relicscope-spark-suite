@@ -86,11 +86,11 @@ trap cleanup EXIT
 
 release_archive="${staging}/relicscope-release-${release_version}.tar.gz"
 entries=(
-  .agents .github .dockerignore .env.example .gitattributes .gitignore
+  .agents .github .dockerignore .env.example .env.v2.example .env.v2.lab.example .gitattributes .gitignore
   AGENTS.md Dockerfile Dockerfile.vllm Dockerfile.embedding Makefile NOTICE.md README.md THIRD_PARTY_NOTICES.md
   requirements.txt requirements.lock requirements-embedding.lock requirements-dev.txt requirements-dev.lock pytest.ini
-  app data demo_media deploy docs embedding_server openspec scripts tests
-  compose.yml compose.single.yml run_local.sh
+  app data demo_media deploy docs embedding_server openspec scout-android scripts tests
+  compose.yml compose.single.yml compose.v2.yml compose.v2.lab.yml run_local.sh
 )
 existing_entries=()
 for entry in "${entries[@]}"; do

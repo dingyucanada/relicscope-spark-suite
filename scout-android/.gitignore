@@ -1,0 +1,12 @@
+/.gradle/
+/.idea/
+/local.properties
+/**/build/
+*.iml
+*.jks
+*.keystore
+captures/
+
+# The repository root ignores generic work/ directories; this one is Kotlin source.
+!/app/src/main/java/ai/relicscope/scout/work/
+!/app/src/main/java/ai/relicscope/scout/work/**

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ipaddress
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
@@ -74,6 +75,16 @@ class Settings:
     compute_node_id: str
     model_profile: str
     knowledge_manifest_path: Path
+    scout_enabled: bool
+    scout_require_auth: bool
+    scout_media_dir: Path
+    scout_max_images_per_job: int
+    scout_worker_poll_seconds: float
+    scout_model_max_attempts: int
+    scout_model_retry_base_seconds: float
+    scout_min_free_bytes: int
+    scout_max_outstanding_jobs_per_device: int
+    scout_capture_protocol_version: str
     reference_library_enabled: bool
     reference_library_dir: Path
     reference_library_manifest_path: Path
@@ -85,6 +96,7 @@ class Settings:
     counterfeit_library_min_records: int
     vision_base_url: str
     vision_api_key: str
+    vision_runtime_image: str
     vision_model_source: str
     vision_model_revision: str
     vision_model: str
@@ -163,6 +175,32 @@ class Settings:
                     project_root / "data" / "knowledge_manifest.json",
                 )
             ).expanduser(),
+            scout_enabled=_env_bool("RELICSCOPE_SCOUT_ENABLED", False),
+            scout_require_auth=_env_bool("RELICSCOPE_SCOUT_REQUIRE_AUTH", True),
+            scout_media_dir=Path(
+                os.getenv("RELICSCOPE_SCOUT_MEDIA_DIR", data_dir / "scout-media")
+            ).expanduser(),
+            scout_max_images_per_job=int(
+                os.getenv("RELICSCOPE_SCOUT_MAX_IMAGES_PER_JOB", "8")
+            ),
+            scout_worker_poll_seconds=float(
+                os.getenv("RELICSCOPE_SCOUT_WORKER_POLL_SECONDS", "0.5")
+            ),
+            scout_model_max_attempts=int(
+                os.getenv("RELICSCOPE_SCOUT_MODEL_MAX_ATTEMPTS", "3")
+            ),
+            scout_model_retry_base_seconds=float(
+                os.getenv("RELICSCOPE_SCOUT_MODEL_RETRY_BASE_SECONDS", "5")
+            ),
+            scout_min_free_bytes=int(
+                os.getenv("RELICSCOPE_SCOUT_MIN_FREE_BYTES", str(20 * 1024**3))
+            ),
+            scout_max_outstanding_jobs_per_device=int(
+                os.getenv("RELICSCOPE_SCOUT_MAX_OUTSTANDING_JOBS_PER_DEVICE", "20")
+            ),
+            scout_capture_protocol_version=os.getenv(
+                "RELICSCOPE_SCOUT_CAPTURE_PROTOCOL_VERSION", "porcelain-v1"
+            ),
             reference_library_enabled=_env_bool(
                 "RELICSCOPE_REFERENCE_LIBRARY_ENABLED", False
             ),
@@ -202,6 +240,7 @@ class Settings:
             ),
             vision_base_url=os.getenv("VISION_BASE_URL", "").rstrip("/"),
             vision_api_key=os.getenv("VISION_API_KEY", ""),
+            vision_runtime_image=os.getenv("VISION_RUNTIME_IMAGE", "unknown"),
             vision_model_source=os.getenv(
                 "VISION_MODEL_SOURCE", "Qwen/Qwen3-VL-30B-A3B-Instruct"
             ),
@@ -243,6 +282,7 @@ class Settings:
     def ensure_runtime_dirs(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.upload_dir.mkdir(parents=True, exist_ok=True)
+        self.scout_media_dir.mkdir(parents=True, exist_ok=True)
         self.reference_library_dir.mkdir(parents=True, exist_ok=True)
 
     def validate_runtime(self) -> None:
@@ -266,6 +306,38 @@ class Settings:
             raise ValueError("video frame limit must be between 3 and 24")
         if not 1 <= self.model_max_concurrency <= 8:
             raise ValueError("model concurrency must be between 1 and 8")
+        if not 1 <= self.scout_max_images_per_job <= 8:
+            raise ValueError("Scout image limit must be between 1 and 8")
+        if not 0.05 <= self.scout_worker_poll_seconds <= 30.0:
+            raise ValueError("Scout worker poll interval is outside the safe range")
+        if not 1 <= self.scout_model_max_attempts <= 10:
+            raise ValueError("Scout model attempt limit must be between 1 and 10")
+        if not 0.05 <= self.scout_model_retry_base_seconds <= 300.0:
+            raise ValueError("Scout model retry delay is outside the safe range")
+        if not 64 * 1024**2 <= self.scout_min_free_bytes <= 4 * 1024**4:
+            raise ValueError("Scout minimum free-space reserve is outside the safe range")
+        if not 1 <= self.scout_max_outstanding_jobs_per_device <= 1_000:
+            raise ValueError("Scout outstanding-job limit is outside the safe range")
+        if self.scout_capture_protocol_version != "porcelain-v1":
+            raise ValueError("unsupported Scout capture protocol")
+        if (
+            self.scout_enabled
+            and self.vision_base_url
+            and self.vision_model_source != self.vision_model
+        ):
+            raise ValueError(
+                "Scout V2 model source must equal the model identity loaded by vLLM"
+            )
+        if self.scout_enabled and self.runtime_mode == "single-spark":
+            immutable_hex = re.compile(r"^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$")
+            if not immutable_hex.fullmatch(self.vision_model_revision):
+                raise ValueError("Scout V2 requires an immutable model revision")
+            if not immutable_hex.fullmatch(self.deployment_git_commit):
+                raise ValueError("Scout V2 requires an immutable deployment Git commit")
+            if not re.search(
+                r"@sha256:[0-9a-fA-F]{64}$", self.vision_runtime_image
+            ):
+                raise ValueError("Scout V2 requires an immutable VLM runtime image")
         if not 1 <= self.reference_library_min_artifacts <= 100_000:
             raise ValueError("reference library artifact minimum is invalid")
         if not 3 <= self.reference_library_min_views <= 32:

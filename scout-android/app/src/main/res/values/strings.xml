@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RelicScope Scout</string>
+    <string name="camera_permission_required">需要相机权限才能采集瓷器图像。</string>
+    <string name="configure_device">配置设备</string>
+    <string name="capture">拍摄</string>
+    <string name="submit_analysis">提交到 Spark 分析</string>
+</resources>

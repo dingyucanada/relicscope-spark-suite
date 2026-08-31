@@ -27,3 +27,34 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Gradle Wrapper
+
+`scout-android/gradle/wrapper/gradle-wrapper.jar`, `gradlew`, and `gradlew.bat`
+are components of Gradle, licensed under Apache License 2.0. The wrapper JAR
+retains Gradle's `META-INF/LICENSE` and SPDX metadata.
+
+Project: <https://gradle.org/>
+
+Source: <https://github.com/gradle/gradle>
+
+License: <https://www.apache.org/licenses/LICENSE-2.0>
+
+Copyright the Gradle authors and contributors.
+
+## Downloaded Android dependencies
+
+The Scout Android build downloads AndroidX, CameraX, Room, WorkManager, Kotlin,
+OkHttp, Material Components, JUnit, and their transitive dependencies. They are
+not relicensed by RelicScope. Before distributing an APK/AAB, generate and ship
+the dependency/license inventory from the exact locked build and satisfy every
+upstream notice obligation.
+
+## Runtime containers and model artifacts
+
+The online preparation step obtains Caddy, NVIDIA vLLM runtime material, and a
+separately selected model from their approved registries. These artifacts are
+not granted a license by this repository. Model terms, NGC terms, geography,
+access, and redistribution rights must be reviewed before caching or packaging.
+The normal source archive and Git repository contain no model weights or runtime
+container layers.

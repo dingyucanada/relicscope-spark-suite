@@ -47,7 +47,8 @@ def decode_image(raw_bytes: bytes) -> DecodedImage:
             probe.verify()
         with Image.open(io.BytesIO(raw_bytes)) as decoded:
             _validate_image_dimensions(decoded.width, decoded.height)
-            image = decoded.convert("RGB")
+            image = ImageOps.exif_transpose(decoded).convert("RGB")
+            _validate_image_dimensions(image.width, image.height)
     except _ImageDimensionError:
         raise
     except Exception as exc:

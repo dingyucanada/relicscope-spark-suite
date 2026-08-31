@@ -4,9 +4,41 @@
 
 Help an authorized operator reproduce, test, or maintain the RelicScope Spark Suite without weakening its scientific, privacy, or deployment boundaries.
 
+## V2 Scout branch
+
+On `v2-scout-spark-platform`, the primary path is `app.scout_main:app` with
+`compose.v2.yml`. Android Scout is the capture client; one Spark must complete the full
+job; a second Spark is optional. Do not expose legacy sessions, demo, report,
+reference-library administration, vLLM, NIM, or embedding ports on the Scout LAN.
+
+Keep the V2 critical path deterministic: ingest validation, server quality check, local
+VLM observation, and result assembly. RAG, Agent, reference recognition, and instrument
+adapters are optional and disabled by default. A reference corpus must not become a V2
+gateway readiness requirement.
+
+Read these first for V2:
+
+1. `docs/V2_SCOUT_SPARK_PRODUCT_SCOPE.md`
+2. `docs/V2_SCOUT_SPARK_DEPLOYMENT.md`
+3. `docs/V2_SPARK_ACCEPTANCE.md`
+4. `scout-android/README.md`
+
+The only supported primary-Spark order is:
+
+```text
+v2-install → edit and approve .env.v2 → v2-prepare-online → disconnect download
+network → v2-preflight → v2-start → v2-health → v2-enroll → v2-smoke
+```
+
+`v2-start` runs the preflight again. Do not invoke legacy V1 install, prefetch, browser
+demo, reference-library, or acceptance commands on this branch unless the operator
+explicitly asks to maintain V1.
+
 ## First-run paths
 
-Always read `README.md` and `docs/GITHUB_SPARK_QUICKSTART.md` first.
+Always read `README.md`. On the V2 branch, use only the four V2 documents listed above.
+`docs/GITHUB_SPARK_QUICKSTART.md` is a legacy V1 guide and is read only for an explicit
+legacy request.
 
 For repository-only reproduction on a development computer:
 
@@ -24,6 +56,18 @@ For the v1.2.0 default product path on one authorized DGX Spark:
 5. Keep Qwen3-VL as the default unless the generated scorecard passes machine gates and the required domain and model-engineering experts approve promotion.
 
 ## Useful commands
+
+```bash
+make v2-install
+make v2-prepare-online
+make v2-preflight
+make v2-start
+make v2-health
+make v2-enroll SCOUT_NAME="Scout 01" SCOUT_DEVICE_ARGS="--output runtime/provisioning/scout-01.json"
+make v2-smoke SCOUT_SMOKE_ARGS="--provisioning ... --ca-cert ... --capture FRONT=... --capture BACK=... --capture BASE=..."
+```
+
+Legacy V1 commands, only for an explicit legacy request:
 
 ```bash
 make demo-install

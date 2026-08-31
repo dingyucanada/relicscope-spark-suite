@@ -1,0 +1,206 @@
+services:
+  gateway:
+    platform: linux/arm64
+    image: ${SCOUT_GATEWAY_IMAGE:-relicscope-scout-gateway:2.0.0-arm64}
+    pull_policy: never
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.12.11-slim-bookworm}
+        PYPI_INDEX_URL: ${PYPI_INDEX_URL:-https://pypi.org/simple}
+        APP_UID: ${APP_UID:-10001}
+        APP_GID: ${APP_GID:-10001}
+        RELICSCOPE_GIT_COMMIT: ${RELICSCOPE_GIT_COMMIT:-unknown}
+    restart: unless-stopped
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    secrets:
+      - service_api_key
+    environment:
+      RELICSCOPE_DATA_DIR: /var/lib/relicscope
+      RELICSCOPE_HOST: 0.0.0.0
+      RELICSCOPE_PORT: "8088"
+      RELICSCOPE_SERVICE_VERSION: ${RELICSCOPE_SERVICE_VERSION:-2.0.0}
+      RELICSCOPE_RUNTIME_MODE: ${RELICSCOPE_RUNTIME_MODE:-single-spark}
+      RELICSCOPE_NODE_ID: ${RELICSCOPE_NODE_ID:-spark-primary}
+      RELICSCOPE_COMPUTE_NODE_ID: ${RELICSCOPE_COMPUTE_NODE_ID:-spark-primary}
+      RELICSCOPE_GIT_COMMIT: ${RELICSCOPE_GIT_COMMIT:-unknown}
+      RELICSCOPE_OFFLINE_MODE: ${RELICSCOPE_OFFLINE_MODE:-true}
+      RELICSCOPE_REQUIRE_PRIVATE_ENDPOINTS: "true"
+      RELICSCOPE_SCOUT_ENABLED: "true"
+      RELICSCOPE_SCOUT_REQUIRE_AUTH: "true"
+      RELICSCOPE_SCOUT_MEDIA_DIR: /var/lib/relicscope/scout-media
+      RELICSCOPE_SCOUT_MAX_IMAGES_PER_JOB: ${RELICSCOPE_SCOUT_MAX_IMAGES_PER_JOB:-8}
+      RELICSCOPE_SCOUT_WORKER_POLL_SECONDS: ${RELICSCOPE_SCOUT_WORKER_POLL_SECONDS:-2}
+      RELICSCOPE_SCOUT_MODEL_MAX_ATTEMPTS: ${RELICSCOPE_SCOUT_MODEL_MAX_ATTEMPTS:-3}
+      RELICSCOPE_SCOUT_MODEL_RETRY_BASE_SECONDS: ${RELICSCOPE_SCOUT_MODEL_RETRY_BASE_SECONDS:-5}
+      RELICSCOPE_SCOUT_MIN_FREE_BYTES: ${RELICSCOPE_SCOUT_MIN_FREE_BYTES:-21474836480}
+      RELICSCOPE_SCOUT_MAX_OUTSTANDING_JOBS_PER_DEVICE: ${RELICSCOPE_SCOUT_MAX_OUTSTANDING_JOBS_PER_DEVICE:-20}
+      RELICSCOPE_REFERENCE_LIBRARY_ENABLED: "false"
+      RELICSCOPE_MAX_UPLOAD_BYTES: ${RELICSCOPE_MAX_UPLOAD_BYTES:-12582912}
+      MODEL_PROFILE: ${MODEL_PROFILE:-qwen3-vl-scout}
+      MODEL_TIMEOUT_SECONDS: ${MODEL_TIMEOUT_SECONDS:-180}
+      MODEL_MAX_CONCURRENCY: ${MODEL_MAX_CONCURRENCY:-1}
+      VISION_BASE_URL: http://vision:8000/v1
+      VISION_RUNTIME_IMAGE: ${VLLM_IMAGE:-nvcr.io/nvidia/vllm:26.05.post1-py3}
+      VISION_MODEL: ${VISION_MODEL:-Qwen/Qwen3-VL-30B-A3B-Instruct}
+      VISION_MODEL_SOURCE: ${VISION_MODEL_SOURCE:-Qwen/Qwen3-VL-30B-A3B-Instruct}
+      VISION_MODEL_REVISION: ${VISION_MODEL_REVISION:?set an immutable cached model revision}
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      DO_NOT_TRACK: "1"
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        service_key="$$(cat /run/secrets/service_api_key)"
+        if [ "$${#service_key}" -lt 32 ]; then
+          echo "FATAL: service API key is missing or shorter than 32 characters" >&2
+          exit 78
+        fi
+        export VISION_API_KEY="$$service_key"
+        exec python -m uvicorn app.scout_main:app --host 0.0.0.0 --port 8088 --no-access-log
+    volumes:
+      - type: bind
+        source: ${RELICSCOPE_DATA_HOST_DIR:-./runtime/v2-data}
+        target: /var/lib/relicscope
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+    networks:
+      - gateway-private
+      - model-private
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8088/health/live', timeout=3).read()"
+      interval: 15s
+      timeout: 4s
+      start_period: 30s
+      retries: 4
+
+  vision:
+    platform: linux/arm64
+    image: ${VLLM_IMAGE:-nvcr.io/nvidia/vllm:26.05.post1-py3}
+    pull_policy: never
+    user: "${APP_UID:-10001}:${APP_GID:-10001}"
+    restart: unless-stopped
+    init: true
+    shm_size: 16gb
+    gpus: all
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    secrets:
+      - service_api_key
+    environment:
+      VISION_MODEL: ${VISION_MODEL:-Qwen/Qwen3-VL-30B-A3B-Instruct}
+      VISION_MODEL_REVISION: ${VISION_MODEL_REVISION:?set an immutable cached model revision}
+      VISION_MAX_MODEL_LEN: ${VISION_MAX_MODEL_LEN:-16384}
+      VISION_GPU_MEMORY_UTILIZATION: ${VISION_GPU_MEMORY_UTILIZATION:-0.72}
+      HOME: /tmp
+      HF_HOME: /model-cache
+      HUGGINGFACE_HUB_CACHE: /model-cache/hub
+      VLLM_CACHE_ROOT: /vllm-cache
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      DO_NOT_TRACK: "1"
+      VLLM_LOGGING_LEVEL: INFO
+      VLLM_SERVER_DEV_MODE: "0"
+    entrypoint: ["/bin/bash", "-ec"]
+    command:
+      - |
+        service_key="$$(cat /run/secrets/service_api_key)"
+        if [ "$${#service_key}" -lt 32 ]; then
+          echo "FATAL: service API key is missing or shorter than 32 characters" >&2
+          exit 78
+        fi
+        export VLLM_API_KEY="$$service_key"
+        exec vllm serve "$$VISION_MODEL" \
+          --host 0.0.0.0 \
+          --port 8000 \
+          --revision "$$VISION_MODEL_REVISION" \
+          --max-model-len "$$VISION_MAX_MODEL_LEN" \
+          --gpu-memory-utilization "$$VISION_GPU_MEMORY_UTILIZATION" \
+          --max-num-seqs 1 \
+          --limit-mm-per-prompt '{"image": 8, "video": 0}'
+    volumes:
+      - type: bind
+        source: ${HF_CACHE_DIR:-./runtime/hf-cache}
+        target: /model-cache
+        read_only: true
+      - type: bind
+        source: ${VLLM_CACHE_DIR:-./runtime/vllm-cache}
+        target: /vllm-cache
+    tmpfs:
+      - /tmp:size=2g,mode=1777
+    networks:
+      - model-private
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "python3 -c \"import pathlib,urllib.request; k=pathlib.Path('/run/secrets/service_api_key').read_text().strip(); r=urllib.request.Request('http://127.0.0.1:8000/v1/models',headers={'Authorization':'Bearer '+k}); urllib.request.urlopen(r,timeout=5).read()\" || exit 1"
+      interval: 20s
+      timeout: 7s
+      start_period: 20m
+      retries: 5
+
+  ingress:
+    image: ${CADDY_IMAGE:-caddy:2.10.2-alpine}
+    pull_policy: never
+    user: "${APP_UID:-10001}:${APP_GID:-10001}"
+    restart: unless-stopped
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      SCOUT_HOSTNAME: ${SCOUT_HOSTNAME:-scout.spark.local}
+      SCOUT_HTTPS_PORT: ${SCOUT_HTTPS_PORT:-8443}
+    ports:
+      - "${SCOUT_BIND_IP:-127.0.0.1}:${SCOUT_HTTPS_PORT:-8443}:${SCOUT_HTTPS_PORT:-8443}"
+    volumes:
+      - type: bind
+        source: ./deploy/Caddyfile.v2
+        target: /etc/caddy/Caddyfile
+        read_only: true
+      - type: bind
+        source: ${CADDY_DATA_DIR:-./runtime/caddy/data}
+        target: /data
+      - type: bind
+        source: ${CADDY_CONFIG_DIR:-./runtime/caddy/config}
+        target: /config
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    networks:
+      - lan-edge
+      - gateway-private
+    depends_on:
+      gateway:
+        condition: service_healthy
+
+networks:
+  lan-edge:
+    driver: bridge
+  gateway-private:
+    driver: bridge
+    internal: true
+  model-private:
+    driver: bridge
+    internal: true
+
+secrets:
+  service_api_key:
+    file: ${SERVICE_API_KEY_FILE:-./secrets/service_api_key}

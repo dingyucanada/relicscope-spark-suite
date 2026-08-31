@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="scout_black">#0B0F12</color>
+    <color name="scout_surface">#171D21</color>
+    <color name="scout_green">#68F2B2</color>
+    <color name="scout_text">#F4F7F5</color>
+    <color name="scout_muted">#A8B2AD</color>
+    <color name="scout_warning">#FFCF67</color>
+</resources>
