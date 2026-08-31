@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://relicscope.local/schemas/reference-evaluation-manifest-v1.json",
+  "title": "RelicScope frozen reference-recognition evaluation manifest",
+  "description": "A strict manifest for independent reshoots. Runtime validation also verifies every file, hash, decoded MIME type, immutable index binding, and absence of indexed-media reuse.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "evaluation_id",
+    "version",
+    "library_id",
+    "library_manifest_sha256",
+    "embedding_index_payload_sha256",
+    "embedding_index_archive_sha256",
+    "protocol",
+    "queries"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "relicscope-reference-evaluation-manifest-v1"
+    },
+    "evaluation_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "version": {
+      "$ref": "#/$defs/identifier"
+    },
+    "library_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "library_manifest_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "embedding_index_payload_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "embedding_index_archive_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "protocol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_id",
+        "independent_reshoots",
+        "exact_media_reuse_excluded",
+        "capture_batch_attestation"
+      ],
+      "properties": {
+        "protocol_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "independent_reshoots": {
+          "const": true,
+          "description": "The query photographs were captured independently from the indexed reference-media session."
+        },
+        "exact_media_reuse_excluded": {
+          "const": true
+        },
+        "capture_batch_attestation": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 1000,
+          "description": "Human-readable attestation identifying the independent recapture procedure."
+        }
+      }
+    },
+    "queries": {
+      "type": "array",
+      "minItems": 70,
+      "description": "The default formal calibration requires independent reshoots covering all 50 catalog physical objects plus at least 20 independent open-set objects. Runtime validation enforces the two populations and complete physical-object coverage.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "query_id",
+          "capture_batch_id",
+          "expected_artifact_id",
+          "images"
+        ],
+        "properties": {
+          "query_id": {
+            "$ref": "#/$defs/identifier"
+          },
+          "capture_batch_id": {
+            "$ref": "#/$defs/identifier",
+            "description": "Identifier for the independent physical recapture session."
+          },
+          "expected_artifact_id": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/identifier"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Catalog artifact ID for an in-library physical object; null for an open-set object."
+          },
+          "images": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "sha256",
+                "mime",
+                "angle"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024,
+                  "description": "POSIX relative path resolved from the manifest directory; absolute paths, traversal, and symbolic links are rejected at runtime."
+                },
+                "sha256": {
+                  "$ref": "#/$defs/sha256"
+                },
+                "mime": {
+                  "enum": [
+                    "image/jpeg",
+                    "image/png",
+                    "image/webp"
+                  ]
+                },
+                "angle": {
+                  "enum": [
+                    "FRONT",
+                    "BACK",
+                    "LEFT_PROFILE",
+                    "RIGHT_PROFILE",
+                    "TOP",
+                    "BASE",
+                    "INTERIOR",
+                    "FRONT_LEFT_45",
+                    "FRONT_RIGHT_45",
+                    "BACK_LEFT_45",
+                    "BACK_RIGHT_45",
+                    "DETAIL",
+                    "MARK",
+                    "DAMAGE"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{2,127}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

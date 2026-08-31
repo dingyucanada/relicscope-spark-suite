@@ -52,6 +52,38 @@ cfg() {
   printf '%s' "${value:-$fallback}"
 }
 
+prepare_reference_embedding_revision() {
+  local configured source cache_dir cache_name root revision container_id
+  configured="$(cfg REFERENCE_EMBEDDING_MODEL_REVISION '')"
+  if [[ "$configured" =~ ^([0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$ ]]; then
+    export REFERENCE_EMBEDDING_MODEL_REVISION="${configured,,}"
+    return
+  fi
+  source="$(cfg REFERENCE_EMBEDDING_MODEL_SOURCE Qwen/Qwen3-VL-Embedding-2B)"
+  cache_dir="$(cfg HF_CACHE_DIR ./runtime/hf-cache)"
+  [[ "$cache_dir" == /* ]] || cache_dir="${PROJECT_DIR}/${cache_dir}"
+  cache_name="models--${source//\//--}"
+  for root in "${cache_dir}/hub/${cache_name}" "${cache_dir}/${cache_name}"; do
+    [[ -f "${root}/refs/main" ]] || continue
+    revision="$(tr -d '\r\n' <"${root}/refs/main")"
+    if [[ "$revision" =~ ^([0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$ ]]; then
+      export REFERENCE_EMBEDDING_MODEL_REVISION="${revision,,}"
+      return
+    fi
+  done
+  container_id="$(docker container ls --all \
+    --filter label=com.docker.compose.service=reference-embedding \
+    --format '{{.ID}}' | head -n 1)"
+  if [[ -n "$container_id" ]]; then
+    revision="$(docker inspect --format '{{index .Config.Labels "ai.relicscope.model.revision"}}' "$container_id" 2>/dev/null || true)"
+    if [[ "$revision" =~ ^([0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$ ]]; then
+      export REFERENCE_EMBEDDING_MODEL_REVISION="${revision,,}"
+      return
+    fi
+  fi
+  return 1
+}
+
 stop_known_container() {
   local name="$1"
   if docker container inspect "$name" >/dev/null 2>&1; then
@@ -84,11 +116,17 @@ fi
 if [[ "$ROLE" == "single" || "$ROLE" == "all" ]]; then
   SINGLE=1
   if [[ -f "$ENV_FILE" ]]; then
-    (
-      cd "$PROJECT_DIR"
-      docker compose --env-file "$ENV_FILE" -f compose.single.yml \
-        down --remove-orphans
-    )
+    if prepare_reference_embedding_revision; then
+      (
+        cd "$PROJECT_DIR"
+        docker compose --env-file "$ENV_FILE" -f compose.single.yml \
+          down --remove-orphans
+      )
+    elif [[ "$ROLE" == "single" ]]; then
+      die "cannot resolve the immutable reference embedding revision required to stop the single-Spark Compose project"
+    else
+      printf '%s\n' 'Single-Spark Compose teardown skipped: no immutable reference embedding revision/cache/container was found.' >&2
+    fi
   fi
 fi
 

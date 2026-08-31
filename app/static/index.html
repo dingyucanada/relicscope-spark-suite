@@ -336,6 +336,26 @@
         <p>先建立器物档案，再上传图像或环拍视频；分析结果将进入证据链，并明确下一步该观察什么。</p>
       </div>
 
+      <section class="reference-library-strip" aria-labelledby="reference-library-heading">
+        <div class="reference-library-strip__head">
+          <div>
+            <p class="eyebrow">CONTROLLED LOCAL REFERENCE LIBRARY</p>
+            <h2 id="reference-library-heading">50 件精品参考库 · 本地受控检索</h2>
+          </div>
+          <div class="reference-library-strip__actions">
+            <span class="badge badge--neutral" id="reference-library-state">CHECKING</span>
+            <button class="button button--ghost button--small" id="refresh-reference-library" type="button">刷新参考库</button>
+          </div>
+        </div>
+        <div class="reference-library-metrics" aria-label="参考库准备度">
+          <div><span>精品器物</span><strong id="reference-artifact-count">— / 50 件</strong><small>真实来源与专家复核</small></div>
+          <div><span>多视角图像</span><strong id="reference-image-count">— / 250+ 张</strong><small>每件至少 5 个受控视角</small></div>
+          <div><span>负向样本</span><strong id="counterfeit-record-count">— / 10 条</strong><small>独立审核 · 只作交叉验证</small></div>
+          <div><span>决策校准</span><strong id="reference-calibration-state">待读取</strong><small>独立复拍与开放集量测 · 非认证</small></div>
+        </div>
+        <p class="reference-library-note" id="reference-library-note">正在读取本地参考库摘要；未完成数据与阈值校准时，系统不会输出同件候选。</p>
+      </section>
+
       <section class="workspace-grid" aria-label="科学鉴证会话工作区">
         <article class="panel panel--session">
           <div class="panel__header">
@@ -428,6 +448,24 @@
                   <select id="image-modality"><option value="RGB">RGB · 可见光</option><option value="UV">UV · 紫外图像</option><option value="NIR">NIR · 近红外图像</option></select>
                 </label>
                 <label class="field">
+                  <span>拍摄视角</span>
+                  <select id="image-view-angle">
+                    <option value="FRONT">正面 · FRONT</option>
+                    <option value="BACK">背面 · BACK</option>
+                    <option value="LEFT_PROFILE">左侧 · LEFT PROFILE</option>
+                    <option value="RIGHT_PROFILE">右侧 · RIGHT PROFILE</option>
+                    <option value="TOP">俯视 · TOP</option>
+                    <option value="BASE">底部 · BASE</option>
+                    <option value="INTERIOR">内壁 · INTERIOR</option>
+                    <option value="FRONT_LEFT_45">前左 45° · FRONT LEFT</option>
+                    <option value="FRONT_RIGHT_45">前右 45° · FRONT RIGHT</option>
+                    <option value="BACK_LEFT_45">后左 45° · BACK LEFT</option>
+                    <option value="BACK_RIGHT_45">后右 45° · BACK RIGHT</option>
+                    <option value="DETAIL">局部细节 · DETAIL</option>
+                    <option value="MARK">款识 · MARK</option>
+                  </select>
+                </label>
+                <label class="field">
                   <span>器物区域</span>
                   <select id="image-region"><option value="R1">R1 · 外表面观察区</option></select>
                 </label>
@@ -466,6 +504,58 @@
               </div>
               <p class="comparison-boundary">只比较同构复拍的可见差异；结果不等于劣化、修复、真伪、年代或材料变化。</p>
             </div>
+
+            <section class="reference-recognition session-dependent" aria-labelledby="reference-recognition-heading">
+              <div class="reference-recognition__head">
+                <div>
+                  <p class="eyebrow">MULTI-VIEW OPEN-SET RETRIEVAL</p>
+                  <h3 id="reference-recognition-heading">多视角参考识别</h3>
+                </div>
+                <span class="badge badge--neutral" id="recognition-status">WAITING</span>
+              </div>
+              <p class="reference-recognition__intro">连续登记不同视角，选择最近最多 5 次 RGB 图像分析；质量不足会触发补拍提示。本地模型先检索同件候选，再提供相关参考与负向样本交叉验证。</p>
+
+              <div class="recognition-controls">
+                <fieldset class="recognition-view-picker">
+                  <legend>本次检索视角 <span id="recognition-selection-count">0 / 5</span></legend>
+                  <div id="recognition-analysis-list" class="recognition-analysis-list">
+                    <p class="empty-copy">登记图像后可组合多视角检索</p>
+                  </div>
+                </fieldset>
+                <button class="button button--secondary" id="run-reference-recognition" type="button" disabled>检索参考库并生成解释</button>
+              </div>
+
+              <div class="recognition-decision" aria-live="polite">
+                <div>
+                  <span class="micro-label">DECISION STATE</span>
+                  <strong id="recognition-decision-title">等待多视角输入</strong>
+                  <p id="recognition-decision-note">检索结果将说明通过或未通过哪些质量、覆盖度、阈值与区分度门槛。</p>
+                </div>
+                <dl>
+                  <div><dt>输入视角</dt><dd id="recognition-query-count">0</dd></div>
+                  <div><dt>本地检索引擎</dt><dd id="recognition-backend">—</dd></div>
+                </dl>
+              </div>
+
+              <div class="recognition-result-grid">
+                <article class="recognition-result recognition-result--candidate">
+                  <div class="recognition-result__head"><span>01</span><strong>同件候选</strong></div>
+                  <div id="recognition-known-candidate" class="recognition-result__body"><p>需通过冻结校准、采集质量、跨视角覆盖与候选区分度门槛。</p></div>
+                </article>
+                <article class="recognition-result recognition-result--related">
+                  <div class="recognition-result__head"><span>02</span><strong>相关参考</strong></div>
+                  <div id="recognition-related-references" class="recognition-result__body"><p>未达到同件门槛时，仍可返回有依据的视觉相关参考。</p></div>
+                </article>
+                <article class="recognition-result recognition-result--negative">
+                  <div class="recognition-result__head"><span>03</span><strong>负向交叉验证</strong></div>
+                  <div id="recognition-counterfeit-signal" class="recognition-result__body"><p>登记的负向样本只提供反证信号，不直接判定上传器物。</p></div>
+                </article>
+                <article class="recognition-result recognition-result--boundary">
+                  <div class="recognition-result__head"><span>04</span><strong>真伪状态</strong></div>
+                  <div id="recognition-authenticity-state" class="recognition-result__body"><b>NOT_ASSESSED</b><p>图像检索尚未评估真伪、年代、窑口、价值或法律属性。</p></div>
+                </article>
+              </div>
+            </section>
           </div>
 
           <div class="media-input-pane" id="video-input-pane" role="tabpanel" aria-labelledby="media-tab-video" hidden>

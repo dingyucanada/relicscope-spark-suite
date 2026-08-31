@@ -138,3 +138,26 @@ def test_report_citation_allowlist_uses_only_returned_source_ids():
         }
     }
     assert report_citation_ids(report) == {"KB-DEMO-001", "KB-DEMO-002"}
+
+
+def test_report_reference_citations_use_the_rendered_latest_run_only():
+    older = {
+        "catalog_hits": [{"metadata": {"citation_id": "REFERENCE:OLD"}}],
+        "counterfeit_hits": [],
+    }
+    latest = {
+        "catalog_hits": [{"metadata": {"citation_id": "REFERENCE:LATEST"}}],
+        "counterfeit_hits": [
+            {"metadata": {"citation_id": "REFERENCE:LATEST-NEGATIVE"}}
+        ],
+    }
+    report = {
+        "knowledge": {"searches": []},
+        "reference_recognitions": [older, latest],
+        "latest_reference_recognition": latest,
+    }
+
+    assert report_citation_ids(report) == {
+        "REFERENCE:LATEST",
+        "REFERENCE:LATEST-NEGATIVE",
+    }

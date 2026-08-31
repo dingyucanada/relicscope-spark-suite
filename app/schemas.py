@@ -33,6 +33,23 @@ class ImageAnalyzeRequest(BaseModel):
     image_base64: str = Field(min_length=8)
     modality: Literal["RGB", "UV", "NIR"] = "RGB"
     region_id: str = Field(default="R1", max_length=30)
+    view_code: Literal[
+        "UNSPECIFIED",
+        "FRONT",
+        "BACK",
+        "LEFT_PROFILE",
+        "RIGHT_PROFILE",
+        "TOP",
+        "BASE",
+        "INTERIOR",
+        "FRONT_LEFT_45",
+        "FRONT_RIGHT_45",
+        "BACK_LEFT_45",
+        "BACK_RIGHT_45",
+        "DETAIL",
+        "MARK",
+        "DAMAGE",
+    ] = "UNSPECIFIED"
 
     @field_validator("image_base64")
     @classmethod
@@ -43,6 +60,21 @@ class ImageAnalyzeRequest(BaseModel):
             except IndexError as exc:
                 raise ValueError("invalid data URL") from exc
         return value
+
+
+class ReferenceRecognitionRequest(BaseModel):
+    image_analysis_ids: List[str] = Field(min_length=1, max_length=5)
+    top_k: int = Field(default=5, ge=1, le=10)
+
+    @field_validator("image_analysis_ids")
+    @classmethod
+    def require_unique_analysis_ids(cls, value: List[str]) -> List[str]:
+        normalized = [item.strip() for item in value]
+        if any(not item for item in normalized):
+            raise ValueError("image analysis identifiers must not be blank")
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("image analysis identifiers must be unique")
+        return normalized
 
 
 class ImageCompareRequest(BaseModel):

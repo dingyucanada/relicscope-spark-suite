@@ -11,11 +11,14 @@ BACKUP_ARGS ?=
 RESTORE_ARGS ?=
 SYSTEMD_ARGS ?=
 ACCEPT_ARGS ?=
+REFERENCE_ARGS ?=
+REFERENCE_SCAFFOLD_DIR ?= runtime/data/reference-library-intake
 
 .PHONY: help require-role require-archive install prefetch preflight start stop restart \
 	health status backup restore package package-offline install-systemd remove-systemd check \
 	demo demo-install demo-check demo-media-check demo-media-smoke demo-media-generate test \
-	accept-single-spark ab-single-spark
+	accept-single-spark ab-single-spark \
+	reference-scaffold reference-verify reference-import reference-build reference-evaluate reference-seal reference-status
 
 help:
 	@printf '%s\n' \
@@ -26,6 +29,14 @@ help:
 	  '  make start ROLE=single                # one-Spark GPU system, Qwen baseline' \
 	  '  make accept-single-spark              # prove live GPU image/video/report runs' \
 	  '  make ab-single-spark                  # sequential frozen-input Qwen/Nemotron A/B' \
+	  '  make reference-scaffold               # create blank 50 + 10 controlled-data intake sheets' \
+	  '  make reference-verify                 # validate 50-item controlled manifest/media' \
+	  '  make reference-import                 # create integrity-bound metadata index' \
+	  '  make reference-build                  # build local Qwen3-VL image embeddings' \
+	  '  make reference-evaluate               # evaluate held-out reshoots/open-set negatives' \
+	  '  make reference-seal                   # seal held-out calibration thresholds' \
+	  '  make reference-status                 # show files/hashes and deployment gate' \
+	  '  make install-systemd ROLE=single      # optional boot unit; install after full readiness' \
 	  '' \
 	  'Dual-node expansion:' \
 	  '  make install ROLE=spark-b INSTALL_ARGS="--generate-key"' \
@@ -74,6 +85,28 @@ accept-single-spark:
 
 ab-single-spark:
 	./deploy/single-spark-ab.sh
+
+reference-scaffold:
+	@test -x .venv/bin/python || { printf '%s\n' 'Project .venv is required.' >&2; exit 2; }
+	.venv/bin/python scripts/scaffold-reference-library.py "$(REFERENCE_SCAFFOLD_DIR)"
+
+reference-verify:
+	./deploy/reference-library.sh verify $(REFERENCE_ARGS)
+
+reference-import:
+	./deploy/reference-library.sh import $(REFERENCE_ARGS)
+
+reference-build:
+	./deploy/reference-library.sh build $(REFERENCE_ARGS)
+
+reference-evaluate:
+	./deploy/reference-library.sh evaluate $(REFERENCE_ARGS)
+
+reference-seal:
+	./deploy/reference-library.sh seal $(REFERENCE_ARGS)
+
+reference-status:
+	./deploy/reference-library.sh status $(REFERENCE_ARGS)
 
 test:
 	@test -x .venv/bin/python || { printf '%s\n' 'Run make demo-install first.' >&2; exit 2; }

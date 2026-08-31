@@ -11,6 +11,9 @@ const API = Object.freeze({
   session: (id) => `/api/sessions/${encodeURIComponent(id)}`,
   imageAnalyze: (id) => `/api/sessions/${encodeURIComponent(id)}/images/analyze`,
   imageCompare: (id) => `/api/sessions/${encodeURIComponent(id)}/images/compare`,
+  referenceLibrarySummary: "/api/reference-library/summary",
+  referenceLibraryRefresh: "/api/reference-library/refresh",
+  referenceRecognition: (id) => `/api/sessions/${encodeURIComponent(id)}/recognition`,
   videoRegister: (id) => `/api/sessions/${encodeURIComponent(id)}/videos/register`,
   videoAnalyze: (id, videoId) => `/api/sessions/${encodeURIComponent(id)}/videos/${encodeURIComponent(videoId)}/analyze`,
   nativeVideoAnalyze: (id, videoId) => `/api/sessions/${encodeURIComponent(id)}/videos/${encodeURIComponent(videoId)}/native-analyze`,
@@ -46,6 +49,68 @@ const STATUS_TEXT = Object.freeze({
   uncertain: "UNCERTAIN",
   escalate: "ESCALATE",
   rejected: "REJECTED",
+  known_artifact_candidate: "同件候选",
+  related_references_only: "仅返回相关参考",
+  open_set_no_match: "样本库外 / 未匹配",
+  insufficient_capture: "采集不足",
+  calibration_required: "等待冻结校准",
+  embedding_unavailable: "本地视觉向量服务不可用",
+  exact_media_replay: "库内原图回放已阻断",
+});
+
+const RECOGNITION_STATES = Object.freeze({
+  KNOWN_ARTIFACT_CANDIDATE: {
+    title: "通过门槛：返回同件候选",
+    note: "该状态只表示上传图像与库内已登记器物通过当前身份检索门槛，仍需核对原始记录与实物。",
+    badge: "candidate",
+  },
+  RELATED_REFERENCES_ONLY: {
+    title: "未确认同件：返回相关参考",
+    note: "最高候选未同时通过同件阈值、跨视角覆盖、图像质量或候选区分度门槛。",
+    badge: "info",
+  },
+  OPEN_SET_NO_MATCH: {
+    title: "当前参考库未形成可靠匹配",
+    note: "系统保持样本库外状态；报告只比较可见相关性，并建议补充更具区分力的视角或科学检测。",
+    badge: "neutral",
+  },
+  INSUFFICIENT_CAPTURE: {
+    title: "采集信息不足，暂不作身份检索判断",
+    note: "请补充正面、背面、侧面、底部或细节视角，并改善清晰度、构图与光照一致性。",
+    badge: "warning",
+  },
+  CALIBRATION_REQUIRED: {
+    title: "参考库可检索，身份门槛尚未冻结",
+    note: "需要独立复拍和样本库外负例完成校准；校准前只显示排序与检索相似度。",
+    badge: "warning",
+  },
+  EMBEDDING_UNAVAILABLE: {
+    title: "本地视觉向量服务暂不可用",
+    note: "当前无法生成与参考库同一模型空间的图像向量；系统不会用通用描述模型替代身份检索。",
+    badge: "danger",
+  },
+  EXACT_MEDIA_REPLAY: {
+    title: "检测到库内原图回放：同件判断已阻断",
+    note: "上传文件与受控库媒体字节完全相同，无法证明对新拍实物的识别能力；请现场独立复拍后重试。",
+    badge: "warning",
+  },
+});
+
+const CAPTURE_ANGLE_TEXT = Object.freeze({
+  FRONT: "正面",
+  BACK: "背面",
+  LEFT_PROFILE: "左侧",
+  RIGHT_PROFILE: "右侧",
+  TOP: "俯视",
+  BASE: "底部",
+  INTERIOR: "内壁",
+  FRONT_LEFT_45: "前左 45°",
+  FRONT_RIGHT_45: "前右 45°",
+  BACK_LEFT_45: "后左 45°",
+  BACK_RIGHT_45: "后右 45°",
+  "45_DEGREE": "45°",
+  DETAIL: "局部细节",
+  MARK: "款识",
 });
 
 const EVENT_TEXT = Object.freeze({
@@ -68,6 +133,8 @@ const EVENT_TEXT = Object.freeze({
   INSTRUMENT_EXECUTED: "仪器回放已执行并结算",
   ACTION_EXECUTED_AND_SETTLED: "仪器回放已执行并结算",
   REPORT_GENERATED: "可审计报告已生成",
+  REFERENCE_RECOGNITION_COMPLETED: "本地参考目录多视角检索完成",
+  REFERENCE_RETRIEVAL_COMPLETED: "本地参考目录多视角检索完成",
 });
 
 const GRAPH_COLORS = Object.freeze({
@@ -152,6 +219,11 @@ const state = {
   evidencePayload: null,
   auditPayload: null,
   reportPayload: null,
+  referenceLibrarySummary: null,
+  latestReferenceRecognition: null,
+  recognitionSelection: new Set(),
+  recognitionKnownIds: new Set(),
+  recognitionBusy: false,
   demoRunning: false,
   demoPhase: "ready",
 };
@@ -184,6 +256,7 @@ document.addEventListener("DOMContentLoaded", () => {
   renderShowcase();
   updateControlAvailability();
   loadHealth();
+  loadReferenceLibrarySummary({ quiet: true });
 });
 
 function bindEvents() {
@@ -192,6 +265,8 @@ function bindEvents() {
   $("image-file").addEventListener("change", onImageSelected);
   $("image-form").addEventListener("submit", onAnalyzeImage);
   $("compare-images").addEventListener("click", onCompareImages);
+  $("run-reference-recognition").addEventListener("click", onRunReferenceRecognition);
+  $("refresh-reference-library").addEventListener("click", () => loadReferenceLibrarySummary({ reload: true }));
   $("video-file").addEventListener("change", onVideoSelected);
   $("video-form").addEventListener("submit", onAnalyzeVideo);
   for (const button of $$('[data-media-tab]')) button.addEventListener("click", () => selectMediaMode(button.dataset.mediaTab));
@@ -319,11 +394,19 @@ function acceptEnvelope(payload) {
     state.sessionId = String(session.id || session.session_id || state.sessionId || "");
   }
   if (payload.session) state.envelope = payload;
+  const recognition = firstDefined(
+    payload.latest_reference_recognition,
+    payload.reference_recognition,
+    payload.recognition,
+    session?.latest_reference_recognition,
+  );
+  if (recognition && typeof recognition === "object") state.latestReferenceRecognition = recognition;
   if (typeof payload.audit_verified === "boolean" || Number.isFinite(payload.audit_event_count)) {
     state.envelope = { ...(state.envelope || {}), ...payload, session: state.session };
   }
   syncBodyStateClasses();
   renderSession();
+  renderReferenceRecognition(state.latestReferenceRecognition);
   renderShowcase();
   return session;
 }
@@ -437,6 +520,135 @@ async function loadHealth() {
   } finally {
     setButtonLoading(button, false);
   }
+}
+
+async function loadReferenceLibrarySummary({ quiet = false, reload = false } = {}) {
+  const button = $("refresh-reference-library");
+  if (button) setButtonLoading(button, true, "读取中");
+  try {
+    const payload = await request(reload ? API.referenceLibraryRefresh : API.referenceLibrarySummary, {
+      method: reload ? "POST" : "GET",
+    });
+    state.referenceLibrarySummary = payload && typeof payload === "object" ? payload : {};
+    renderReferenceLibrarySummary(state.referenceLibrarySummary);
+  } catch (error) {
+    state.referenceLibrarySummary = null;
+    renderReferenceLibrarySummary(null, error);
+    if (!quiet) toast("参考库摘要读取失败", error.message, "warning");
+  } finally {
+    if (button) setButtonLoading(button, false);
+  }
+}
+
+function renderReferenceLibrarySummary(summary, error = null) {
+  const badge = $("reference-library-state");
+  if (!summary) {
+    badge.textContent = "UNAVAILABLE";
+    badge.className = "badge badge--warning";
+    $("reference-artifact-count").textContent = "— / 50 件";
+    $("reference-image-count").textContent = "— / 250+ 张";
+    $("counterfeit-record-count").textContent = "— / 10 条";
+    $("reference-calibration-state").textContent = "待读取";
+    $("reference-library-note").textContent = error
+      ? "参考库服务当前不可用；原有媒体分析与证据流程仍可继续，身份检索保持停用。"
+      : "正在读取本地参考库摘要。";
+    return;
+  }
+
+  const counts = summary.counts && typeof summary.counts === "object" ? summary.counts : {};
+  const requirements = summary.requirements && typeof summary.requirements === "object" ? summary.requirements : {};
+  const referenceArtifacts = numericFirst(
+    summary.reference_artifact_count,
+    summary.artifact_count,
+    counts.reference_artifacts,
+    counts.artifacts,
+    0,
+  );
+  const referenceImages = numericFirst(
+    summary.reference_image_count,
+    summary.image_count,
+    counts.reference_images,
+    counts.images,
+    0,
+  );
+  const counterfeitRecords = numericFirst(
+    summary.counterfeit_record_count,
+    summary.negative_record_count,
+    counts.counterfeit_records,
+    counts.negative_records,
+    0,
+  );
+  const artifactTarget = numericFirst(
+    summary.minimum_reference_artifacts,
+    summary.expected_reference_artifact_count,
+    requirements.reference_artifacts,
+    50,
+  );
+  const minimumViews = numericFirst(
+    summary.minimum_images_per_artifact,
+    requirements.images_per_artifact,
+    5,
+  );
+  const imageTarget = numericFirst(
+    summary.minimum_reference_images,
+    requirements.reference_images,
+    artifactTarget * minimumViews,
+  );
+  const counterfeitTarget = numericFirst(
+    summary.minimum_counterfeit_records,
+    summary.minimum_counterfeit_record_count,
+    requirements.counterfeit_records,
+    10,
+  );
+  const calibrationStatus = normalizeStatus(firstDefined(
+    summary.calibration_status,
+    getDeep(summary, "calibration.status"),
+    summary.calibration_required === false ? "frozen" : "required",
+  ));
+  const calibrationFrozen = Boolean(
+    summary.calibration_record_sha256
+    || getDeep(summary, "calibration.record_sha256")
+    || summary.calibration_required === false
+    || /frozen|calibrated|validated|ready/.test(calibrationStatus),
+  );
+  const dataReady = referenceArtifacts >= artifactTarget
+    && referenceImages >= imageTarget
+    && counterfeitRecords >= counterfeitTarget;
+  const readiness = normalizeStatus(firstDefined(summary.readiness, summary.status, "building"));
+  const serviceReady = summary.ready === true
+    || normalizeStatus(summary.status) === "ready"
+    || readiness === "ready";
+
+  $("reference-artifact-count").textContent = `${referenceArtifacts} / ${artifactTarget} 件`;
+  $("reference-image-count").textContent = `${referenceImages} / ${imageTarget}+ 张`;
+  $("counterfeit-record-count").textContent = `${counterfeitRecords} / ${counterfeitTarget} 条`;
+  $("reference-calibration-state").textContent = calibrationFrozen ? "Demo 门已冻结" : "待校准";
+
+  if (dataReady && calibrationFrozen && serviceReady) {
+    badge.textContent = "READY";
+    badge.className = "badge badge--info";
+  } else if (/invalid|unavailable|error/.test(readiness)) {
+    badge.textContent = "INDEX UNAVAILABLE";
+    badge.className = "badge badge--danger";
+  } else if (dataReady && !calibrationFrozen) {
+    badge.textContent = "CALIBRATION REQUIRED";
+    badge.className = "badge badge--warning";
+  } else {
+    badge.textContent = summary.enabled === false ? "DISABLED" : "BUILDING";
+    badge.className = "badge badge--neutral";
+  }
+
+  const identity = [summary.library_id, summary.library_version || summary.version].filter(Boolean).join(" · ");
+  const missing = [];
+  if (referenceArtifacts < artifactTarget) missing.push(`${artifactTarget - referenceArtifacts} 件精品器物`);
+  if (referenceImages < imageTarget) missing.push(`${imageTarget - referenceImages} 张多视角图像`);
+  if (counterfeitRecords < counterfeitTarget) missing.push(`${counterfeitTarget - counterfeitRecords} 条负向记录`);
+  if (!calibrationFrozen) missing.push("冻结校准记录");
+  $("reference-library-note").textContent = missing.length
+    ? `${identity ? `${identity} · ` : ""}尚需 ${missing.join("、")}；未通过准备门槛时不输出同件候选。`
+    : serviceReady
+      ? `${identity ? `${identity} · ` : ""}数据与 Demo 校准门已就绪；结果只表示库内图像检索关系，尚未获得准确率认证。`
+      : `${identity ? `${identity} · ` : ""}${summary.detail || "本地向量索引尚未就绪"}；身份检索保持停用。`;
 }
 
 function renderHealth(health) {
@@ -1079,8 +1291,14 @@ function resetPerSessionView() {
   state.evidencePayload = null;
   state.auditPayload = null;
   state.reportPayload = null;
+  state.latestReferenceRecognition = null;
+  state.recognitionSelection = new Set();
+  state.recognitionKnownIds = new Set();
+  state.recognitionBusy = false;
   renderImageAnalysis(null);
   renderImageComparison(null);
+  renderRecognitionAnalysisList();
+  renderReferenceRecognition(null);
   renderVideoFrames([]);
   renderMediaAnalysis(null, state.mediaMode);
   renderKnowledge(null);
@@ -1153,6 +1371,8 @@ function renderSession() {
   renderRiskBudgets(session.risk_budgets || session.risk_budget || {});
   renderCandidateActions(extractActionEvaluations(session));
   renderExecutionTimeline();
+  renderRecognitionAnalysisList();
+  renderReferenceRecognition(state.latestReferenceRecognition || session.latest_reference_recognition || null);
   renderReport(state.reportPayload || session.last_report || session.report || session.latest_report || null);
   updateControlAvailability();
 }
@@ -1255,6 +1475,7 @@ async function onAnalyzeImage(event) {
         image_base64: base64,
         modality: $("image-modality").value,
         region_id: $("image-region").value,
+        view_code: $("image-view-angle").value,
       },
     });
     acceptEnvelope(payload);
@@ -1263,6 +1484,7 @@ async function onAnalyzeImage(event) {
     renderImageAnalysis(state.imageAnalysis);
     renderImageComparison(null);
     renderMediaAnalysis(state.imageAnalysis, "image");
+    renderRecognitionAnalysisList();
     await Promise.allSettled([refreshEvidence({ quiet: true }), refreshAudit({ quiet: true })]);
     toast("图像分析完成", "质量、指纹和原始文件摘要均来自服务端响应。", "success");
   } catch (error) {
@@ -1949,7 +2171,8 @@ function renderImageAnalysis(analysis) {
     element.append(label);
     roiLayer.append(element);
   }
-  $("image-caption").textContent = `${state.imageFile?.name || "器物图像"} · 服务端门禁 ${passed ? "通过" : "失败"}`;
+  const angle = String(firstDefined(analysis.view_code, analysis.capture_angle, analysis.view_angle, analysis.angle, $("image-view-angle").value));
+  $("image-caption").textContent = `${state.imageFile?.name || "器物图像"} · ${CAPTURE_ANGLE_TEXT[angle] || humanizeKey(angle)} · 服务端门禁 ${passed ? "通过" : "失败"}`;
 }
 
 function comparableImagePair() {
@@ -2024,6 +2247,479 @@ function renderImageComparison(comparison) {
   $("comparison-feature").textContent = formatNumber(metrics.feature_distance, 4);
   $("comparison-brightness").textContent = formatSigned(metrics.brightness_delta);
   $("comparison-sharpness").textContent = formatSigned(metrics.sharpness_delta);
+}
+
+function imageAnalysisIdentifier(analysis) {
+  return firstDefined(analysis?.id, analysis?.analysis_id, analysis?.image_analysis_id, null);
+}
+
+function recognitionAnalysisAngle(analysis) {
+  return String(firstDefined(
+    analysis?.view_code,
+    analysis?.capture_angle,
+    analysis?.view_angle,
+    analysis?.angle,
+    "UNSPECIFIED",
+  )).toUpperCase();
+}
+
+function recentRecognitionAnalyses() {
+  const fromSession = Array.isArray(state.session?.image_analyses) ? state.session.image_analyses : [];
+  const combined = [...fromSession];
+  const activeId = imageAnalysisIdentifier(state.imageAnalysis);
+  if (activeId && !combined.some((item) => imageAnalysisIdentifier(item) === activeId)) {
+    combined.push(state.imageAnalysis);
+  }
+  const seen = new Set();
+  return combined
+    .filter((item) => {
+      const id = String(imageAnalysisIdentifier(item) || "");
+      if (!id || seen.has(id) || String(item?.modality || "RGB").toUpperCase() !== "RGB") return false;
+      seen.add(id);
+      return true;
+    })
+    .slice(-5)
+    .reverse();
+}
+
+function renderRecognitionAnalysisList() {
+  const container = $("recognition-analysis-list");
+  if (!container) return;
+  const analyses = recentRecognitionAnalyses();
+  const validIds = new Set(analyses.map((item) => String(imageAnalysisIdentifier(item))));
+  for (const id of [...state.recognitionSelection]) {
+    if (!validIds.has(id)) state.recognitionSelection.delete(id);
+  }
+  const selectedAngles = new Set();
+  for (const analysis of analyses) {
+    const id = String(imageAnalysisIdentifier(analysis));
+    if (!state.recognitionSelection.has(id)) continue;
+    const angle = recognitionAnalysisAngle(analysis);
+    if (selectedAngles.has(angle)) state.recognitionSelection.delete(id);
+    else selectedAngles.add(angle);
+  }
+  for (const analysis of analyses) {
+    const id = String(imageAnalysisIdentifier(analysis));
+    if (!state.recognitionKnownIds.has(id)) {
+      state.recognitionKnownIds.add(id);
+      const angle = recognitionAnalysisAngle(analysis);
+      if (!selectedAngles.has(angle) && state.recognitionSelection.size < 5) {
+        state.recognitionSelection.add(id);
+        selectedAngles.add(angle);
+      }
+    }
+  }
+
+  container.replaceChildren();
+  if (!analyses.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty-copy";
+    empty.textContent = "登记图像后可组合多视角检索";
+    container.append(empty);
+    updateRecognitionSelectionSummary();
+    return;
+  }
+
+  analyses.forEach((analysis, index) => {
+    const id = String(imageAnalysisIdentifier(analysis));
+    const quality = firstDefined(analysis.quality_gate, analysis.quality, getDeep(analysis, "analysis.quality_gate"), {});
+    const angle = recognitionAnalysisAngle(analysis);
+    const label = document.createElement("label");
+    label.className = "recognition-view-choice";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = state.recognitionSelection.has(id);
+    input.value = id;
+    input.setAttribute("aria-label", `选择图像分析 ${id}`);
+    input.addEventListener("change", () => {
+      if (input.checked) {
+        if (state.recognitionSelection.size >= 5) {
+          input.checked = false;
+          toast("最多选择 5 个视角", "请取消一个已选视角后再选择。", "warning");
+        } else if (analyses.some((item) => (
+          String(imageAnalysisIdentifier(item)) !== id
+          && state.recognitionSelection.has(String(imageAnalysisIdentifier(item)))
+          && recognitionAnalysisAngle(item) === angle
+        ))) {
+          input.checked = false;
+          toast("视角重复", "同一次身份检索每个声明视角只能选择一张；请保留质量更好的一张。", "warning");
+        } else {
+          state.recognitionSelection.add(id);
+        }
+      } else {
+        state.recognitionSelection.delete(id);
+      }
+      updateRecognitionSelectionSummary();
+    });
+    const copy = document.createElement("span");
+    const strong = document.createElement("strong");
+    strong.textContent = `${index === 0 ? "最新 · " : ""}${CAPTURE_ANGLE_TEXT[angle] || humanizeKey(angle)}`;
+    const small = document.createElement("small");
+    const filename = firstDefined(analysis.filename, analysis.file_name, getDeep(analysis, "raw_file.filename"), getDeep(analysis, "file.filename"), shortHash(id, 14));
+    small.textContent = `${truncate(filename, 24)} · ${quality.passed === true ? "质量通过" : quality.passed === false ? "质量未通过" : "质量待核对"}`;
+    copy.append(strong, small);
+    label.append(input, copy);
+    container.append(label);
+  });
+  updateRecognitionSelectionSummary();
+}
+
+function updateRecognitionSelectionSummary() {
+  const count = state.recognitionSelection.size;
+  $("recognition-selection-count").textContent = `${count} / 5`;
+  const button = $("run-reference-recognition");
+  const label = count > 1 ? `检索 ${count} 个视角并生成解释` : "检索参考库并生成解释";
+  if (!button.classList.contains("is-loading")) {
+    button.textContent = label;
+    button.dataset.originalHtml = label;
+  }
+  updateControlAvailability();
+}
+
+async function onRunReferenceRecognition() {
+  if (!state.sessionId || !state.recognitionSelection.size || state.recognitionBusy) return;
+  const recentIds = recentRecognitionAnalyses().map((item) => String(imageAnalysisIdentifier(item)));
+  const selectedIds = recentIds.filter((id) => state.recognitionSelection.has(id)).reverse();
+  if (!selectedIds.length) return;
+  const button = $("run-reference-recognition");
+  state.recognitionBusy = true;
+  setButtonLoading(button, true, "本地检索中");
+  try {
+    const payload = await request(API.referenceRecognition(state.sessionId), {
+      method: "POST",
+      body: { image_analysis_ids: selectedIds.slice(-5), top_k: 5 },
+    });
+    acceptEnvelope(payload);
+    const recognition = extractReferenceRecognition(payload, state.session);
+    if (!recognition) throw new Error("服务响应缺少参考识别结果");
+    state.latestReferenceRecognition = recognition;
+    renderReferenceRecognition(recognition);
+    await Promise.allSettled([refreshEvidence({ quiet: true }), refreshAudit({ quiet: true })]);
+    const recognitionState = recognitionStatus(recognition);
+    toast(
+      "参考库检索完成",
+      RECOGNITION_STATES[recognitionState]?.title || "已返回本地检索结果",
+      recognitionState === "EMBEDDING_UNAVAILABLE" ? "warning" : "info",
+    );
+  } catch (error) {
+    toast("参考识别失败", error.message, "error");
+  } finally {
+    state.recognitionBusy = false;
+    setButtonLoading(button, false);
+    updateControlAvailability();
+  }
+}
+
+function extractReferenceRecognition(payload, session = null) {
+  const candidates = [
+    payload?.session?.latest_reference_recognition,
+    payload?.latest_reference_recognition,
+    payload?.reference_recognition,
+    payload?.recognition,
+    session?.latest_reference_recognition,
+  ];
+  return candidates.find((item) => item && typeof item === "object") || null;
+}
+
+function recognitionRetrieval(recognition) {
+  return firstDefined(
+    recognition?.retrieval_result,
+    recognition?.retrieval,
+    recognition?.result,
+    recognition?.output,
+    recognition,
+  );
+}
+
+function recognitionStatus(recognition) {
+  if (!recognition) return "WAITING";
+  const retrieval = recognitionRetrieval(recognition);
+  const candidates = [
+    recognition.status,
+    recognition.decision_status,
+    retrieval?.same_artifact?.status,
+    retrieval?.status,
+    recognition.error_code,
+    retrieval?.error_code,
+  ].map((value) => String(value || "").trim().toUpperCase());
+  const matched = candidates.find((value) => RECOGNITION_STATES[value]);
+  if (matched) return matched;
+  if (retrieval?.available === false || recognition?.embedding_available === false) return "EMBEDDING_UNAVAILABLE";
+  if (retrieval?.calibration_required === true) return "CALIBRATION_REQUIRED";
+  return "OPEN_SET_NO_MATCH";
+}
+
+function renderReferenceRecognition(recognition) {
+  const status = recognitionStatus(recognition);
+  const badge = $("recognition-status");
+  const presentation = RECOGNITION_STATES[status];
+  if (!recognition || !presentation) {
+    badge.textContent = "WAITING";
+    badge.className = "badge badge--neutral";
+    $("recognition-decision-title").textContent = "等待多视角输入";
+    $("recognition-decision-note").textContent = "检索结果将说明通过或未通过哪些质量、覆盖度、阈值与区分度门槛。";
+    $("recognition-query-count").textContent = "0";
+    $("recognition-backend").textContent = "—";
+    renderKnownCandidate(null, null, "WAITING");
+    renderRelatedReferences([], null);
+    renderCounterfeitSignal(null, []);
+    renderAuthenticityState("NOT_ASSESSED");
+    return;
+  }
+
+  const retrieval = recognitionRetrieval(recognition);
+  if (retrieval?.reference_library && typeof retrieval.reference_library === "object") {
+    state.referenceLibrarySummary = retrieval.reference_library;
+    renderReferenceLibrarySummary(state.referenceLibrarySummary);
+  }
+  const sameArtifact = retrieval?.same_artifact || {};
+  const catalogHits = Array.isArray(retrieval?.catalog_hits) ? retrieval.catalog_hits : [];
+  const counterfeitHits = Array.isArray(retrieval?.counterfeit_hits) ? retrieval.counterfeit_hits : [];
+  badge.textContent = statusText(status);
+  badge.className = `badge badge--${presentation.badge}`;
+  $("recognition-decision-title").textContent = presentation.title;
+  const reasonCodes = Array.isArray(sameArtifact.reason_codes) ? sameArtifact.reason_codes : [];
+  const reasonText = reasonCodes.slice(0, 3).map(recognitionReasonText).filter(Boolean).join("；");
+  $("recognition-decision-note").textContent = reasonText ? `${presentation.note} 当前依据：${reasonText}。` : presentation.note;
+  $("recognition-query-count").textContent = String(firstDefined(retrieval?.query_view_count, recognition.image_analysis_ids?.length, state.recognitionSelection.size, 0));
+  $("recognition-backend").textContent = firstDefined(retrieval?.backend, recognition.backend, "本地精确余弦检索");
+
+  const acceptedId = sameArtifact.accepted === true ? sameArtifact.artifact_id : null;
+  const acceptedHit = acceptedId ? catalogHits.find((hit) => hit.artifact_id === acceptedId) || catalogHits[0] : null;
+  renderKnownCandidate(acceptedHit, sameArtifact, status, retrieval);
+  const qualifyingIds = new Set(Array.isArray(retrieval?.related?.qualifying_artifact_ids)
+    ? retrieval.related.qualifying_artifact_ids
+    : []);
+  const relatedHits = catalogHits.filter((hit) => (
+    hit.artifact_id !== acceptedId
+    && (qualifyingIds.size ? qualifyingIds.has(hit.artifact_id) : retrieval?.related?.accepted !== false)
+  ));
+  renderRelatedReferences(
+    relatedHits.slice(0, 5),
+    retrieval?.related || null,
+    retrieval?.related_report || retrieval?.reference_explanation || null,
+  );
+  renderCounterfeitSignal(
+    retrieval?.counterfeit_signal || retrieval?.counterfeit_cross_check?.signal || null,
+    counterfeitHits.length ? counterfeitHits : retrieval?.counterfeit_cross_check?.candidates || [],
+    retrieval?.counterfeit_cross_check || null,
+  );
+  renderAuthenticityState(firstDefined(retrieval?.authenticity_state, recognition.authenticity_state, "NOT_ASSESSED"));
+}
+
+function renderKnownCandidate(hit, decision, status, retrieval = null) {
+  const container = $("recognition-known-candidate");
+  container.replaceChildren();
+  if (!hit || status !== "KNOWN_ARTIFACT_CANDIDATE") {
+    const p = document.createElement("p");
+    p.textContent = status === "CALIBRATION_REQUIRED"
+      ? "当前只保留排序结果；冻结校准完成前不会输出同件候选。"
+      : status === "EXACT_MEDIA_REPLAY"
+        ? "输入与库内原图完全相同，系统已阻断同件判断；请提交现场独立复拍的新图。"
+      : status === "INSUFFICIENT_CAPTURE"
+        ? "视角覆盖或图像质量不足，无法检验同件门槛。"
+        : "当前没有通过全部身份检索门槛的库内器物。";
+    container.append(p);
+    return;
+  }
+  const name = document.createElement("strong");
+  name.className = "recognition-candidate-name";
+  name.textContent = referenceHitName(hit);
+  const id = document.createElement("small");
+  id.className = "mono";
+  id.textContent = hit.artifact_id || "—";
+  const metrics = recognitionMetrics([
+    ["检索相似度", formatRetrievalSimilarity(hit.score)],
+    ["跨视角覆盖", formatPercent(hit.coverage)],
+    ["检索相似度差", formatRetrievalSimilarity(decision?.runner_up_margin)],
+  ]);
+  const note = document.createElement("p");
+  const exactHash = Array.isArray(retrieval?.exact_media_hash_matches) && retrieval.exact_media_hash_matches.length;
+  note.textContent = exactHash
+    ? "发现与库内媒体相同的文件哈希；该项仅作审计标记，不计为独立复拍身份能力。"
+    : "同件候选以蓝色呈现；请继续核对来源、原始多视角记录与实物。";
+  container.append(name, id, metrics, note);
+}
+
+function renderRelatedReferences(hits, relatedDecision, explanation = null) {
+  const container = $("recognition-related-references");
+  container.replaceChildren();
+  if (!hits.length) {
+    const p = document.createElement("p");
+    p.textContent = relatedDecision?.accepted === false
+      ? "当前没有达到相关参考门槛的库内记录。"
+      : "尚无可显示的相关参考。";
+    container.append(p);
+  } else {
+    const list = document.createElement("div");
+    list.className = "recognition-hit-list";
+    hits.forEach((hit, index) => list.append(createRecognitionHit(hit, index + 1)));
+    container.append(list);
+  }
+  appendReferenceExplanation(container, explanation);
+}
+
+function appendReferenceExplanation(container, explanation) {
+  if (!explanation || typeof explanation !== "object") return;
+  const block = document.createElement("div");
+  block.className = "recognition-explanation";
+  const basis = explanation.decision_basis && typeof explanation.decision_basis === "object"
+    ? explanation.decision_basis
+    : {};
+  if (basis.summary) {
+    const summary = document.createElement("p");
+    summary.className = "recognition-explanation__summary";
+    summary.textContent = basis.summary;
+    block.append(summary);
+  }
+
+  const sections = [
+    ["观察依据", explanation.shared_observations, 3],
+    ["尚未测得的差异", explanation.differences, 2],
+    ["不确定性", explanation.uncertainties, 3],
+  ];
+  sections.forEach(([title, values, limit]) => {
+    if (!Array.isArray(values) || !values.length) return;
+    const section = document.createElement("section");
+    const heading = document.createElement("strong");
+    heading.textContent = title;
+    const list = document.createElement("ul");
+    values.slice(0, limit).forEach((value) => {
+      if (!value?.text) return;
+      const item = document.createElement("li");
+      item.textContent = value.text;
+      list.append(item);
+    });
+    section.append(heading, list);
+    block.append(section);
+  });
+
+  const recaptures = Array.isArray(explanation.recommended_recaptures)
+    ? explanation.recommended_recaptures
+    : [];
+  if (recaptures.length) {
+    const action = document.createElement("p");
+    action.className = "recognition-explanation__action";
+    action.textContent = `建议补拍：${recaptures.slice(0, 5).map((item) => item.view_label_zh || item.view_code).join("、")}`;
+    block.append(action);
+  }
+
+  const citations = Array.isArray(explanation.source_citations)
+    ? explanation.source_citations
+    : [];
+  if (citations.length) {
+    const sources = document.createElement("p");
+    sources.className = "recognition-explanation__sources";
+    sources.textContent = `来源：${citations.slice(0, 3).map((item) => [item.institution, item.accession_number].filter(Boolean).join(" / ") || item.artifact_id).join("；")}`;
+    block.append(sources);
+  }
+  container.append(block);
+}
+
+function renderCounterfeitSignal(signal, hits, crossCheck = null) {
+  const container = $("recognition-counterfeit-signal");
+  container.replaceChildren();
+  const top = hits[0] || null;
+  const crossStatus = normalizeStatus(crossCheck?.status);
+  const notRun = !crossCheck || crossStatus === "not_run";
+  const weakSignal = crossStatus === "weak_signal";
+  const heading = document.createElement("strong");
+  heading.textContent = notRun
+    ? "负向交叉验证未运行"
+    : signal?.triggered
+    ? "发现需专家复核的负向相似信号"
+    : weakSignal
+      ? "存在低强度负向相关性，未触发门槛"
+      : "未触发负向交叉验证门槛";
+  const explanation = document.createElement("p");
+  explanation.textContent = notRun
+    ? crossCheck?.interpretation || "本次没有执行负向样本检索，不能表述为未发现风险。"
+    : signal?.triggered
+    ? "上传图像与已审核负向样本存在可见相关性；这是一项反证线索，不等于对上传器物的真伪判断。"
+    : weakSignal
+      ? "系统保留该低强度相似线索供交叉复核；它不会阻断同件候选，也不构成真伪判断。"
+      : "当前负向样本未形成达到门槛的信号；该结果也不能作为真品依据。";
+  container.append(heading, explanation);
+  if (top || signal?.reference_id) {
+    const metrics = recognitionMetrics([
+      ["负向参考", referenceHitName(top || { artifact_id: signal.reference_id })],
+      ["检索相似度", formatRetrievalSimilarity(firstDefined(signal?.weighted_score, signal?.score, top?.score))],
+      ["审核状态", firstDefined(signal?.review_status, "—")],
+    ]);
+    container.append(metrics);
+  }
+}
+
+function renderAuthenticityState(value) {
+  const container = $("recognition-authenticity-state");
+  container.replaceChildren();
+  const stateLabel = document.createElement("b");
+  stateLabel.textContent = String(value || "NOT_ASSESSED").toUpperCase();
+  const p = document.createElement("p");
+  p.textContent = "参考识别只处理库内图像身份关系与相关性；尚未评估真伪、年代、窑口、价值或法律属性。";
+  container.append(stateLabel, p);
+}
+
+function createRecognitionHit(hit, rank) {
+  const item = document.createElement("div");
+  item.className = "recognition-hit";
+  const index = document.createElement("span");
+  index.textContent = String(rank).padStart(2, "0");
+  const copy = document.createElement("div");
+  const strong = document.createElement("strong");
+  strong.textContent = referenceHitName(hit);
+  const small = document.createElement("small");
+  small.textContent = `${hit.artifact_id || "—"} · 检索相似度 ${formatRetrievalSimilarity(hit.score)} · 覆盖 ${formatPercent(hit.coverage)}`;
+  copy.append(strong, small);
+  item.append(index, copy);
+  return item;
+}
+
+function referenceHitName(hit) {
+  return firstDefined(
+    hit?.metadata?.display_name,
+    hit?.metadata?.name,
+    getDeep(hit, "metadata.catalogue_metadata.title"),
+    getDeep(hit, "metadata.catalogue_metadata.name"),
+    hit?.artifact_id,
+    "未命名参考记录",
+  );
+}
+
+function recognitionMetrics(entries) {
+  const dl = document.createElement("dl");
+  dl.className = "recognition-metrics";
+  entries.forEach(([label, value]) => {
+    const row = document.createElement("div");
+    const dt = document.createElement("dt");
+    dt.textContent = label;
+    const dd = document.createElement("dd");
+    dd.textContent = String(value ?? "—");
+    row.append(dt, dd);
+    dl.append(row);
+  });
+  return dl;
+}
+
+function formatRetrievalSimilarity(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? `${(number * 100).toFixed(1)}%` : "—";
+}
+
+function recognitionReasonText(value) {
+  const labels = {
+    SCORE_BELOW_SAME_ARTIFACT_THRESHOLD: "检索相似度未达到同件阈值",
+    RUNNER_UP_MARGIN_BELOW_THRESHOLD: "第一、第二候选区分度不足",
+    QUERY_VIEW_COVERAGE_BELOW_THRESHOLD: "跨视角覆盖不足",
+    IMAGE_QUALITY_BELOW_THRESHOLD: "图像质量不足",
+    CALIBRATION_RECORD_REQUIRED: "冻结校准记录缺失",
+    KNOWN_COUNTERFEIT_REFERENCE_CONFLICT: "负向样本形成竞争性反证信号",
+    INSUFFICIENT_COMPLEMENTARY_DECLARED_ANGLES: "互补整器视角少于同件门槛",
+    EXACT_MEDIA_REPLAY: "输入与库内原图字节完全相同，身份判断已阻断",
+    NO_CATALOG_REFERENCES: "参考库暂无可用精品记录",
+    PASSED_ALL_IDENTITY_GATES: "全部身份检索门槛通过",
+  };
+  return labels[String(value || "").toUpperCase()] || humanizeKey(value);
 }
 
 function formatSigned(value) {
@@ -2891,6 +3587,10 @@ function updateControlAvailability() {
   const hasSession = Boolean(state.sessionId);
   $("analyze-image").disabled = state.demoRunning || !hasSession || !state.imageFile;
   $("compare-images").disabled = state.demoRunning || !hasSession || !comparableImagePair();
+  $("run-reference-recognition").disabled = state.demoRunning
+    || state.recognitionBusy
+    || !hasSession
+    || state.recognitionSelection.size < 1;
   $("analyze-video").disabled = state.demoRunning || state.videoBusy || !hasSession || !state.videoFile;
   $("search-knowledge").disabled = state.demoRunning || !hasSession || !$("knowledge-query").value.trim();
   $("plan-action").disabled = state.demoRunning || !hasSession || Boolean(state.session?.current_action_id) || normalizeStatus(state.session?.status) === "complete";
@@ -3033,6 +3733,15 @@ function formatTime(value) {
 
 function firstDefined(...values) {
   return values.find((value) => value !== undefined && value !== null && value !== "");
+}
+
+function numericFirst(...values) {
+  for (const value of values) {
+    if (value === undefined || value === null || value === "") continue;
+    const number = Number(value);
+    if (Number.isFinite(number)) return number;
+  }
+  return 0;
 }
 
 function getDeep(object, path) {

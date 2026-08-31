@@ -9,9 +9,11 @@
 完成本指南后，一台 DGX Spark 会运行：
 
 - 一个真实使用 GB10 GPU 的多模态模型服务；
+- 一个使用同一 GB10、仅供容器内部访问的 Qwen3-VL-Embedding-2B 参考图向量服务；
 - 一个 RelicScope 网页应用；
 - 同一模型端点依次读取瓷器图片、服务端校验通过的原生视频，再依据结构化证据生成报告摘要；
 - 本地知识、会话、图片、视频、证据和报告留在本机；
+- 50 件 × 至少 5 视角真实参考库、负向案例与独立校准齐备后，提供库内实例候选、库外相关参考和开集拒绝；
 - 联网阶段只负责下载并冻结软件与模型，正式运行可断开公网。
 
 当前默认基线为：
@@ -43,25 +45,26 @@
             │
             ▼
 RelicScope 应用与科学证据链
-      │                 │
-      │ 图片观察        │ 报告摘要
-      └────────┬────────┘
-               ▼
-同一个私有 OpenAI 兼容端点
-http://vision:8000/v1
-               │
-               ▼
-当前选中的 Qwen3-VL 或 Nemotron Omni → DGX Spark GB10 GPU
+      │                 │                         │
+      │ 图片观察        │ 报告摘要                │ 参考实例检索
+      └────────┬────────┘                         ▼
+               ▼                       私有 reference-embedding:8010
+同一个私有 OpenAI 兼容端点               Qwen3-VL-Embedding-2B
+http://vision:8000/v1                              │
+               │                                  │
+               └──────────────► DGX Spark GB10 GPU ◄┘
+当前选中的 Qwen3-VL 或 Nemotron Omni
 ```
 
-这里的“同一个端点”很重要：无需在 128 GB 统一内存里重复加载视觉模型和报告模型。两种任务有各自的提示词、结构化输出和证据记录，但共享一次模型加载。A/B 切换发生在两次独立启动之间，不在同一时刻加载两套权重。
+这里的“同一个端点”指观察与报告复用一个大模型进程，无需在 128 GB 统一内存里重复加载两份大模型。参考实例检索由独立 2B embedding sidecar 常驻，职责是生成稳定向量，不承担报告生成。三者在同一 Spark 共享 GPU，因此必须以现场统一内存、延迟和并发实测决定最终参数。A/B 切换发生在两次独立启动之间，不在同一时刻加载 Qwen 与 Nemotron 两套大模型。
 
-## 2. 四条边界先说清楚
+## 2. 五条边界先说清楚
 
 1. **这是科学观察和证据组织系统。** 图片模型可以描述可见特征、指出关注区域、表达局限并建议下一步检测；它不凭一张照片给出真伪、年代、价格或法律结论。
 2. **两套配置的依据不同。** Nemotron 候选有 NVIDIA 单机 Spark playbook；Qwen3-VL 是 RelicScope 为中文陶瓷场景选择的工程基线。RelicScope 的现场验收证明本机确实调用 GPU、模型身份一致且闭环可运行；这不等于 NVIDIA 对 RelicScope 产品或鉴定结论作认证。
 3. **语言能力必须分开验收。** Qwen 基线承担中文场景评测；NVIDIA 模型卡把 Nemotron Omni 的语言支持列为 `English only`，因此它的中文输出只能作为实验结果，不能预先承诺。
 4. **端点身份不等于实际完成。** `/api/health` 中的 `endpoint_identity_ready=true` 只表示端点在线且 configured/served model 一致。图片、原生视频和报告是否真实完成，必须分别查看验收包中成功的 `model_runs`；健康响应不能替代 completion 证据。
+5. **参考模型在线不等于参考库可信。** 只有 50 件受控真实样本、每件至少 5 个有效视角、至少 10 件经审核负向案例，以及按实物隔离的独立复拍/开集校准全部通过，才允许接受“同一实物候选”。缺失时显示 `CALIBRATION_REQUIRED` 或未就绪；负向命中不等于假货结论。
 
 ## 3. 一页式操作顺序
 
@@ -74,7 +77,8 @@ http://vision:8000/v1
 | 配置 | 核对本指南给出的单机参数 | 当前运行配置只有一个模型源和一个服务名 |
 | 联网预缓存 | `make prefetch ROLE=single` | 生成 `runtime/prefetch-manifest-single.txt` |
 | 锁定离线 | 关闭下载开关并阻断公网出站 | 运行期不挂载 Hugging Face token |
-| 启动 | `make start ROLE=single` | 应用与共享模型均就绪 |
+| 参考库准备 | `make reference-verify/import/build/evaluate/seal/status` | 真实数据、向量、独立评测和冻结校准全部绑定 |
+| 启动 | `make start ROLE=single` | 应用、共享 VLM 与私有参考 embedding 均就绪 |
 | 健康检查 | `make health ROLE=single` | `endpoint_identity_ready` 与单机运行模式正确；尚不代表完成过推理 |
 | 现场验收 | `make accept-single-spark` | 三类 completion 与严格 DGX 身份共同写入验收 JSON |
 | 顺序 A/B | `make ab-single-spark` | 同输入比较两模型并自动恢复 Qwen |
@@ -122,7 +126,7 @@ tr -d '\000' </proc/device-tree/model
 - `/proc/device-tree/model` 明确包含 `DGX Spark`；
 - `nvidia-smi` 的 GPU 名称明确包含 `GB10`；
 - Docker Compose 不低于仓库预检要求的 2.30；
-- 如果同时预缓存 Qwen 与 Nemotron 候选，建议在容器、两套权重、编译缓存和一次回退版本之外仍预留至少 160 GB 空间；这也是当前仓库的默认最低预检线，仍应根据锁定 revision 的实测体积追加余量。
+- 如果同时预缓存 Qwen、Nemotron 候选和 2B 参考 embedding，建议在容器、三套权重、编译缓存、受控数据和一次回退版本之外仍预留至少 180 GB 空间；这也是当前仓库模板的最低预检线，仍应根据锁定 revision 与真实图片的实测体积追加余量。
 
 只有 device-tree 主机型号、GB10 和 ARM64 三项同时满足，`dgx_spark_hardware_verified` 才可为真。仅能看到 NVIDIA GPU、仅识别到 GB10，或仅运行于 ARM64，都不能写成“DGX Spark 身份已核验”。
 
@@ -181,6 +185,7 @@ RELICSCOPE_MAX_NATIVE_VIDEO_DURATION_MS=15000
 
 VLLM_BASE_IMAGE=vllm/vllm-openai:v0.20.0
 VLLM_IMAGE=relicscope-multimodal-vllm:0.20.0-arm64
+REFERENCE_EMBEDDING_IMAGE=relicscope-reference-embedding:1.0.0-arm64
 
 MODEL_PROFILE=qwen3-vl
 VISION_MODEL_SOURCE=Qwen/Qwen3-VL-30B-A3B-Instruct
@@ -190,6 +195,18 @@ AB_NEMOTRON_MODEL=nemotron_3_nano_omni
 AB_NEMOTRON_MAX_MODEL_LEN=32768
 AB_NEMOTRON_GPU_MEMORY_UTILIZATION=0.70
 PREFETCH_AB_MODELS=1
+
+RELICSCOPE_REFERENCE_LIBRARY_ENABLED=true
+RELICSCOPE_REFERENCE_LIBRARY_MIN_ARTIFACTS=50
+RELICSCOPE_REFERENCE_LIBRARY_MIN_VIEWS=5
+RELICSCOPE_COUNTERFEIT_LIBRARY_MIN_RECORDS=10
+REFERENCE_EMBEDDING_MODEL_SOURCE=Qwen/Qwen3-VL-Embedding-2B
+REFERENCE_EMBEDDING_MODEL=qwen3_vl_embedding_2b
+# 首次预缓存前留空；prefetch 写回并由启动脚本复核真实不可变 revision。
+REFERENCE_EMBEDDING_MODEL_REVISION=
+REFERENCE_EMBEDDING_DIMENSION=2048
+REFERENCE_EMBEDDING_GPU_MEMORY_FRACTION=0.12
+PREFETCH_REFERENCE_EMBEDDING=1
 
 SINGLE_VISION_BASE_URL=http://vision:8000/v1
 SINGLE_REASONER_BASE_URL=http://vision:8000/v1
@@ -201,7 +218,7 @@ PREFETCH_REASONER=0
 EMBEDDING_ENABLED=0
 PREFETCH_EMBEDDING=0
 
-MIN_FREE_GB=160
+MIN_FREE_GB=180
 ```
 
 `VISION_MODEL_SOURCE` 是本次启动实际加载的权重；`VISION_MODEL` 是 OpenAI 兼容接口向应用公布的服务名。二者用途不同，不能互换。单机启动代码会自动让报告摘要复用 `http://vision:8000/v1` 和当前 `VISION_MODEL`，不会再启动第二份 reasoner 权重。
@@ -209,6 +226,8 @@ MIN_FREE_GB=160
 `RELICSCOPE_MAX_VIDEO_BYTES` 是登记/留存上限；原生模型请求还必须同时通过 32 MiB 与 15 秒门槛。15 秒来自当前目标配置的实测 Demo 设计，不是 Qwen 或 Nemotron 的理论能力声明；只有锁定 profile 后重新测量服务端解析、解码、延迟、统一内存和 JSON 稳定性，才可在变更评审中提高。
 
 `VLLM_BASE_IMAGE` 是上游多架构 vLLM 0.20.0；`VLLM_IMAGE` 是预缓存阶段在本机一次性构建的 RelicScope 运行镜像。它把候选模型所需的可选多媒体依赖固定进镜像，正式运行时不会再执行 `pip install` 或联网下载。
+
+`REFERENCE_EMBEDDING_MODEL_REVISION` 初次预缓存前在 `.env` 留空。预缓存从本机缓存解析 40/64 位 commit revision 并原子写回；预检和启动再同缓存复核。sidecar、客户端和向量索引还会比对模型 source、served name、revision、维度和 embedding 指令哈希。[Qwen3-VL-Embedding 官方模型卡](https://huggingface.co/Qwen/Qwen3-VL-Embedding-2B)
 
 Qwen 基线以 `0.75 / 8192 / 2 并发` 作为本项目的保守起点，这属于 RelicScope 配置，不是 NVIDIA 官方性能结论。切换 Nemotron 候选时使用 `0.70 / 32768 / 2 并发`；其中 0.70 与 32768 来自 NVIDIA Spark playbook 的内存调优建议。[NVIDIA DGX Spark Nemotron playbook：Memory Tuning](https://github.com/NVIDIA/dgx-spark-playbooks/blob/main/nvidia/nemotron/README.md#run-nemotron-nano)
 
@@ -245,8 +264,9 @@ make prefetch ROLE=single
 这一步应完成：
 
 - 拉取固定版本的 ARM64 vLLM 0.20.0 基础容器，并构建固定的 RelicScope 多媒体运行镜像；
-- 下载 Qwen 基线和 Nemotron A/B 候选到本地缓存；
+- 下载 Qwen 基线、Nemotron A/B 候选和 Qwen3-VL-Embedding-2B 到本地缓存；
 - 构建 RelicScope ARM64 应用镜像；
+- 构建固定依赖的私有参考 embedding 镜像；
 - 记录容器镜像 ID、模型 ID 和实际下载 revision；
 - 写出 `runtime/prefetch-manifest-single.txt`，其中不包含密钥。
 
@@ -290,6 +310,21 @@ DO_NOT_TRACK=1
 
 ## 8. 正式启动
 
+在第一次正式启动前，先按 [50 件参考库部署指南](REFERENCE_LIBRARY_DEPLOYMENT.md)完成：
+
+```bash
+# 尚未组织数据时先生成不可导入的空白采集工作区；已有批准 manifest 可跳过。
+make reference-scaffold
+make reference-verify
+make reference-import
+make reference-build
+make reference-evaluate
+make reference-seal
+make reference-status
+```
+
+`reference-status` 只显示受控文件、大小和哈希是否齐备；最终完整性、模型身份与 frozen calibration 绑定仍由应用加载和 `make health` 复验。没有真实库或独立校准时，默认正式配置会保持 `CALIBRATION_REQUIRED`/未就绪，这是预期的失败关闭行为。
+
 ### 8.1 启动服务
 
 ```bash
@@ -299,6 +334,7 @@ make start ROLE=single
 标准入口会执行预检，并启动：
 
 - `vision`：唯一的当前模型 vLLM GPU 服务（默认 Qwen，A/B 时可切为 Nemotron）；
+- `reference-embedding`：Qwen3-VL-Embedding-2B 私有 GPU sidecar，只服务目录检索，不发布主机端口；
 - `app`：RelicScope 界面、科学证据链、知识检索和报告服务。
 
 模型端点只在内部容器网络中使用；主机只暴露 `127.0.0.1:8088`。这既避免将无意配置的模型 API 暴露给现场网络，也保证图像观察与报告摘要使用同一受保护服务密钥。
@@ -321,6 +357,8 @@ make status ROLE=single
 - `model_identity_verified=true`；
 - `endpoint_identity_ready=true`；
 - 图像观察和报告模型显示为同一个端点、同一个模型，而不是两个权重实例。
+- `reference-image-embedding` 为 `online`，模型 revision 与冻结向量索引一致；
+- `/api/reference-library/summary` 的 `readiness` 为 `READY`，且记录 50 件真实参考、至少 10 件负向案例和 calibration hash。
 
 `endpoint_identity_ready` 是端点级身份状态：它只证明端点在线、configured model 与 served model 一致。它不声称某个图片、视频或报告 completion 已发生，也不证明模型计算使用了已严格核验的 DGX Spark。
 

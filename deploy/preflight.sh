@@ -10,6 +10,7 @@ ROLE="all"
 CHECK_RUNNING=0
 REQUIRE_VISION=0
 REQUIRE_EMBEDDING=0
+REQUIRE_REFERENCE_EMBEDDING=0
 REQUIRE_REASONER=0
 MODEL_REQUIREMENTS_EXPLICIT=0
 SKIP_HARDWARE_CHECKS="${SKIP_HARDWARE_CHECKS:-0}"
@@ -17,7 +18,7 @@ SKIP_HARDWARE_CHECKS="${SKIP_HARDWARE_CHECKS:-0}"
 usage() {
   printf '%s\n' \
     "Usage: $0 [--role spark-a|spark-b|single|all] [model requirements] [--check-running]" \
-    "Model requirements: --require-vision --require-embedding --require-reasoner" \
+    "Model requirements: --require-vision --require-embedding --require-reference-embedding --require-reasoner" \
     "Validates configuration and locks runtime directory permissions. It never downloads images or models."
 }
 
@@ -48,6 +49,11 @@ while (($#)); do
       ;;
     --require-embedding)
       REQUIRE_EMBEDDING=1
+      MODEL_REQUIREMENTS_EXPLICIT=1
+      shift
+      ;;
+    --require-reference-embedding)
+      REQUIRE_REFERENCE_EMBEDDING=1
       MODEL_REQUIREMENTS_EXPLICIT=1
       shift
       ;;
@@ -217,6 +223,24 @@ check_cache_for_model() {
     || die "offline model cache is missing or incomplete: ${model_id}; run deploy/prefetch.sh during the approved preparation window"
 }
 
+cached_model_revision() {
+  local cache_dir="$1"
+  local model_id="$2"
+  local model_cache="models--${model_id//\//--}"
+  local candidate=""
+  local revision=""
+  for candidate in "${cache_dir}/hub/${model_cache}" "${cache_dir}/${model_cache}"; do
+    [[ -f "${candidate}/refs/main" ]] || continue
+    revision="$(tr -d '\r\n' <"${candidate}/refs/main")"
+    if [[ "$revision" =~ ^([0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$ ]] \
+        && [[ -f "${candidate}/snapshots/${revision}/config.json" ]]; then
+      printf '%s' "${revision,,}"
+      return
+    fi
+  done
+  die "offline model cache has no immutable revision: ${model_id}"
+}
+
 check_openai_endpoint_auth_model() {
   local label="$1"
   local base_url="$2"
@@ -301,6 +325,117 @@ PY
   )
 }
 
+check_compose_reference_embedding() {
+  local expected_model="$1"
+  local expected_source="$2"
+  local expected_revision="$3"
+  local expected_dimension="$4"
+  local container_id=""
+  container_id="$({
+    cd "$PROJECT_DIR"
+    docker compose --env-file "$ENV_FILE" -f compose.single.yml \
+      ps --status running -q reference-embedding
+  })"
+  [[ -n "$container_id" ]] || die "reference embedding Compose service is not running"
+  docker inspect --format '{{.State.Health.Status}}' "$container_id" 2>/dev/null \
+    | grep -qx healthy || die "reference embedding Compose service is not healthy"
+
+  python3 - "$container_id" <<'PY'
+import json
+import subprocess
+import sys
+
+container = json.loads(
+    subprocess.run(
+        ["docker", "inspect", sys.argv[1]],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+)[0]
+published = {
+    port: bindings
+    for port, bindings in (container.get("NetworkSettings", {}).get("Ports") or {}).items()
+    if bindings
+}
+if published:
+    raise SystemExit("reference embedding service must not publish a host port")
+networks = (container.get("NetworkSettings", {}).get("Networks") or {}).keys()
+if not networks:
+    raise SystemExit("reference embedding service has no runtime network")
+for name in networks:
+    network = json.loads(
+        subprocess.run(
+            ["docker", "network", "inspect", name],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+    )[0]
+    if network.get("Internal") is not True:
+        raise SystemExit(f"reference embedding network {name} must have Internal=true")
+PY
+
+  (
+    cd "$PROJECT_DIR"
+    docker compose --env-file "$ENV_FILE" -f compose.single.yml exec -T app \
+      python - "$expected_model" "$expected_source" "$expected_revision" "$expected_dimension" <<'PY'
+import json
+import sys
+import urllib.error
+import urllib.request
+
+expected_model, expected_source, expected_revision, expected_dimension = sys.argv[1:5]
+base = "http://reference-embedding:8010/v1"
+with urllib.request.urlopen(f"{base}/health", timeout=5) as response:
+    health = json.load(response)
+expected = {
+    "ready": True,
+    "model": expected_model,
+    "model_source": expected_source,
+    "model_revision": expected_revision,
+    "dimension": int(expected_dimension),
+    "device": "cuda",
+}
+for key, value in expected.items():
+    if health.get(key) != value:
+        raise SystemExit(
+            f"reference embedding identity mismatch for {key}: "
+            f"{health.get(key)!r} != {value!r}"
+        )
+
+body = json.dumps(
+    {
+        "model": expected_model,
+        "instruction": "RelicScope authorization preflight only; no embedding is requested.",
+        "inputs": [
+            {
+                "mime_type": "image/png",
+                "image_base64": "abcdefgh",
+                "sha256": "0" * 64,
+            }
+        ],
+    }
+).encode("utf-8")
+request = urllib.request.Request(
+    f"{base}/image-embeddings",
+    data=body,
+    headers={"Content-Type": "application/json"},
+    method="POST",
+)
+try:
+    urllib.request.urlopen(request, timeout=5).read()
+except urllib.error.HTTPError as exc:
+    if exc.code != 401:
+        raise SystemExit(
+            f"reference embedding unauthenticated request returned {exc.code}, expected 401"
+        )
+else:
+    raise SystemExit("reference embedding endpoint accepted a request without a service key")
+PY
+  )
+}
+
 require_command awk
 require_command docker
 require_command python3
@@ -332,6 +467,35 @@ done
   || die "RELICSCOPE_MAX_FRAME_BYTES must not exceed RELICSCOPE_MAX_UPLOAD_BYTES"
 ((max_video_frames >= 3 && max_video_frames <= 24)) \
   || die "RELICSCOPE_MAX_VIDEO_FRAMES must be between 3 and 24"
+
+python3 - \
+  "$(cfg RELICSCOPE_REFERENCE_LIBRARY_MIN_ARTIFACTS 50)" \
+  "$(cfg RELICSCOPE_REFERENCE_LIBRARY_MIN_VIEWS 5)" \
+  "$(cfg RELICSCOPE_COUNTERFEIT_LIBRARY_MIN_RECORDS 10)" \
+  "$(cfg REFERENCE_EMBEDDING_DIMENSION 2048)" \
+  "$(cfg REFERENCE_EMBEDDING_BATCH_SIZE 4)" \
+  "$(cfg REFERENCE_EMBEDDING_GPU_MEMORY_FRACTION 0.12)" <<'PY'
+import math
+import sys
+
+try:
+    artifacts, views, counterfeits, dimension, batch = map(int, sys.argv[1:6])
+    memory_fraction = float(sys.argv[6])
+except ValueError as exc:
+    raise SystemExit("reference library/embedding limits must be numeric") from exc
+if artifacts < 50:
+    raise SystemExit("formal reference library requires at least 50 artifacts")
+if views < 5:
+    raise SystemExit("formal reference library requires at least 5 views per artifact")
+if counterfeits < 10:
+    raise SystemExit("formal negative-reference demo requires at least 10 reviewed records")
+if not 64 <= dimension <= 8192:
+    raise SystemExit("REFERENCE_EMBEDDING_DIMENSION must be between 64 and 8192")
+if not 1 <= batch <= 8:
+    raise SystemExit("REFERENCE_EMBEDDING_BATCH_SIZE must be between 1 and 8")
+if not math.isfinite(memory_fraction) or not 0.02 <= memory_fraction <= 0.30:
+    raise SystemExit("REFERENCE_EMBEDDING_GPU_MEMORY_FRACTION must be between 0.02 and 0.30")
+PY
 
 if [[ "$SKIP_HARDWARE_CHECKS" != "1" ]]; then
   [[ "$(uname -s)" == "Linux" ]] || die "DGX Spark deployment requires Linux"
@@ -411,6 +575,9 @@ if [[ "$MODEL_REQUIREMENTS_EXPLICIT" == "0" ]]; then
       ;;
     single)
       REQUIRE_VISION=1
+      case "$(cfg RELICSCOPE_REFERENCE_LIBRARY_ENABLED true)" in
+        1|true|TRUE|yes|YES|on|ON) REQUIRE_REFERENCE_EMBEDDING=1 ;;
+      esac
       ;;
     all)
       REQUIRE_VISION=1
@@ -423,8 +590,12 @@ fi
 needs_app=0
 [[ "$ROLE" == "spark-b" || "$ROLE" == "single" || "$ROLE" == "all" ]] && needs_app=1
 needs_vllm=0
-[[ "$REQUIRE_VISION" == "1" || "$REQUIRE_EMBEDDING" == "1" || "$REQUIRE_REASONER" == "1" ]] \
+[[ "$REQUIRE_VISION" == "1" || "$REQUIRE_EMBEDDING" == "1" || "$REQUIRE_REFERENCE_EMBEDDING" == "1" || "$REQUIRE_REASONER" == "1" ]] \
   && needs_vllm=1
+
+reference_embedding_image="$(cfg REFERENCE_EMBEDDING_IMAGE relicscope-reference-embedding:1.0.0-arm64)"
+reference_embedding_source="$(cfg REFERENCE_EMBEDDING_MODEL_SOURCE Qwen/Qwen3-VL-Embedding-2B)"
+reference_embedding_revision=""
 
 if [[ "$offline_runtime" == "1" ]]; then
   if [[ "$needs_app" == "1" ]]; then
@@ -445,11 +616,27 @@ if [[ "$offline_runtime" == "1" ]]; then
     [[ "$vllm_arch" == "arm64" ]] \
       || die "vLLM image architecture is ${vllm_arch}; expected arm64"
   fi
+  if [[ "$REQUIRE_REFERENCE_EMBEDDING" == "1" ]]; then
+    docker image inspect "$reference_embedding_image" >/dev/null 2>&1 \
+      || die "offline reference embedding image is missing: ${reference_embedding_image}"
+    reference_embedding_arch="$(docker image inspect --format '{{.Architecture}}' "$reference_embedding_image")"
+    [[ "$reference_embedding_arch" == "arm64" ]] \
+      || die "reference embedding image architecture is ${reference_embedding_arch}; expected arm64"
+  fi
   if [[ "$REQUIRE_VISION" == "1" ]]; then
     check_cache_for_model "$cache_dir" "$(vision_source_for_role)"
   fi
   if [[ "$REQUIRE_EMBEDDING" == "1" ]]; then
     check_cache_for_model "$cache_dir" "$(cfg EMBEDDING_MODEL Qwen/Qwen3-VL-Embedding-2B)"
+  fi
+  if [[ "$REQUIRE_REFERENCE_EMBEDDING" == "1" ]]; then
+    check_cache_for_model "$cache_dir" "$reference_embedding_source"
+    reference_embedding_revision="$(cached_model_revision "$cache_dir" "$reference_embedding_source")"
+    configured_reference_revision="$(cfg REFERENCE_EMBEDDING_MODEL_REVISION '')"
+    if [[ -n "$configured_reference_revision" && "${configured_reference_revision,,}" != "$reference_embedding_revision" ]]; then
+      die "REFERENCE_EMBEDDING_MODEL_REVISION does not match the immutable cached revision"
+    fi
+    export REFERENCE_EMBEDDING_MODEL_REVISION="$reference_embedding_revision"
   fi
   if [[ "$REQUIRE_REASONER" == "1" ]]; then
     check_cache_for_model "$cache_dir" "$(cfg REASONER_MODEL nvidia/Qwen3-14B-NVFP4)"
@@ -460,6 +647,11 @@ if [[ "$SKIP_HARDWARE_CHECKS" != "1" && "$needs_vllm" == "1" ]] \
     && docker image inspect "$vllm_image" >/dev/null 2>&1; then
   docker run --rm --gpus all --entrypoint nvidia-smi "$vllm_image" >/dev/null 2>&1 \
     || die "NVIDIA Container Toolkit GPU passthrough check failed"
+fi
+if [[ "$SKIP_HARDWARE_CHECKS" != "1" && "$REQUIRE_REFERENCE_EMBEDDING" == "1" ]] \
+    && docker image inspect "$reference_embedding_image" >/dev/null 2>&1; then
+  docker run --rm --gpus all --entrypoint nvidia-smi "$reference_embedding_image" >/dev/null 2>&1 \
+    || die "reference embedding GPU passthrough check failed"
 fi
 
 if [[ "$ROLE" == "spark-b" || "$ROLE" == "all" ]]; then
@@ -533,10 +725,11 @@ if payload.get("status") != "ready" or payload.get("mode") != expected_mode:
     )
 PY
     python3 - \
-      "$app_url" "$expect_app_vision" "$expect_app_embedding" "$expect_app_reasoner" \
+      "$app_url" "$expect_app_vision" "$expect_app_embedding" "$REQUIRE_REFERENCE_EMBEDDING" "$expect_app_reasoner" \
       "$expected_mode" "$expected_gateway_node" "$expected_compute_node" \
       "$(cfg RELICSCOPE_SERVICE_VERSION 1.2.0)" \
       "$(vision_model_for_role)" \
+      "$(cfg REFERENCE_EMBEDDING_MODEL qwen3_vl_embedding_2b)" \
       "$(cfg REASONER_MODEL nvidia/Qwen3-14B-NVFP4)" <<'PY'
 import json
 import sys
@@ -546,14 +739,16 @@ import urllib.request
     url,
     require_vision,
     require_embedding,
+    require_reference_embedding,
     require_reasoner,
     expected_mode,
     expected_gateway_node,
     expected_compute_node,
     expected_service_version,
     expected_vision_model,
+    expected_reference_embedding_model,
     expected_reasoner_model,
-) = sys.argv[1:11]
+) = sys.argv[1:13]
 with urllib.request.urlopen(url, timeout=5) as response:
     payload = json.load(response)
 if payload.get("mode") != expected_mode:
@@ -590,6 +785,14 @@ if require_vision == "1":
 knowledge = components.get("local-knowledge", {})
 if require_embedding == "1" and knowledge.get("status") != "ready":
     raise SystemExit("required embedding-backed knowledge component is not ready")
+reference_embedding = components.get("reference-image-embedding", {})
+if require_reference_embedding == "1":
+    if reference_embedding.get("status") != "online":
+        raise SystemExit(
+            "reference embedding or frozen reference library/calibration is not ready"
+        )
+    if reference_embedding.get("model") != expected_reference_embedding_model:
+        raise SystemExit("reference embedding component reports an unexpected model")
 reasoner = components.get("spark-report-model", components.get("spark-b-reasoner", {}))
 if require_reasoner == "1":
     if reasoner.get("status") != "online":
@@ -669,6 +872,13 @@ PY
           "$(vision_model_for_role)"
       fi
     fi
+    if [[ "$ROLE" == "single" && "$REQUIRE_REFERENCE_EMBEDDING" == "1" ]]; then
+      check_compose_reference_embedding \
+        "$(cfg REFERENCE_EMBEDDING_MODEL qwen3_vl_embedding_2b)" \
+        "$reference_embedding_source" \
+        "$reference_embedding_revision" \
+        "$(cfg REFERENCE_EMBEDDING_DIMENSION 2048)"
+    fi
     if [[ "$REQUIRE_REASONER" == "1" ]]; then
       if [[ "$ROLE" == "single" ]]; then
         single_reasoner_base_url="$(cfg SINGLE_REASONER_BASE_URL '')"
@@ -690,5 +900,5 @@ PY
   fi
 fi
 
-printf 'Preflight passed: role=%s, offline=%s, app=%s, vision=%s, embedding=%s, reasoner=%s, secrets=valid, endpoints=private\n' \
-  "$ROLE" "$offline_runtime" "$needs_app" "$REQUIRE_VISION" "$REQUIRE_EMBEDDING" "$REQUIRE_REASONER"
+printf 'Preflight passed: role=%s, offline=%s, app=%s, vision=%s, embedding=%s, reference_embedding=%s, reasoner=%s, secrets=valid, endpoints=private\n' \
+  "$ROLE" "$offline_runtime" "$needs_app" "$REQUIRE_VISION" "$REQUIRE_EMBEDDING" "$REQUIRE_REFERENCE_EMBEDDING" "$REQUIRE_REASONER"

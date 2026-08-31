@@ -13,7 +13,7 @@ RUN_GROUP=""
 
 usage() {
   printf '%s\n' \
-    "Usage: sudo $0 --role spark-a|spark-b [--user USER] [--now] [--remove]" \
+    "Usage: sudo $0 --role spark-a|spark-b|single [--user USER] [--now] [--remove]" \
     "Renders and installs a role-specific systemd unit. It never edits firewall," \
     "network or Docker daemon configuration."
 }
@@ -38,7 +38,7 @@ while (($#)); do
     *) die "unknown option: $1" ;;
   esac
 done
-case "$ROLE" in spark-a|spark-b) ;; *) die "--role must be spark-a or spark-b" ;; esac
+case "$ROLE" in spark-a|spark-b|single) ;; *) die "--role must be spark-a, spark-b, or single" ;; esac
 ((EUID == 0)) || die "run this installer as root"
 command -v systemctl >/dev/null 2>&1 || die "systemd is required"
 [[ -n "$RUN_USER" ]] || die "could not determine the non-root service user; pass --user"
@@ -89,5 +89,10 @@ if [[ "$START_NOW" == "1" ]]; then
 else
   printf 'Autostart is enabled. Start now with: systemctl start %s\n' "$unit_name"
 fi
-printf 'After both nodes boot, verify explicitly: %s/deploy/healthcheck.sh --role %s --wait 900\n' \
-  "$PROJECT_DIR" "$ROLE"
+if [[ "$ROLE" == "single" ]]; then
+  printf 'After boot, verify the VLM, reference embedding and frozen library explicitly: %s/deploy/healthcheck.sh --role single --wait 900\n' \
+    "$PROJECT_DIR"
+else
+  printf 'After both nodes boot, verify explicitly: %s/deploy/healthcheck.sh --role %s --wait 900\n' \
+    "$PROJECT_DIR" "$ROLE"
+fi

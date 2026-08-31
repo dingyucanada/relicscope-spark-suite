@@ -49,6 +49,25 @@ cfg() {
   printf '%s' "${value:-$fallback}"
 }
 
+set_env_value() {
+  local key="$1"
+  local value="$2"
+  local temporary=""
+  temporary="$(mktemp "${ENV_FILE}.XXXXXX")"
+  awk -v key="$key" -v value="$value" '
+    BEGIN { found=0 }
+    $0 ~ "^[[:space:]]*" key "=" {
+      if (!found) print key "=" value
+      found=1
+      next
+    }
+    { print }
+    END { if (!found) print key "=" value }
+  ' "$ENV_FILE" >"$temporary"
+  chmod 600 "$temporary"
+  mv -f -- "$temporary" "$ENV_FILE"
+}
+
 absolute_path() {
   [[ "$1" == /* ]] && printf '%s' "$1" || printf '%s/%s' "$PROJECT_DIR" "$1"
 }
@@ -142,6 +161,7 @@ python_image="$(cfg PYTHON_IMAGE python:3.12.11-slim-bookworm)"
 pypi_index_url="$(cfg PYPI_INDEX_URL https://pypi.org/simple)"
 vllm_base_image="$(cfg VLLM_BASE_IMAGE vllm/vllm-openai:v0.20.0)"
 vllm_image="$(cfg VLLM_IMAGE relicscope-multimodal-vllm:0.20.0-arm64)"
+reference_embedding_image="$(cfg REFERENCE_EMBEDDING_IMAGE relicscope-reference-embedding:1.0.0-arm64)"
 app_uid="$(cfg APP_UID "$(id -u)")"
 app_gid="$(cfg APP_GID "$(id -g)")"
 hf_cache_dir="$(safe_managed_dir "$(absolute_path "$(cfg HF_CACHE_DIR ./runtime/hf-cache)")")"
@@ -154,6 +174,7 @@ require_pinned_image "$app_image"
 require_pinned_image "$python_image"
 require_pinned_image "$vllm_base_image"
 require_pinned_image "$vllm_image"
+require_pinned_image "$reference_embedding_image"
 [[ "$pypi_index_url" == https://* ]] \
   || die "PYPI_INDEX_URL must use HTTPS"
 [[ "$pypi_index_url" != *"@"* ]] \
@@ -162,6 +183,7 @@ require_pinned_image "$vllm_image"
 need_app=0
 need_vision=0
 need_embedding=0
+need_reference_embedding=0
 need_reasoner=0
 case "$ROLE" in
   spark-a)
@@ -176,11 +198,12 @@ case "$ROLE" in
     need_app=1
     need_vision=1
     need_embedding="$(cfg PREFETCH_EMBEDDING 0)"
+    need_reference_embedding="$(cfg PREFETCH_REFERENCE_EMBEDDING 1)"
     need_reasoner="$(cfg PREFETCH_REASONER 0)"
     ;;
 esac
 need_vllm=0
-[[ "$need_vision" == "1" || "$need_embedding" == "1" || "$need_reasoner" == "1" ]] && need_vllm=1
+[[ "$need_vision" == "1" || "$need_embedding" == "1" || "$need_reference_embedding" == "1" || "$need_reasoner" == "1" ]] && need_vllm=1
 
 [[ "$app_uid" =~ ^[0-9]+$ && "$app_gid" =~ ^[0-9]+$ ]] \
   || die "APP_UID and APP_GID must be numeric"
@@ -227,6 +250,19 @@ if [[ "$need_vllm" == "1" ]]; then
     "$PROJECT_DIR"
 fi
 
+if [[ "$need_reference_embedding" == "1" ]]; then
+  printf 'Building private reference-embedding runtime: %s\n' "$reference_embedding_image"
+  docker build \
+    --platform linux/arm64 \
+    --pull=false \
+    --file "${PROJECT_DIR}/Dockerfile.embedding" \
+    --build-arg "EMBEDDING_BASE_IMAGE=${vllm_base_image}" \
+    --build-arg "PYPI_INDEX_URL=${pypi_index_url}" \
+    --build-arg "RELICSCOPE_GIT_COMMIT=${deployment_git_commit}" \
+    --tag "$reference_embedding_image" \
+    "$PROJECT_DIR"
+fi
+
 if [[ "$need_app" == "1" ]]; then
   printf 'Pulling fixed ARM64 Python base: %s\n' "$python_image"
   docker pull "$python_image"
@@ -254,12 +290,22 @@ fi
 if [[ "$need_embedding" == "1" ]]; then
   models+=("$(cfg EMBEDDING_MODEL Qwen/Qwen3-VL-Embedding-2B)")
 fi
+if [[ "$need_reference_embedding" == "1" ]]; then
+  models+=("$(cfg REFERENCE_EMBEDDING_MODEL_SOURCE Qwen/Qwen3-VL-Embedding-2B)")
+fi
 if [[ "$need_reasoner" == "1" ]]; then
   models+=("$(cfg REASONER_MODEL nvidia/Qwen3-14B-NVFP4)")
 fi
 for model_id in "${models[@]}"; do
   download_model "$model_id"
 done
+
+if [[ "$need_reference_embedding" == "1" ]]; then
+  reference_embedding_revision="$(cached_model_revision "$(cfg REFERENCE_EMBEDDING_MODEL_SOURCE Qwen/Qwen3-VL-Embedding-2B)")"
+  [[ "$reference_embedding_revision" =~ ^([0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$ ]] \
+    || die "downloaded reference embedding cache does not expose an immutable revision"
+  set_env_value REFERENCE_EMBEDDING_MODEL_REVISION "${reference_embedding_revision,,}"
+fi
 
 tmp_manifest="$(mktemp "${manifest_dir}/prefetch.XXXXXX")"
 {
@@ -277,6 +323,12 @@ tmp_manifest="$(mktemp "${manifest_dir}/prefetch.XXXXXX")"
   printf 'vllm_base_image=%s\n' "$vllm_base_image"
   if [[ "$need_vllm" == "1" ]]; then
     printf 'vllm_image_id=%s\n' "$(docker image inspect --format '{{.Id}}' "$vllm_image")"
+  fi
+  printf 'reference_embedding_image=%s\n' "$reference_embedding_image"
+  if [[ "$need_reference_embedding" == "1" ]]; then
+    printf 'reference_embedding_image_id=%s\n' "$(docker image inspect --format '{{.Id}}' "$reference_embedding_image")"
+    printf 'reference_embedding_model_revision=%s\n' \
+      "$reference_embedding_revision"
   fi
   for model_id in "${models[@]}"; do
     printf 'model=%s\n' "$model_id"

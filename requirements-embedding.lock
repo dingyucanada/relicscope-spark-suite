@@ -1,0 +1,3 @@
+qwen-vl-utils==0.0.14
+sentence-transformers[image]==5.4.0
+transformers==4.57.3

@@ -87,9 +87,9 @@ trap cleanup EXIT
 release_archive="${staging}/relicscope-release-${release_version}.tar.gz"
 entries=(
   .agents .github .dockerignore .env.example .gitattributes .gitignore
-  AGENTS.md Dockerfile Dockerfile.vllm Makefile NOTICE.md README.md THIRD_PARTY_NOTICES.md
-  requirements.txt requirements.lock requirements-dev.txt requirements-dev.lock pytest.ini
-  app data demo_media deploy docs openspec scripts tests
+  AGENTS.md Dockerfile Dockerfile.vllm Dockerfile.embedding Makefile NOTICE.md README.md THIRD_PARTY_NOTICES.md
+  requirements.txt requirements.lock requirements-embedding.lock requirements-dev.txt requirements-dev.lock pytest.ini
+  app data demo_media deploy docs embedding_server openspec scripts tests
   compose.yml compose.single.yml run_local.sh
 )
 existing_entries=()
@@ -115,6 +115,8 @@ git -C "$PROJECT_DIR" archive \
   printf 'contains_runtime_evidence=false\n'
   printf 'contains_third_party_model_weights=false\n'
   printf 'contains_third_party_datasets=false\n'
+  printf 'contains_controlled_reference_media=false\n'
+  printf 'contains_expert_or_counterfeit_evidence=false\n'
   printf 'nvidia_target_mapping=planned-and-partial-current-stack-see-docs/RUNTIME_BOUNDARY.md\n'
 } >"${staging}/MANIFEST.txt"
 
@@ -124,6 +126,7 @@ if [[ "$OFFLINE" == "1" ]]; then
   docker info >/dev/null 2>&1 || die "Docker daemon is unavailable"
   app_image="$(cfg APP_IMAGE relicscope-ai-demo:1.2.0-arm64)"
   vllm_image="$(cfg VLLM_IMAGE relicscope-multimodal-vllm:0.20.0-arm64)"
+  reference_embedding_image="$(cfg REFERENCE_EMBEDDING_IMAGE relicscope-reference-embedding:1.0.0-arm64)"
   images=()
   models=()
   case "$ROLE" in
@@ -144,6 +147,10 @@ if [[ "$OFFLINE" == "1" ]]; then
       models+=("$(cfg VISION_MODEL_SOURCE Qwen/Qwen3-VL-30B-A3B-Instruct)")
       if [[ "$(cfg PREFETCH_AB_MODELS 1)" == "1" ]]; then
         models+=("$(cfg AB_NEMOTRON_MODEL_SOURCE nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning-NVFP4)")
+      fi
+      if [[ "$(cfg PREFETCH_REFERENCE_EMBEDDING 1)" == "1" ]]; then
+        images+=("$reference_embedding_image")
+        models+=("$(cfg REFERENCE_EMBEDDING_MODEL_SOURCE Qwen/Qwen3-VL-Embedding-2B)")
       fi
       [[ "$(cfg EMBEDDING_ENABLED 0)" == "1" ]] && models+=("$(cfg EMBEDDING_MODEL Qwen/Qwen3-VL-Embedding-2B)")
       [[ "$(cfg REASONER_ENABLED 0)" == "1" ]] && models+=("$(cfg REASONER_MODEL nvidia/Qwen3-14B-NVFP4)")

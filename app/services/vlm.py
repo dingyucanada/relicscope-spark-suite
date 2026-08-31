@@ -101,6 +101,18 @@ def report_citation_ids(report: Dict[str, Any]) -> Set[str]:
             source_id = result.get("source_id")
             if isinstance(source_id, str) and source_id:
                 allowed.add(source_id)
+    latest_recognition = report.get("latest_reference_recognition")
+    if isinstance(latest_recognition, dict):
+        recognitions = [latest_recognition]
+    else:
+        history = report.get("reference_recognitions", [])
+        recognitions = history[-1:] if isinstance(history, list) else []
+    for recognition in recognitions:
+        for field in ("catalog_hits", "counterfeit_hits"):
+            for result in recognition.get(field, []):
+                citation_id = result.get("metadata", {}).get("citation_id")
+                if isinstance(citation_id, str) and citation_id:
+                    allowed.add(citation_id)
     return allowed
 
 

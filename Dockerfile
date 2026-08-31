@@ -39,6 +39,12 @@ RUN python -m pip install \
 
 COPY --chown=relicscope:relicscope app ./app
 COPY --chown=relicscope:relicscope data ./data
+COPY --chown=relicscope:relicscope \
+     scripts/import-reference-library.py \
+     scripts/build-reference-vector-index.py \
+     scripts/evaluate-reference-recognition.py \
+     scripts/seal-reference-calibration.py \
+     ./scripts/
 
 RUN install -d -o relicscope -g relicscope -m 0750 \
       /var/lib/relicscope /var/lib/relicscope/uploads /opt/relicscope/runtime

@@ -20,6 +20,7 @@ RelicScope采用“轻量控制面 + 成熟专用组件适配层”。底层科�
 | 组件 | 状态 | 拟承担职责 | 必须满足的启用条件 |
 |---|---|---|---|
 | NVIDIA vLLM on DGX Spark | `DEPLOYMENT_READY` | Spark A本地VLM；Spark B可选摘要 | 固定镜像/模型版本、许可证复核、离线缓存、认证、GPU和性能实测；完成后标记 `HARDWARE_VERIFIED` |
+| Qwen3-VL-Embedding-2B + Sentence Transformers 5.4 | `DEPLOYMENT_READY` | 单机 50 件多视角参考库图像 embedding；NumPy exact cosine 作为小规模可复算检索基线 | 固定 40/64 位模型 revision、内部端口、真实受控数据、独立复拍与开集负样本、冻结阈值；目标 Spark 完成内存/延迟/数值验收前不标 `HARDWARE_VERIFIED` |
 | RamanSPy | `ADAPTER_READY` | Raman基线校正、平滑、归一化、解混 | BSD-3-Clause登记；真实文件格式、参数、参考谱、重复性和激光条件验证 |
 | PyMca | `ADAPTER_READY` | XRF谱峰、拟合和批处理结果导入 | MIT登记；仪器校准、基体效应、层结构及定量边界验证 |
 | Spectral Python | `ADAPTER_READY` | HSI立方体读取、波段处理、分类基础 | MIT登记；白/暗参考、光谱库、配准和跨设备验证 |
@@ -73,6 +74,8 @@ RelicScope采用“轻量控制面 + 成熟专用组件适配层”。底层科�
 
 - [NVIDIA DGX Spark Playbooks](https://github.com/nvidia/dgx-spark-playbooks)
 - [NVIDIA vLLM on DGX Spark](https://github.com/nvidia/dgx-spark-playbooks/blob/main/nvidia/vllm/README.md)
+- [Qwen3-VL-Embedding-2B](https://huggingface.co/Qwen/Qwen3-VL-Embedding-2B)
+- [Sentence Transformers](https://www.sbert.net/)
 - [NVIDIA NeMo Retriever](https://docs.nvidia.com/nemo/retriever/latest/)
 - [NVIDIA NIM on DGX Spark](https://build.nvidia.com/spark/nim-llm)
 - [NVIDIA Holoscan SDK](https://github.com/nvidia-holoscan/holoscan-sdk)

@@ -18,6 +18,7 @@ from .schemas import (
     ImageAnalyzeRequest,
     ImageCompareRequest,
     KnowledgeSearchRequest,
+    ReferenceRecognitionRequest,
     VideoFramesAnalyzeRequest,
 )
 from .services.embedding import OpenAICompatibleEmbeddingProvider
@@ -159,6 +160,7 @@ def _redact_detail(detail: str, settings: Settings) -> str:
     for credential in (
         settings.vision_api_key,
         settings.embedding_api_key,
+        settings.reference_embedding_api_key,
         settings.reasoner_api_key,
     ):
         if credential:
@@ -299,6 +301,14 @@ def create_app(
             "checked_at": health["checked_at"],
         }
 
+    @application.get("/api/reference-library/summary")
+    async def reference_library_summary():
+        return service.reference_recognition.summary()
+
+    @application.post("/api/reference-library/refresh")
+    async def refresh_reference_library():
+        return service.reference_recognition.refresh()
+
     @application.post("/api/demo/scenarios/p01", status_code=201)
     async def run_p01_demo(payload: Optional[DemoScenarioRequest] = None):
         return await service.run_p01_demo(payload or DemoScenarioRequest())
@@ -318,6 +328,12 @@ def create_app(
     @application.post("/api/sessions/{session_id}/images/compare")
     async def compare_session_images(session_id: str, payload: ImageCompareRequest):
         return service.compare_images(session_id, payload)
+
+    @application.post("/api/sessions/{session_id}/recognition")
+    async def recognize_session_reference(
+        session_id: str, payload: ReferenceRecognitionRequest
+    ):
+        return await service.recognize_reference(session_id, payload)
 
     @application.post("/api/sessions/{session_id}/videos/register", status_code=201)
     async def register_session_video(

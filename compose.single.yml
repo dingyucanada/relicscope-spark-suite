@@ -46,6 +46,22 @@ services:
       VISION_MODEL: ${VISION_MODEL:-qwen3_vl_30b_a3b}
       EMBEDDING_BASE_URL: ${SINGLE_EMBEDDING_BASE_URL:-}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-Qwen/Qwen3-VL-Embedding-2B}
+      RELICSCOPE_REFERENCE_LIBRARY_ENABLED: ${RELICSCOPE_REFERENCE_LIBRARY_ENABLED:-true}
+      RELICSCOPE_REFERENCE_LIBRARY_DIR: /var/lib/relicscope/reference-library
+      RELICSCOPE_REFERENCE_LIBRARY_MANIFEST: /var/lib/relicscope/reference-library/manifest.json
+      RELICSCOPE_REFERENCE_LIBRARY_INDEX: /var/lib/relicscope/reference-library/index.sqlite3
+      RELICSCOPE_REFERENCE_LIBRARY_VECTOR_INDEX: /var/lib/relicscope/reference-library/embeddings.npz
+      RELICSCOPE_REFERENCE_LIBRARY_CALIBRATION: /var/lib/relicscope/reference-library/calibration.json
+      RELICSCOPE_REFERENCE_LIBRARY_MIN_ARTIFACTS: ${RELICSCOPE_REFERENCE_LIBRARY_MIN_ARTIFACTS:-50}
+      RELICSCOPE_REFERENCE_LIBRARY_MIN_VIEWS: ${RELICSCOPE_REFERENCE_LIBRARY_MIN_VIEWS:-5}
+      RELICSCOPE_COUNTERFEIT_LIBRARY_MIN_RECORDS: ${RELICSCOPE_COUNTERFEIT_LIBRARY_MIN_RECORDS:-10}
+      REFERENCE_EMBEDDING_BASE_URL: http://reference-embedding:8010/v1
+      REFERENCE_EMBEDDING_MODEL: ${REFERENCE_EMBEDDING_MODEL:-qwen3_vl_embedding_2b}
+      REFERENCE_EMBEDDING_MODEL_SOURCE: ${REFERENCE_EMBEDDING_MODEL_SOURCE:-Qwen/Qwen3-VL-Embedding-2B}
+      REFERENCE_EMBEDDING_MODEL_REVISION: ${REFERENCE_EMBEDDING_MODEL_REVISION:?set immutable cached reference embedding revision}
+      REFERENCE_EMBEDDING_DIMENSION: ${REFERENCE_EMBEDDING_DIMENSION:-2048}
+      REFERENCE_EMBEDDING_BATCH_SIZE: ${REFERENCE_EMBEDDING_BATCH_SIZE:-4}
+      REFERENCE_EMBEDDING_TIMEOUT_SECONDS: ${REFERENCE_EMBEDDING_TIMEOUT_SECONDS:-180}
       REASONER_BASE_URL: http://vision:8000/v1
       REASONER_MODEL: ${VISION_MODEL:-qwen3_vl_30b_a3b}
       HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-1}
@@ -63,6 +79,7 @@ services:
         fi
         export VISION_API_KEY="$$service_key"
         export EMBEDDING_API_KEY="$$service_key"
+        export REFERENCE_EMBEDDING_API_KEY="$$service_key"
         export REASONER_API_KEY="$$service_key"
         exec python -m uvicorn app.main:app --host 0.0.0.0 --port 8088 --no-access-log
     ports:
@@ -81,6 +98,8 @@ services:
       - relicscope-single
     depends_on:
       vision:
+        condition: service_healthy
+      reference-embedding:
         condition: service_healthy
     healthcheck:
       test:
@@ -149,6 +168,71 @@ services:
       ai.relicscope.model.source: ${VISION_MODEL_SOURCE:-Qwen/Qwen3-VL-30B-A3B-Instruct}
       ai.relicscope.model.revision: ${VISION_MODEL_REVISION:-unknown}
       ai.relicscope.model.served: ${VISION_MODEL:-qwen3_vl_30b_a3b}
+
+  reference-embedding:
+    platform: linux/arm64
+    image: ${REFERENCE_EMBEDDING_IMAGE:-relicscope-reference-embedding:1.0.0-arm64}
+    build:
+      context: .
+      dockerfile: Dockerfile.embedding
+      args:
+        EMBEDDING_BASE_IMAGE: ${VLLM_BASE_IMAGE:-vllm/vllm-openai:v0.20.0}
+        PYPI_INDEX_URL: ${PYPI_INDEX_URL:-https://pypi.org/simple}
+        EMBEDDING_UID: ${EMBEDDING_UID:-10002}
+        EMBEDDING_GID: ${EMBEDDING_GID:-10002}
+    restart: unless-stopped
+    init: true
+    gpus: all
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    secrets:
+      - service_api_key
+    environment:
+      REFERENCE_EMBEDDING_API_KEY_FILE: /run/secrets/service_api_key
+      REFERENCE_EMBEDDING_MODEL: ${REFERENCE_EMBEDDING_MODEL:-qwen3_vl_embedding_2b}
+      REFERENCE_EMBEDDING_MODEL_SOURCE: ${REFERENCE_EMBEDDING_MODEL_SOURCE:-Qwen/Qwen3-VL-Embedding-2B}
+      REFERENCE_EMBEDDING_MODEL_REVISION: ${REFERENCE_EMBEDDING_MODEL_REVISION:?set immutable cached reference embedding revision}
+      REFERENCE_EMBEDDING_DIMENSION: ${REFERENCE_EMBEDDING_DIMENSION:-2048}
+      REFERENCE_EMBEDDING_BATCH_SIZE: ${REFERENCE_EMBEDDING_BATCH_SIZE:-4}
+      REFERENCE_EMBEDDING_GPU_MEMORY_FRACTION: ${REFERENCE_EMBEDDING_GPU_MEMORY_FRACTION:-0.12}
+      REFERENCE_EMBEDDING_MAX_IMAGE_BYTES: ${REFERENCE_EMBEDDING_MAX_IMAGE_BYTES:-10485760}
+      REFERENCE_EMBEDDING_MAX_IMAGE_PIXELS: ${REFERENCE_EMBEDDING_MAX_IMAGE_PIXELS:-25000000}
+      HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-1}
+      TRANSFORMERS_OFFLINE: ${TRANSFORMERS_OFFLINE:-1}
+      HF_HUB_DISABLE_TELEMETRY: ${HF_HUB_DISABLE_TELEMETRY:-1}
+      HF_MODULES_CACHE: /tmp/hf-modules
+      XDG_CACHE_HOME: /tmp/cache
+      TORCH_HOME: /tmp/torch
+      DO_NOT_TRACK: ${DO_NOT_TRACK:-1}
+    volumes:
+      - type: bind
+        source: ${HF_CACHE_DIR:-./runtime/hf-cache}
+        target: /models/huggingface
+        read_only: true
+    tmpfs:
+      - /tmp:size=2g,mode=1777
+    networks:
+      - relicscope-single
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import json,urllib.request; p=json.load(urllib.request.urlopen('http://127.0.0.1:8010/v1/health',timeout=3)); assert p.get('ready') is True"
+      interval: 20s
+      timeout: 5s
+      start_period: 15m
+      retries: 5
+    labels:
+      ai.relicscope.node: ${SINGLE_NODE_ID:-spark-single}
+      ai.relicscope.role: private-reference-image-embedding
+      ai.relicscope.runtime: single-spark-local-ai
+      ai.relicscope.model.source: ${REFERENCE_EMBEDDING_MODEL_SOURCE:-Qwen/Qwen3-VL-Embedding-2B}
+      ai.relicscope.model.revision: ${REFERENCE_EMBEDDING_MODEL_REVISION:?set immutable cached reference embedding revision}
+      ai.relicscope.model.served: ${REFERENCE_EMBEDDING_MODEL:-qwen3_vl_embedding_2b}
 
 networks:
   relicscope-single:

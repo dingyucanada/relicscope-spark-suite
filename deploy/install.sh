@@ -136,7 +136,10 @@ secret_file="$(absolute_path "$(cfg SERVICE_API_KEY_FILE ./secrets/service_api_k
 [[ "$secret_file" != "/" && "$secret_file" != "$PROJECT_DIR" && "$(dirname -- "$secret_file")" != "/" ]] \
   || die "unsafe service key path: ${secret_file}"
 
-install -d -m 700 -- "$data_dir" "$hf_cache_dir" "$vllm_cache_dir" "$backup_dir" "$package_dir" "$(dirname -- "$secret_file")"
+install -d -m 700 -- \
+  "$data_dir" "$data_dir/reference-library" \
+  "$hf_cache_dir" "$vllm_cache_dir" "$backup_dir" "$package_dir" \
+  "$(dirname -- "$secret_file")"
 
 if [[ -n "$SERVICE_KEY_SOURCE" ]]; then
   [[ -f "$SERVICE_KEY_SOURCE" ]] || die "service key source is missing: ${SERVICE_KEY_SOURCE}"
@@ -173,6 +176,7 @@ PY
 
 printf '%s\n' \
   "Bootstrap complete for role=${ROLE}." \
+  "Controlled reference-library directory: ${data_dir}/reference-library" \
   "Next: edit ${ENV_FILE}; configure the fixed private IPs, storage, model policy, and interconnect." \
   "During an approved online preparation window, run: make prefetch ROLE=${ROLE}" \
   "Then restore the offline flags and run: make preflight ROLE=${ROLE}" \

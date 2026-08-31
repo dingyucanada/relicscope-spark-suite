@@ -146,11 +146,26 @@ def app_settings(tmp_path):
         db_path=tmp_path / "runtime" / "test.sqlite3",
         upload_dir=tmp_path / "runtime" / "uploads",
         knowledge_manifest_path=PROJECT_ROOT / "data" / "knowledge_manifest.json",
+        reference_library_enabled=False,
+        reference_library_dir=tmp_path / "runtime" / "reference-library",
+        reference_library_manifest_path=(
+            tmp_path / "runtime" / "reference-library" / "manifest.json"
+        ),
+        reference_library_index_path=(
+            tmp_path / "runtime" / "reference-library" / "index.sqlite3"
+        ),
+        reference_library_vector_index_path=(
+            tmp_path / "runtime" / "reference-library" / "embeddings.npz"
+        ),
+        reference_library_calibration_path=(
+            tmp_path / "runtime" / "reference-library" / "calibration.json"
+        ),
         runtime_mode="local-development",
         offline_mode=True,
         vision_base_url="",
         reasoner_base_url="",
         embedding_base_url="",
+        reference_embedding_base_url="",
     )
 
 

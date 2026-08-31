@@ -1,6 +1,6 @@
 # RelicScope Spark Suite v1.2.0｜单台 DGX Spark 真实多模态分析与可追溯报告
 
-本仓库交付一个可真实运行、可审计、可离线演示的古陶瓷科学鉴证工作流原型。v1.2.0 的默认部署是一台 DGX Spark：Qwen3-VL 作为中文陶瓷图像主基线，并在同一视频上提供 A/B 对照；Nemotron 3 Nano Omni 作为原生视频候选，用冻结输入顺序 A/B。同一私有 GPU 模型端点完成可见观察和受约束报告摘要。主闭环为：瓷器图片 / 视频 → 原始哈希登记 → 质量门控与原生视频观察 → 本地知识引用 → Scientific Evidence Graph → Next Best Observation → JSON / HTML 结构化报告。
+本仓库交付一个可真实运行、可审计、可离线演示的古陶瓷科学鉴证工作流原型。v1.2.0 的默认部署是一台 DGX Spark：Qwen3-VL 作为中文陶瓷图像主基线，并在同一视频上提供 A/B 对照；Nemotron 3 Nano Omni 作为原生视频候选，用冻结输入顺序 A/B。共享私有 VLM 完成可见观察和受约束报告摘要，独立的 Qwen3-VL-Embedding-2B 私有 sidecar 负责 50 件多视角参考库的实例检索。主闭环为：瓷器图片 / 视频 → 原始哈希登记 → 质量门控 → 本地参考/知识检索 → Scientific Evidence Graph → Next Best Observation → JSON / HTML 结构化报告。
 
 > **演示边界**：用户上传图片和视频属于真实输入；内置知识、检测值和仪器结果包含 `DEMO/SYNTHETIC` 数据。RGB 媒体不能产生 Raman、XRF、HSI、X-ray、CT 或 TL 测量值。输出用于验证产品架构与科学工作流，不构成文物真伪、年代、窑口、作者、价值、文物定级或法律鉴定结论。
 
@@ -46,10 +46,11 @@ Codex 只帮助执行和检查；RelicScope 本身不依赖 Codex 运行。完�
 | 对象科学指纹 | 媒体、代表帧和算法版本组成的可复算身份 | 用于关联与复核，不称防伪证书或真伪证明 |
 | 同区域复拍比较 | 基线与复拍的可见差异候选、可比性和标准复拍建议 | 必须同区域/同模态且通过质量门；不解释为劣化、修复或材料变化 |
 | 本地 AI 与知识 | 可见事实、候选区域、相似参考和精确引用 | 模型失联可见降级；无充分参考时明确弃权 |
+| 50 件多视角参考识别 | 库内同一实物候选、库外相关参考、开集拒绝和负向案例交叉信号 | 真实受控数据、固定模型 revision、独立复拍/开集校准缺一不可；不输出真伪结论 |
 | 证据与建议 | 四态证据关系、Scientific Evidence Graph、下一步补拍/检测 | 保留冲突与不确定性；未接仪器只显示建议，不生成虚构测量 |
 | 结构化报告 | 同一会话的 HTML 阅读版与 JSON 机器版 | 原始哈希、帧来源、模型、引用、审计和能力边界一并导出 |
 
-单机实装首先阅读 [单台 DGX Spark 真实 GPU 部署与现场验收](docs/SINGLE_SPARK_GPU_DEPLOYMENT.md)。媒体原理见 [媒体科学观察架构](docs/MEDIA_ARCHITECTURE.md)，软件层历史验收见 [v1.1.0 媒体验收清单](docs/MEDIA_ACCEPTANCE_V1.1.md)。
+单机实装首先阅读 [单台 DGX Spark 真实 GPU 部署与现场验收](docs/SINGLE_SPARK_GPU_DEPLOYMENT.md)；50 件真实参考库的数据、向量和校准顺序见 [参考库部署指南](docs/REFERENCE_LIBRARY_DEPLOYMENT.md)。媒体原理见 [媒体科学观察架构](docs/MEDIA_ARCHITECTURE.md)，软件层历史验收见 [v1.1.0 媒体验收清单](docs/MEDIA_ACCEPTANCE_V1.1.md)。
 
 ## 运维入口
 
@@ -61,6 +62,14 @@ make help
 # 一台 Fresh Spark：初始化 → 联网预缓存 → 恢复离线 → 启动 → 实测。
 make install ROLE=single INSTALL_ARGS="--generate-key"
 make prefetch ROLE=single
+# 首次组织真实资料时生成 50 件 + 10 条负向案例的空白采集表；已有正式 manifest 可跳过。
+make reference-scaffold
+make reference-verify
+make reference-import
+make reference-build
+make reference-evaluate
+make reference-seal
+make reference-status
 make preflight ROLE=single
 make start ROLE=single
 make health ROLE=single
@@ -76,6 +85,7 @@ make ab-single-spark
 
 - `IMPLEMENTED / LOCAL ACCEPTED`：图片/视频登记、有限抽帧、多帧质量分析、同区域复拍比较、证据图和结构化报告；自动化、真实 JPEG/MP4、报告完整性、进程重启持久性与桌面/390 px 浏览器呈现均已通过。该层不调用 GPU 模型。
 - `DEPLOYMENT_READY`：单台 Spark 共享 vLLM 端点、OpenAI-compatible 私网接口、Qwen 基线、Nemotron 顺序 A/B、FastAPI 控制面、确定性知识检索、主动检测回放、质量门控、证据图、审计链和报告均具备固定部署入口；只有目标 Spark 上的 `make accept-single-spark` 证据通过后才可标为 `HARDWARE_VERIFIED`。
+- `DATA_AND_CALIBRATION_GATED`：50 件 × 至少 5 视角参考库、至少 10 件负向案例、Qwen3-VL-Embedding-2B 精确检索与开放集拒绝已有部署入口；仓库不包含真实样本或专家结论。缺少受控数据、向量绑定或独立校准时显示 `CALIBRATION_REQUIRED`/未就绪。
 - `OPTIONAL DUAL-SPARK`：双节点独立服务拓扑继续保留，但需要单独完成私网、认证、故障和性能验收，不能由单机结果推断。
 - `ADAPTER_READY`：RamanSPy、PyMca、Spectral Python、Open3D；当前未随包安装，需在真实仪器、格式、校准和许可证验证后启用。
 - `EVALUATION`：anomalib、OpenLIME、NeMo Retriever、NVIDIA NIM。
@@ -93,9 +103,11 @@ make ab-single-spark
     ▼
 一台 DGX Spark
     ├─ RelicScope Gateway / Knowledge / Evidence / P01 / Report
-    └─ 一个私有 vLLM 端点
-          └─ 默认 Qwen3-VL-30B-A3B-Instruct
-             候选 Nemotron-3-Nano-Omni（顺序 A/B，不同时加载）
+    ├─ 一个私有 vLLM 端点
+    │     └─ 默认 Qwen3-VL-30B-A3B-Instruct
+    │        候选 Nemotron-3-Nano-Omni（顺序 A/B，不同时加载）
+    └─ 一个私有参考 embedding sidecar
+          └─ Qwen3-VL-Embedding-2B（不映射主机端口）
 ```
 
 应用与模型是同机容器服务；本配置未启用 Ray、NCCL 或张量并行。图像观察和报告摘要使用不同提示词与校验器，但共享同一个模型进程，避免在 128 GB 统一内存中重复加载权重。
@@ -104,6 +116,7 @@ make ab-single-spark
 |---|---|---|---|
 | 中文图像主基线 / 视频对照 | 图片与代表帧观察、报告摘要；同视频 A/B 对照 | `Qwen/Qwen3-VL-30B-A3B-Instruct` | 验收失败即显示不可用，不把规则回退冒充 GPU 推理 |
 | 原生视频候选 | 同一视频输入的跨视角/时序观察 | `nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning-NVFP4` | 保留 Qwen 为主模型；候选不自动晋级 |
+| 目录实例检索 | 50 件多视角库内识别、相关参考与负向案例相似信号 | `Qwen/Qwen3-VL-Embedding-2B` + 精确余弦 | 未绑定真实数据/独立校准即 `CALIBRATION_REQUIRED`；不产生真伪结论 |
 | 科学证据引擎 | SQLite 会话、本地知识、P01、证据图、审计、结构化报告 | 确定性应用逻辑 | 模型离线时仍可查看既有证据与完整性记录 |
 
 Qwen3-VL 是中文陶瓷场景的工程基线；Nemotron Omni 具备 NVIDIA 官方单台 Spark playbook，用于原生视频候选评测。A/B 必须保持相同输入哈希，机器门槛通过后仍需文物/材料专家和模型工程负责人复核，才可修改默认模型。
@@ -137,6 +150,7 @@ Qwen3-VL 是中文陶瓷场景的工程基线；Nemotron Omni 具备 NVIDIA 官�
 │   └── media-smoke.py           # 真实 JPEG/MP4/抽帧/报告/完整性闭环验收
 ├── Makefile                     # 一键运维入口
 ├── Dockerfile                   # ARM64、多架构基础镜像、非 root 应用
+├── Dockerfile.embedding         # 私有 Qwen3-VL reference embedding sidecar
 ├── .dockerignore                # 构建上下文 allowlist；排除密钥、会话和模型缓存
 ├── .gitignore                   # 排除 .env、secrets、runtime、work、venv 与缓存
 ├── compose.single.yml           # v1.2.0 默认：单台 Spark 共享 GPU 模型配置
@@ -145,7 +159,7 @@ Qwen3-VL 是中文陶瓷场景的工程基线；Nemotron Omni 具备 NVIDIA 官�
 └── run_local.sh                 # 无模型的本地确定性冒烟路径
 ```
 
-持久数据位于 `RELICSCOPE_DATA_HOST_DIR`，模型位于 `HF_CACHE_DIR`，vLLM 编译缓存位于 `VLLM_CACHE_DIR`。容器重建不会删除这些目录。
+持久数据位于 `RELICSCOPE_DATA_HOST_DIR`，真实参考库位于其 `reference-library/` 子目录，模型位于 `HF_CACHE_DIR`，vLLM 编译缓存位于 `VLLM_CACHE_DIR`。容器重建不会删除这些目录；公开发布包不包含真实参考图、负向案例证据或专家审签。
 
 ## 3. 前置条件
 

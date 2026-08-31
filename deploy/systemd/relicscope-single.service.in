@@ -1,0 +1,25 @@
+[Unit]
+Description=RelicScope AI single-Spark local multimodal and reference retrieval services
+Documentation=file://@PROJECT_DIR@/docs/SINGLE_SPARK_GPU_DEPLOYMENT.md
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+ConditionPathExists=@PROJECT_DIR@/.env
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=@RUN_USER@
+Group=@RUN_GROUP@
+WorkingDirectory=@PROJECT_DIR@
+Environment=ENV_FILE=@PROJECT_DIR@/.env
+ExecStart=@PROJECT_DIR@/deploy/service-control.sh start --role single --no-wait
+ExecStop=@PROJECT_DIR@/deploy/service-control.sh stop --role single
+TimeoutStartSec=0
+TimeoutStopSec=240
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -10,6 +10,7 @@
 │   ├── 1.1.0/                  # 只读发布源码与部署文件
 │   └── current -> 1.1.0/
 ├── state/                      # Spark B：SQLite、上传、报告、审计
+│   └── reference-library/      # 真实参考/负向案例、索引、冻结校准（受控数据）
 ├── models/
 │   └── huggingface/            # 已批准模型快照；运行期只读
 ├── cache/
@@ -39,6 +40,7 @@ Spark A的`state`通常为空，但保留独立目录可简化统一预检；Spa
 |---|---|---|---|
 | 版本化演示知识 | `data/` | 随发布版本保存 | 是；保持`DEMO/SYNTHETIC`标记 |
 | 会话、原始图片/视频、派生帧、证据、报告 | `RELICSCOPE_DATA_HOST_DIR` | 是；由`backup.sh`一致性备份 | 否 |
+| 50 件参考图、负向案例证据、来源/审签、向量索引与校准 | `RELICSCOPE_DATA_HOST_DIR/reference-library` | 是；按高价值藏品数据等级加密与授权 | 永不进入公开/离线发布包 |
 | Hugging Face模型快照 | `HF_CACHE_DIR` | 可从获准来源重建；离线站点按机构模型治理流程做受控副本 | 不进入本交付包 |
 | vLLM编译缓存 | `VLLM_CACHE_DIR` | 通常不备份 | 否 |
 | 服务key、HF token | `secrets/`或外部密钥系统 | 按密钥政策托管 | 永不进入发布、备份或离线模型包 |
@@ -59,6 +61,7 @@ make package ROLE=all
 ```bash
 make package-offline ROLE=spark-a
 make package-offline ROLE=spark-b
+make package-offline ROLE=single
 ```
 
 离线包额外包含：
@@ -67,7 +70,7 @@ make package-offline ROLE=spark-b
 - 当前角色所需的模型ID和已观察revision清单；
 - manifest与逐文件SHA-256。
 
-脚本不会联网，也不会主动下载或打包任何第三方模型权重与数据。它不会包含HF token、服务key、`.env`、会话、上传或报告。容器镜像包仍可能很大，必须先确认目标介质容量、加密和保管人。
+脚本不会联网，也不会主动下载或打包任何第三方模型权重与数据。单机角色会包含应用、vLLM 与 reference-embedding 三个已构建镜像，以及三类所需模型的 ID/revision 需求；它不会包含模型权重、真实参考库、负向案例证据、专家审签、HF token、服务key、`.env`、会话、上传或报告。容器镜像包仍可能很大，必须先确认目标介质容量、加密和保管人。
 
 在目标节点导入前：
 

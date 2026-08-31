@@ -31,6 +31,7 @@ def _raw_file_summary(raw_files: Iterable[Dict[str, Any]]) -> list[Dict[str, Any
                 "sha256": item["sha256"],
                 "modality": metadata.get("modality"),
                 "region_id": metadata.get("region_id"),
+                "view_code": metadata.get("view_code"),
                 "byte_length": metadata.get("byte_length"),
                 "source_category": metadata.get("source_category", "USER_UPLOAD"),
                 "media_kind": metadata.get("media_kind", "IMAGE"),
@@ -60,17 +61,27 @@ def build_report(
         "claim": deepcopy(state["claim"]),
         "protocol": deepcopy(state["protocol"]),
         "claim_consistency": state.get("claim_consistency", "EVIDENCE_INSUFFICIENT"),
+        "authenticity_state": state.get("authenticity_state", "NOT_ASSESSED"),
         "uncertainty": state.get("uncertainty"),
         "status": state.get("status"),
         "raw_files": _raw_file_summary(raw_files),
         "image_analyses": deepcopy(state.get("image_analyses", [])),
         "image_comparisons": deepcopy(state.get("image_comparisons", [])),
+        "reference_recognitions": deepcopy(
+            state.get("reference_recognitions", [])
+        ),
+        "latest_reference_recognition": deepcopy(
+            state.get("latest_reference_recognition")
+        ),
         "videos": deepcopy(state.get("videos", [])),
         "video_analyses": video_analyses,
         "native_video_analyses": deepcopy(state.get("native_video_analyses", [])),
         "media_summary": {
             "image_analysis_count": len(state.get("image_analyses", [])),
             "image_comparison_count": len(state.get("image_comparisons", [])),
+            "reference_recognition_count": len(
+                state.get("reference_recognitions", [])
+            ),
             "registered_video_count": len(state.get("videos", [])),
             "video_analysis_count": len(video_analyses),
             "native_video_analysis_count": len(state.get("native_video_analyses", [])),
@@ -108,6 +119,7 @@ def build_report(
             "内置知识条目和仪器数据为演示内容，尚未经过机构专家审核。",
             "哈希链可发现记录变化，但不等同于可信时间戳或机构数字签章。",
             "模型观察只描述图像可见信息，不能替代材料检测与专家复核。",
+            "目录同件候选与负向参考相似信号均不构成真伪、年代或价值结论。",
             "浏览器抽取的视频帧保留字节、时间戳、父视频与 SHA-256；抽帧仍不等于仪器采集。",
         ],
         "next_steps": [
@@ -293,6 +305,119 @@ def report_to_html(report: Dict[str, Any]) -> str:
         )
         or "<li>尚无知识引用</li>"
     )
+    recognition = report.get("latest_reference_recognition") or {}
+    same_artifact = recognition.get("same_artifact", {})
+    catalog_hits = recognition.get("catalog_hits", [])
+    counterfeit_cross_check = recognition.get("counterfeit_cross_check", {})
+    reference_library = recognition.get("reference_library", {})
+    related_report = recognition.get("related_report", {})
+    decision_basis = related_report.get("decision_basis", {})
+    recognition_rows = (
+        "".join(
+            "<tr>"
+            f"<td>{esc(item.get('artifact_id'))}</td>"
+            f"<td>{esc(item.get('metadata', {}).get('display_name') or '—')}</td>"
+            f"<td>{esc(round(float(item.get('score', 0)), 4))}</td>"
+            f"<td>{esc(round(float(item.get('coverage', 0)), 4))}</td>"
+            f"<td>{esc(len(item.get('matched_views', [])))}</td>"
+            "</tr>"
+            for item in catalog_hits[:5]
+        )
+        or '<tr><td colspan="5">尚无目录检索候选</td></tr>'
+    )
+    counterfeit_rows = (
+        "".join(
+            "<tr>"
+            f"<td>{esc(item.get('artifact_id'))}</td>"
+            f"<td>{esc(item.get('metadata', {}).get('display_name') or '—')}</td>"
+            f"<td>{esc(round(float(item.get('score', 0)), 4))}</td>"
+            f"<td>{esc(item.get('metadata', {}).get('expert_review', {}).get('review_id') or '—')}</td>"
+            f"<td>{esc(item.get('metadata', {}).get('expert_review', {}).get('dispute_status') or '—')}</td>"
+            "</tr>"
+            for item in counterfeit_cross_check.get("candidates", [])[:5]
+        )
+        or '<tr><td colspan="5">未列出负向参考候选</td></tr>'
+    )
+    shared_rows = (
+        "".join(
+            f"<li>{esc(item.get('text'))} <small>[{esc(item.get('claim_scope'))}]</small></li>"
+            for item in related_report.get("shared_observations", [])[:8]
+        )
+        or "<li>尚无可复核的相关性观察</li>"
+    )
+    difference_rows = (
+        "".join(
+            f"<li>{esc(item.get('text'))} <small>[{esc(item.get('claim_scope'))}]</small></li>"
+            for item in related_report.get("differences", [])[:6]
+        )
+        or "<li>尚无直接测得的差异</li>"
+    )
+    uncertainty_rows = (
+        "".join(
+            f"<li>{esc(item.get('text'))}</li>"
+            for item in related_report.get("uncertainties", [])[:8]
+        )
+        or "<li>尚无结构化不确定性说明</li>"
+    )
+    recapture_rows = (
+        "".join(
+            "<tr>"
+            f"<td>{esc(item.get('view_label_zh') or item.get('view_code'))}</td>"
+            f"<td>{esc(item.get('priority'))}</td>"
+            f"<td>{esc(item.get('reason'))}</td>"
+            "</tr>"
+            for item in related_report.get("recommended_recaptures", [])[:8]
+        )
+        or '<tr><td colspan="3">当前没有额外补拍建议</td></tr>'
+    )
+    source_rows = (
+        "".join(
+            "<tr>"
+            f"<td>{esc(item.get('citation_id'))}</td>"
+            f"<td>{esc(item.get('institution') or '—')}</td>"
+            f"<td>{esc(item.get('accession_number') or '—')}</td>"
+            f"<td>{esc(item.get('record_locator') or '—')}</td>"
+            f"<td>{esc(item.get('expert_review', {}).get('review_id') or '—')}</td>"
+            f"<td>{esc(item.get('rights', {}).get('license_identifier') or '—')}</td>"
+            "</tr>"
+            for item in related_report.get("source_citations", [])[:10]
+        )
+        or '<tr><td colspan="6">尚无可列出的来源引用</td></tr>'
+    )
+    recognition_block = (
+        f"""
+<h2>本地参考目录识别</h2>
+<p><strong>运行：</strong>{esc(recognition.get('recognition_run_id'))}；
+<strong>状态：</strong>{esc(recognition.get('decision_status'))}；
+<strong>真伪状态：</strong>{esc(report.get('authenticity_state', 'NOT_ASSESSED'))}</p>
+<p><strong>同件候选：</strong>{esc(same_artifact.get('artifact_id') or '未接受')}；
+检索相似度：{esc(same_artifact.get('score'))}；
+Top-2 间隔：{esc(same_artifact.get('runner_up_margin'))}</p>
+<p><strong>目录：</strong>{esc(reference_library.get('library_id'))} /
+{esc(reference_library.get('library_version'))}；校准：
+{esc(reference_library.get('calibration_record_sha256') or '未就绪')}</p>
+<table><tr><th>目录 ID</th><th>名称</th><th>检索相似度</th>
+<th>视角覆盖</th><th>匹配视角数</th></tr>{recognition_rows}</table>
+<h3>负向参考交叉验证</h3><p><strong>状态：</strong>
+{esc(counterfeit_cross_check.get('status', 'NOT_RUN'))}；
+{esc(counterfeit_cross_check.get('interpretation') or '负向参考交叉验证未运行。')}</p>
+<table><tr><th>记录 ID</th><th>名称</th><th>检索相似度</th>
+<th>审核记录</th><th>争议状态</th></tr>{counterfeit_rows}</table>
+<h3>相关性解释与边界</h3>
+<p><strong>决策依据：</strong>{esc(decision_basis.get('summary') or '尚未生成结构化解释')}</p>
+<h4>观察依据</h4><ul>{shared_rows}</ul>
+<h4>差异与未测项</h4><ul>{difference_rows}</ul>
+<h4>不确定性</h4><ul>{uncertainty_rows}</ul>
+<h4>建议补拍</h4><table><tr><th>视角</th><th>优先级</th><th>原因</th></tr>{recapture_rows}</table>
+<h4>参考来源</h4><table><tr><th>引用 ID</th><th>机构</th><th>馆藏号</th>
+<th>记录位置</th><th>审核记录</th><th>许可</th></tr>{source_rows}</table>
+<p><strong>结果快照：</strong><code>
+{esc(recognition.get('result_snapshot_sha256'))}</code></p>
+<p>{esc(recognition.get('limitation') or reference_library.get('boundary') or SCIENTIFIC_BOUNDARY)}</p>
+        """
+        if recognition
+        else "<h2>本地参考目录识别</h2><p>尚未运行目录识别；真伪状态：NOT_ASSESSED。</p>"
+    )
     return f"""<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><title>{esc(report["report_id"])}</title>
 <style>
@@ -307,6 +432,7 @@ code{{font-size:11px;word-break:break-all}} .hash{{word-break:break-all;backgrou
 <p><strong>数据来源：</strong>{esc(report.get("source_category"))}</p>
 <h2>器物与送检声明</h2><p>{esc(report["artifact"]["name"])}</p><pre>{esc(canonical_json(report["claim"]))}</pre>
 <h2>科学状态</h2><p>声明一致性：<strong>{esc(report["claim_consistency"])}</strong>；不确定度：{esc(report["uncertainty"])}</p>
+<p>真伪状态：<strong>{esc(report.get("authenticity_state", "NOT_ASSESSED"))}</strong></p>
 <p>{esc(report["conclusion_boundary"])}</p>
 <h2>原始文件</h2><table><tr><th>文件</th><th>模态</th><th>区域</th><th>SHA-256</th></tr>{file_rows}</table>
 <h2>图像质量与视觉指纹</h2><table><tr><th>分析</th><th>模态 / 区域</th><th>质量通过</th><th>失败项</th><th>指纹</th></tr>{image_rows}</table>
@@ -314,6 +440,7 @@ code{{font-size:11px;word-break:break-all}} .hash{{word-break:break-all;backgrou
 <h2>原生视频模型观察</h2><table><tr><th>分析</th><th>模型</th><th>状态</th><th>服务端媒体校验</th><th>可见观察</th><th>跨视角观察</th><th>限制</th></tr>{native_video_rows}</table>
 <p>{esc(report.get("media_summary", {}).get("boundary"))}</p>
 <h2>同区域图像变化候选比较</h2><table><tr><th>比较</th><th>基线</th><th>复拍</th><th>状态</th><th>特征距离</th></tr>{comparison_rows}</table>
+{recognition_block}
 <h2>模型运行追溯</h2><table><tr><th>运行</th><th>节点</th><th>角色</th><th>模型</th><th>状态</th><th>输入 / 输出哈希</th></tr>{model_rows}</table>
 <h2>主动检测记录</h2><table><tr><th>动作</th><th>质量通过</th><th>不确定度</th><th>来源</th></tr>{execution_rows}</table>
 <h2>区域风险账本</h2><table><tr><th>区域</th><th>通道</th><th>实耗</th><th>预留</th><th>上限</th></tr>{risk_rows}</table>

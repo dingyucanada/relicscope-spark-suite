@@ -1,0 +1,49 @@
+ARG EMBEDDING_BASE_IMAGE=vllm/vllm-openai:v0.20.0
+FROM ${EMBEDDING_BASE_IMAGE}
+
+ARG PYPI_INDEX_URL=https://pypi.org/simple
+ARG RELICSCOPE_GIT_COMMIT=unknown
+ARG EMBEDDING_UID=10002
+ARG EMBEDDING_GID=10002
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1 \
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    DO_NOT_TRACK=1
+
+RUN test "${EMBEDDING_UID}" -gt 0 && test "${EMBEDDING_GID}" -gt 0 \
+    && groupadd --gid "${EMBEDDING_GID}" relicscope-embedding \
+    && useradd --uid "${EMBEDDING_UID}" --gid "${EMBEDDING_GID}" \
+       --home-dir /home/relicscope-embedding --create-home \
+       --shell /usr/sbin/nologin relicscope-embedding \
+    && install -d -o "${EMBEDDING_UID}" -g "${EMBEDDING_GID}" -m 0750 \
+       /opt/relicscope /models/huggingface
+
+COPY requirements-embedding.lock /opt/relicscope/requirements-embedding.lock
+RUN python3 -m pip install \
+      --index-url "${PYPI_INDEX_URL}" \
+      --no-cache-dir \
+      --requirement /opt/relicscope/requirements-embedding.lock \
+    && python3 -m pip check
+
+COPY --chown=${EMBEDDING_UID}:${EMBEDDING_GID} embedding_server /opt/relicscope/embedding_server
+
+WORKDIR /opt/relicscope
+
+LABEL ai.relicscope.runtime="qwen3-vl-reference-embedding" \
+      ai.relicscope.architecture="linux-arm64" \
+      ai.relicscope.network="private-compose-only" \
+      ai.relicscope.run-as="non-root" \
+      org.opencontainers.image.revision="${RELICSCOPE_GIT_COMMIT}"
+
+ENV HOME=/home/relicscope-embedding \
+    HF_HOME=/models/huggingface
+
+USER ${EMBEDDING_UID}:${EMBEDDING_GID}
+
+ENTRYPOINT ["python3", "-m", "uvicorn"]
+CMD ["embedding_server.main:app", "--host", "0.0.0.0", "--port", "8010", "--no-access-log"]

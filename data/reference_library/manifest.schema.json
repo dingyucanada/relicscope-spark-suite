@@ -1,0 +1,437 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://relicscope.local/schemas/reference-library-manifest-v1.json",
+  "title": "RelicScope controlled ceramic reference-library manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "library_id",
+    "version",
+    "created_at",
+    "data_classification",
+    "expected_reference_artifact_count",
+    "minimum_counterfeit_record_count",
+    "minimum_images_per_artifact",
+    "content_set_sha256",
+    "manifest_sha256",
+    "reference_artifacts",
+    "counterfeit_records"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "relicscope-reference-library-manifest-v1"
+    },
+    "library_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "$ref": "#/$defs/dateTime"
+    },
+    "data_classification": {
+      "const": "CONTROLLED_REAL_ARTIFACT_DATA"
+    },
+    "expected_reference_artifact_count": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 50
+    },
+    "minimum_counterfeit_record_count": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 10
+    },
+    "minimum_images_per_artifact": {
+      "type": "integer",
+      "minimum": 5,
+      "default": 5
+    },
+    "content_set_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "manifest_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "reference_artifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/authenticArtifact"
+      }
+    },
+    "counterfeit_records": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/counterfeitArtifact"
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{2,127}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "dateTime": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
+    },
+    "catalogueMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "culture_or_period",
+        "maker_or_kiln",
+        "material",
+        "technique",
+        "dimensions",
+        "description"
+      ],
+      "properties": {
+        "culture_or_period": {"type": "string", "minLength": 1},
+        "maker_or_kiln": {"type": "string", "minLength": 1},
+        "material": {"type": "string", "minLength": 1},
+        "technique": {"type": "string", "minLength": 1},
+        "dimensions": {"type": "string", "minLength": 1},
+        "description": {"type": "string", "minLength": 1}
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_type",
+        "institution",
+        "collection_name",
+        "accession_number",
+        "record_locator",
+        "evidence_path",
+        "evidence_sha256",
+        "retrieved_at"
+      ],
+      "properties": {
+        "source_type": {
+          "enum": [
+            "MUSEUM_COLLECTION",
+            "INSTITUTIONAL_COLLECTION",
+            "PRIVATE_COLLECTION",
+            "LAW_ENFORCEMENT_REFERENCE",
+            "EXPERT_STUDY_COLLECTION"
+          ]
+        },
+        "institution": {"type": "string", "minLength": 1},
+        "collection_name": {"type": "string", "minLength": 1},
+        "accession_number": {"type": "string", "minLength": 1},
+        "record_locator": {"type": "string", "minLength": 1},
+        "evidence_path": {"$ref": "#/$defs/relativePath"},
+        "evidence_sha256": {"$ref": "#/$defs/sha256"},
+        "retrieved_at": {"$ref": "#/$defs/dateTime"}
+      }
+    },
+    "rights": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rights_holder",
+        "license_identifier",
+        "license_statement",
+        "allowed_uses",
+        "attribution_required",
+        "attribution_text",
+        "valid_from",
+        "valid_until"
+      ],
+      "properties": {
+        "rights_holder": {"type": "string", "minLength": 1},
+        "license_identifier": {"type": "string", "minLength": 1},
+        "license_statement": {"type": "string", "minLength": 1},
+        "allowed_uses": {
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 2,
+          "items": {
+            "enum": [
+              "LOCAL_DEMO",
+              "LOCAL_RETRIEVAL",
+              "MODEL_EVALUATION",
+              "MODEL_TRAINING"
+            ]
+          },
+          "allOf": [
+            {"contains": {"const": "LOCAL_DEMO"}},
+            {"contains": {"const": "LOCAL_RETRIEVAL"}}
+          ]
+        },
+        "attribution_required": {"type": "boolean"},
+        "attribution_text": {"type": "string", "minLength": 1},
+        "valid_from": {"$ref": "#/$defs/date"},
+        "valid_until": {"$ref": "#/$defs/date"}
+      }
+    },
+    "expertReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "review_id",
+        "decision",
+        "reviewer_name",
+        "reviewer_credential",
+        "reviewer_institution",
+        "reviewed_at",
+        "signoff_statement",
+        "signature_type",
+        "dispute_status",
+        "admissible_uses",
+        "review_document_path",
+        "review_document_sha256"
+      ],
+      "properties": {
+        "review_id": {"$ref": "#/$defs/identifier"},
+        "decision": {"enum": ["AUTHENTIC", "COUNTERFEIT"]},
+        "reviewer_name": {"type": "string", "minLength": 1},
+        "reviewer_credential": {"type": "string", "minLength": 1},
+        "reviewer_institution": {"type": "string", "minLength": 1},
+        "reviewed_at": {"$ref": "#/$defs/dateTime"},
+        "signoff_statement": {"type": "string", "minLength": 1},
+        "signature_type": {
+          "enum": [
+            "DIGITAL_SIGNATURE",
+            "SIGNED_DOCUMENT",
+            "INSTITUTIONAL_APPROVAL"
+          ]
+        },
+        "dispute_status": {
+          "enum": ["NO_KNOWN_DISPUTE", "RESOLVED"]
+        },
+        "admissible_uses": {
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 1,
+          "items": {
+            "enum": [
+              "IDENTITY_MATCHING",
+              "SIMILARITY_CONTEXT",
+              "COUNTERFEIT_CROSS_VALIDATION"
+            ]
+          }
+        },
+        "review_document_path": {"$ref": "#/$defs/relativePath"},
+        "review_document_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "calibration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "device_id",
+        "profile_id",
+        "certificate_path",
+        "certificate_sha256",
+        "calibrated_at",
+        "valid_until",
+        "color_reference_id",
+        "scale_reference_id",
+        "lighting_setup"
+      ],
+      "properties": {
+        "device_id": {"type": "string", "minLength": 1},
+        "profile_id": {"type": "string", "minLength": 1},
+        "certificate_path": {"$ref": "#/$defs/relativePath"},
+        "certificate_sha256": {"$ref": "#/$defs/sha256"},
+        "calibrated_at": {"$ref": "#/$defs/dateTime"},
+        "valid_until": {"$ref": "#/$defs/dateTime"},
+        "color_reference_id": {"type": "string", "minLength": 1},
+        "scale_reference_id": {"type": "string", "minLength": 1},
+        "lighting_setup": {"type": "string", "minLength": 1}
+      }
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "image_id",
+        "path",
+        "sha256",
+        "mime_type",
+        "angle",
+        "captured_at",
+        "width",
+        "height",
+        "calibration"
+      ],
+      "properties": {
+        "image_id": {"$ref": "#/$defs/identifier"},
+        "path": {"$ref": "#/$defs/relativePath"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "mime_type": {"enum": ["image/jpeg", "image/png", "image/webp"]},
+        "angle": {
+          "enum": [
+            "FRONT",
+            "BACK",
+            "LEFT_PROFILE",
+            "RIGHT_PROFILE",
+            "TOP",
+            "BASE",
+            "INTERIOR",
+            "FRONT_LEFT_45",
+            "FRONT_RIGHT_45",
+            "BACK_LEFT_45",
+            "BACK_RIGHT_45",
+            "DETAIL",
+            "MARK",
+            "DAMAGE"
+          ]
+        },
+        "captured_at": {"$ref": "#/$defs/dateTime"},
+        "width": {"type": "integer", "minimum": 32},
+        "height": {"type": "integer", "minimum": 32},
+        "calibration": {"$ref": "#/$defs/calibration"}
+      }
+    },
+    "counterfeitProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "counterfeit_type",
+        "claimed_identity",
+        "comparison_artifact_ids",
+        "known_indicators",
+        "evidence_path",
+        "evidence_sha256"
+      ],
+      "properties": {
+        "counterfeit_type": {
+          "enum": [
+            "REPRODUCTION",
+            "FORGED_MARK",
+            "ARTIFICIALLY_AGED",
+            "COMPOSITE",
+            "MISATTRIBUTED",
+            "OTHER_DOCUMENTED_COUNTERFEIT"
+          ]
+        },
+        "claimed_identity": {"type": "string", "minLength": 1},
+        "comparison_artifact_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/identifier"}
+        },
+        "known_indicators": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "evidence_path": {"$ref": "#/$defs/relativePath"},
+        "evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "baseArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_id",
+        "physical_object_id",
+        "display_name",
+        "ceramic_class",
+        "authenticity_status",
+        "catalogue_metadata",
+        "source",
+        "rights",
+        "expert_review",
+        "counterfeit_profile",
+        "images",
+        "record_sha256"
+      ],
+      "properties": {
+        "artifact_id": {"$ref": "#/$defs/identifier"},
+        "physical_object_id": {"$ref": "#/$defs/identifier"},
+        "display_name": {"type": "string", "minLength": 1},
+        "ceramic_class": {
+          "enum": ["PORCELAIN", "STONEWARE", "EARTHENWARE", "OTHER_CERAMIC"]
+        },
+        "authenticity_status": {"enum": ["AUTHENTIC", "COUNTERFEIT"]},
+        "catalogue_metadata": {"$ref": "#/$defs/catalogueMetadata"},
+        "source": {"$ref": "#/$defs/source"},
+        "rights": {"$ref": "#/$defs/rights"},
+        "expert_review": {"$ref": "#/$defs/expertReview"},
+        "counterfeit_profile": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/counterfeitProfile"}
+          ]
+        },
+        "images": {
+          "type": "array",
+          "minItems": 5,
+          "items": {"$ref": "#/$defs/image"}
+        },
+        "record_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "authenticArtifact": {
+      "allOf": [
+        {"$ref": "#/$defs/baseArtifact"},
+        {
+          "properties": {
+            "authenticity_status": {"const": "AUTHENTIC"},
+            "counterfeit_profile": {"type": "null"},
+            "expert_review": {
+              "allOf": [
+                {"$ref": "#/$defs/expertReview"},
+                {
+                  "properties": {
+                    "decision": {"const": "AUTHENTIC"},
+                    "admissible_uses": {
+                      "contains": {"const": "IDENTITY_MATCHING"}
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "counterfeitArtifact": {
+      "allOf": [
+        {"$ref": "#/$defs/baseArtifact"},
+        {
+          "properties": {
+            "authenticity_status": {"const": "COUNTERFEIT"},
+            "counterfeit_profile": {"$ref": "#/$defs/counterfeitProfile"},
+            "expert_review": {
+              "allOf": [
+                {"$ref": "#/$defs/expertReview"},
+                {
+                  "properties": {
+                    "decision": {"const": "COUNTERFEIT"},
+                    "admissible_uses": {
+                      "contains": {"const": "COUNTERFEIT_CROSS_VALIDATION"}
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -74,6 +74,15 @@ class Settings:
     compute_node_id: str
     model_profile: str
     knowledge_manifest_path: Path
+    reference_library_enabled: bool
+    reference_library_dir: Path
+    reference_library_manifest_path: Path
+    reference_library_index_path: Path
+    reference_library_vector_index_path: Path
+    reference_library_calibration_path: Path
+    reference_library_min_artifacts: int
+    reference_library_min_views: int
+    counterfeit_library_min_records: int
     vision_base_url: str
     vision_api_key: str
     vision_model_source: str
@@ -82,6 +91,12 @@ class Settings:
     embedding_base_url: str
     embedding_api_key: str
     embedding_model: str
+    reference_embedding_base_url: str
+    reference_embedding_api_key: str
+    reference_embedding_model: str
+    reference_embedding_model_source: str
+    reference_embedding_model_revision: str
+    reference_embedding_dimension: int
     reasoner_base_url: str
     reasoner_api_key: str
     reasoner_model: str
@@ -108,6 +123,12 @@ class Settings:
                 str(min(max_upload_bytes, 2 * 1024 * 1024)),
             )
         )
+        reference_library_dir = Path(
+            os.getenv(
+                "RELICSCOPE_REFERENCE_LIBRARY_DIR",
+                data_dir / "reference-library",
+            )
+        ).expanduser()
         return cls(
             project_root=project_root,
             data_dir=data_dir,
@@ -142,6 +163,43 @@ class Settings:
                     project_root / "data" / "knowledge_manifest.json",
                 )
             ).expanduser(),
+            reference_library_enabled=_env_bool(
+                "RELICSCOPE_REFERENCE_LIBRARY_ENABLED", False
+            ),
+            reference_library_dir=reference_library_dir,
+            reference_library_manifest_path=Path(
+                os.getenv(
+                    "RELICSCOPE_REFERENCE_LIBRARY_MANIFEST",
+                    reference_library_dir / "manifest.json",
+                )
+            ).expanduser(),
+            reference_library_index_path=Path(
+                os.getenv(
+                    "RELICSCOPE_REFERENCE_LIBRARY_INDEX",
+                    reference_library_dir / "index.sqlite3",
+                )
+            ).expanduser(),
+            reference_library_vector_index_path=Path(
+                os.getenv(
+                    "RELICSCOPE_REFERENCE_LIBRARY_VECTOR_INDEX",
+                    reference_library_dir / "embeddings.npz",
+                )
+            ).expanduser(),
+            reference_library_calibration_path=Path(
+                os.getenv(
+                    "RELICSCOPE_REFERENCE_LIBRARY_CALIBRATION",
+                    reference_library_dir / "calibration.json",
+                )
+            ).expanduser(),
+            reference_library_min_artifacts=int(
+                os.getenv("RELICSCOPE_REFERENCE_LIBRARY_MIN_ARTIFACTS", "50")
+            ),
+            reference_library_min_views=int(
+                os.getenv("RELICSCOPE_REFERENCE_LIBRARY_MIN_VIEWS", "5")
+            ),
+            counterfeit_library_min_records=int(
+                os.getenv("RELICSCOPE_COUNTERFEIT_LIBRARY_MIN_RECORDS", "10")
+            ),
             vision_base_url=os.getenv("VISION_BASE_URL", "").rstrip("/"),
             vision_api_key=os.getenv("VISION_API_KEY", ""),
             vision_model_source=os.getenv(
@@ -152,6 +210,26 @@ class Settings:
             embedding_base_url=os.getenv("EMBEDDING_BASE_URL", "").rstrip("/"),
             embedding_api_key=os.getenv("EMBEDDING_API_KEY", ""),
             embedding_model=os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3"),
+            reference_embedding_base_url=os.getenv(
+                "REFERENCE_EMBEDDING_BASE_URL", ""
+            ).rstrip("/"),
+            reference_embedding_api_key=os.getenv(
+                "REFERENCE_EMBEDDING_API_KEY",
+                os.getenv("EMBEDDING_API_KEY", ""),
+            ),
+            reference_embedding_model=os.getenv(
+                "REFERENCE_EMBEDDING_MODEL", "qwen3_vl_embedding_2b"
+            ),
+            reference_embedding_model_source=os.getenv(
+                "REFERENCE_EMBEDDING_MODEL_SOURCE",
+                "Qwen/Qwen3-VL-Embedding-2B",
+            ),
+            reference_embedding_model_revision=os.getenv(
+                "REFERENCE_EMBEDDING_MODEL_REVISION", "unknown"
+            ),
+            reference_embedding_dimension=int(
+                os.getenv("REFERENCE_EMBEDDING_DIMENSION", "2048")
+            ),
             reasoner_base_url=os.getenv("REASONER_BASE_URL", "").rstrip("/"),
             reasoner_api_key=os.getenv("REASONER_API_KEY", ""),
             reasoner_model=os.getenv("REASONER_MODEL", "qwen3_vl_30b_a3b"),
@@ -165,6 +243,7 @@ class Settings:
     def ensure_runtime_dirs(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.upload_dir.mkdir(parents=True, exist_ok=True)
+        self.reference_library_dir.mkdir(parents=True, exist_ok=True)
 
     def validate_runtime(self) -> None:
         if self.runtime_mode not in {
@@ -187,9 +266,18 @@ class Settings:
             raise ValueError("video frame limit must be between 3 and 24")
         if not 1 <= self.model_max_concurrency <= 8:
             raise ValueError("model concurrency must be between 1 and 8")
+        if not 1 <= self.reference_library_min_artifacts <= 100_000:
+            raise ValueError("reference library artifact minimum is invalid")
+        if not 3 <= self.reference_library_min_views <= 32:
+            raise ValueError("reference library view minimum must be between 3 and 32")
+        if not 0 <= self.counterfeit_library_min_records <= 100_000:
+            raise ValueError("counterfeit library record minimum is invalid")
+        if not 64 <= self.reference_embedding_dimension <= 8192:
+            raise ValueError("reference embedding dimension is outside the safe range")
         endpoints = {
             "VISION_BASE_URL": self.vision_base_url,
             "EMBEDDING_BASE_URL": self.embedding_base_url,
+            "REFERENCE_EMBEDDING_BASE_URL": self.reference_embedding_base_url,
             "REASONER_BASE_URL": self.reasoner_base_url,
         }
         if self.require_private_endpoints:
@@ -206,6 +294,10 @@ class Settings:
         endpoint_credentials = {
             "VISION_API_KEY": (self.vision_base_url, self.vision_api_key),
             "EMBEDDING_API_KEY": (self.embedding_base_url, self.embedding_api_key),
+            "REFERENCE_EMBEDDING_API_KEY": (
+                self.reference_embedding_base_url,
+                self.reference_embedding_api_key,
+            ),
             "REASONER_API_KEY": (self.reasoner_base_url, self.reasoner_api_key),
         }
         missing_credentials = [

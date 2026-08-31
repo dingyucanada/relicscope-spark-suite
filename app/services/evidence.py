@@ -16,6 +16,7 @@ NODE_COLORS = {
     "report": "#26384d",
     "reference": "#6f7f8e",
     "model_run": "#735d8c",
+    "interpretation": "#4f7188",
 }
 
 ALLOWED_RELATIONS = {
@@ -26,6 +27,7 @@ ALLOWED_RELATIONS = {
     "derived_from",
     "supports",
     "conflicts_with",
+    "cross_checks",
     "uncertain",
     "escalates",
     "not_admitted",

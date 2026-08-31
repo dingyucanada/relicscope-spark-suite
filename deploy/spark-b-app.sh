@@ -107,6 +107,13 @@ if [[ "$MODE" == "single" ]]; then
   export SINGLE_VISION_BASE_URL=http://vision:8000/v1
   export SINGLE_REASONER_BASE_URL=http://vision:8000/v1
   export REASONER_MODEL="$VISION_MODEL"
+  export RELICSCOPE_REFERENCE_LIBRARY_ENABLED="$(cfg RELICSCOPE_REFERENCE_LIBRARY_ENABLED true)"
+  export REFERENCE_EMBEDDING_MODEL_SOURCE="$(cfg REFERENCE_EMBEDDING_MODEL_SOURCE Qwen/Qwen3-VL-Embedding-2B)"
+  export REFERENCE_EMBEDDING_MODEL="$(cfg REFERENCE_EMBEDDING_MODEL qwen3_vl_embedding_2b)"
+  export REFERENCE_EMBEDDING_MODEL_REVISION="$(cached_model_revision "$REFERENCE_EMBEDDING_MODEL_SOURCE")"
+  [[ "$REFERENCE_EMBEDDING_MODEL_REVISION" =~ ^([0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$ ]] \
+    || die "reference embedding model revision must be an immutable 40- or 64-hex commit"
+  export REFERENCE_EMBEDDING_DIMENSION="$(cfg REFERENCE_EMBEDDING_DIMENSION 2048)"
 else
   compose_file="compose.yml"
   preflight_role="spark-b"
@@ -118,6 +125,7 @@ fi
 
 preflight_args=(--role "$preflight_role")
 [[ "$WITH_VISION" == "1" ]] && preflight_args+=(--require-vision)
+[[ "$MODE" == "single" ]] && preflight_args+=(--require-reference-embedding)
 [[ "$WITH_REASONER" == "1" ]] && preflight_args+=(--require-reasoner)
 "${SCRIPT_DIR}/preflight.sh" "${preflight_args[@]}"
 
@@ -125,7 +133,7 @@ cd "$PROJECT_DIR"
 compose_args=(--env-file "$ENV_FILE" -f "$compose_file")
 services=(app)
 if [[ "$MODE" == "single" ]]; then
-  services=(vision app)
+  services=(vision reference-embedding app)
 elif [[ "$WITH_REASONER" == "1" ]]; then
   compose_args+=(--profile reasoner)
   services+=(reasoner)
@@ -141,5 +149,7 @@ printf '%s\n' 'Browser traffic uses this single entry; model ports are not brows
 if [[ "$MODE" == "single" ]]; then
   printf 'Single-Spark model profile: %s (%s@%s; served=%s)\n' \
     "$MODEL_PROFILE" "$VISION_MODEL_SOURCE" "$VISION_MODEL_REVISION" "$VISION_MODEL"
-  printf '%s\n' 'The same endpoint performs multimodal observation and constrained report summarization.'
+  printf 'Reference embedding: %s@%s (served=%s; private sidecar)\n' \
+    "$REFERENCE_EMBEDDING_MODEL_SOURCE" "$REFERENCE_EMBEDDING_MODEL_REVISION" "$REFERENCE_EMBEDDING_MODEL"
+  printf '%s\n' 'The shared VLM performs observation/report summarization; the separate 2B sidecar performs only catalog retrieval embeddings.'
 fi

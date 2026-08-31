@@ -19,6 +19,7 @@ from .schemas import (
     ImageAnalyzeRequest,
     ImageCompareRequest,
     KnowledgeSearchRequest,
+    ReferenceRecognitionRequest,
     VideoFramesAnalyzeRequest,
 )
 from .services.active_sensing import (
@@ -38,9 +39,20 @@ from .services.evidence import (
     evidence_graph_sha256,
 )
 from .services.image_analysis import analyze_image, decode_image
+from .services.image_embedding import EmbeddingImage, LocalImageEmbeddingClient
 from .services.instruments import ReplayInstrumentAdapter
 from .services.knowledge import KnowledgeBase, KnowledgePolicyError
 from .services.reporting import build_report, rehash_report, report_to_html
+from .services.reference_recognition import (
+    REFERENCE_RECOGNITION_RESULT_SCHEMA_VERSION,
+    ReferenceRecognitionService,
+)
+from .services.reference_explanation import explain_reference_result
+from .services.reference_quality import (
+    REFERENCE_QUALITY_ALGORITHM_ID,
+    ReferenceQualityError,
+    assess_reference_quality,
+)
 from .services.runtime import runtime_snapshot
 from .services.video_analysis import (
     VIDEO_EXTENSIONS,
@@ -113,6 +125,7 @@ class RelicScopeService:
         vision_client: Optional[OpenAICompatibleClient] = None,
         reasoner_client: Optional[OpenAICompatibleClient] = None,
         instrument_adapter: Optional[ReplayInstrumentAdapter] = None,
+        reference_recognition: Optional[ReferenceRecognitionService] = None,
     ) -> None:
         self.settings = settings
         self.store = store
@@ -147,6 +160,28 @@ class RelicScopeService:
         )
         self.model_semaphore = asyncio.Semaphore(settings.model_max_concurrency)
         self.instrument_adapter = instrument_adapter or ReplayInstrumentAdapter()
+        if reference_recognition is not None:
+            self.reference_recognition = reference_recognition
+        else:
+            reference_embedding_client = LocalImageEmbeddingClient(
+                base_url=settings.reference_embedding_base_url,
+                api_key=settings.reference_embedding_api_key,
+                model=settings.reference_embedding_model,
+                model_source=settings.reference_embedding_model_source,
+                model_revision=settings.reference_embedding_model_revision,
+                expected_dimension=settings.reference_embedding_dimension,
+                timeout_seconds=max(settings.model_timeout_seconds, 180.0),
+            )
+            self.reference_recognition = ReferenceRecognitionService(
+                enabled=settings.reference_library_enabled,
+                metadata_index_path=settings.reference_library_index_path,
+                vector_index_path=settings.reference_library_vector_index_path,
+                calibration_path=settings.reference_library_calibration_path,
+                embedding_client=reference_embedding_client,
+                minimum_reference_artifacts=settings.reference_library_min_artifacts,
+                minimum_views_per_artifact=settings.reference_library_min_views,
+                minimum_counterfeit_records=settings.counterfeit_library_min_records,
+            )
 
     @staticmethod
     def provenance_summary(state: Dict[str, Any]) -> Dict[str, Any]:
@@ -379,6 +414,7 @@ class RelicScopeService:
             "next_step": "上传器物图像或规划下一检测",
             "uncertainty": 0.85,
             "claim_consistency": "EVIDENCE_INSUFFICIENT",
+            "authenticity_state": "NOT_ASSESSED",
             "demo_data": True,
             "source_category": "DEMO/SYNTHETIC",
             "disclaimer": "DEMO/SYNTHETIC；仅验证科学工作流，不构成真实鉴定结论。",
@@ -394,6 +430,8 @@ class RelicScopeService:
             "raw_files": [],
             "image_analyses": [],
             "image_comparisons": [],
+            "reference_recognitions": [],
+            "latest_reference_recognition": None,
             "videos": [],
             "video_analyses": [],
             "native_video_analyses": [],
@@ -626,6 +664,7 @@ class RelicScopeService:
             "file_id": file_id,
             "region_id": request.region_id,
             "modality": request.modality,
+            "view_code": request.view_code,
             "source_category": "DERIVED_MEASUREMENT",
             "quality": analysis["quality_gate"],
             "metrics": analysis["metrics"],
@@ -643,6 +682,7 @@ class RelicScopeService:
             "byte_length": len(raw_bytes),
             "modality": request.modality,
             "region_id": request.region_id,
+            "view_code": request.view_code,
             "received_at": utc_now(),
             "source_category": "USER_UPLOAD",
             "media_kind": "IMAGE",
@@ -735,6 +775,7 @@ class RelicScopeService:
                 "mime_type": decoded.detected_mime,
                 "modality": request.modality,
                 "region_id": request.region_id,
+                "view_code": request.view_code,
                 "quality_gate": analysis["quality_gate"],
                 "model_run": {
                     key: value for key, value in model_run.items() if key != "output"
@@ -747,6 +788,344 @@ class RelicScopeService:
         except Exception:
             stored_path.unlink(missing_ok=True)
             raise
+        return self.envelope(session_id)
+
+    async def recognize_reference(
+        self, session_id: str, request: ReferenceRecognitionRequest
+    ) -> Dict[str, Any]:
+        """Run image-only, open-set reference retrieval over selected uploads."""
+
+        state = self.store.get_session(session_id)
+        analyses = {item["id"]: item for item in state.get("image_analyses", [])}
+        missing = [
+            analysis_id
+            for analysis_id in request.image_analysis_ids
+            if analysis_id not in analyses
+        ]
+        if missing:
+            raise ValueError("unknown image analysis identifier")
+        selected = [analyses[analysis_id] for analysis_id in request.image_analysis_ids]
+        if any(item.get("modality") != "RGB" for item in selected):
+            raise ValueError("reference recognition currently accepts RGB captures only")
+
+        file_records = {
+            str(item["id"]): item for item in self.store.list_raw_files(session_id)
+        }
+        upload_root = self.settings.upload_dir.resolve()
+        embedding_images: List[EmbeddingImage] = []
+        input_hashes: List[str] = []
+        view_codes: List[Optional[str]] = []
+        qualities: List[float] = []
+        for analysis in selected:
+            file_id = str(analysis["file_id"])
+            file_record = file_records.get(file_id)
+            if file_record is None:
+                raise ValueError("selected image file record is unavailable")
+            path = Path(str(file_record["path"])).resolve()
+            try:
+                path.relative_to(upload_root)
+            except ValueError as exc:
+                raise ValueError("selected image path is outside the upload root") from exc
+            if not path.is_file() or path.is_symlink():
+                raise ValueError("selected image file is unavailable")
+            content = path.read_bytes()
+            actual_hash = hashlib.sha256(content).hexdigest()
+            if actual_hash != str(file_record["sha256"]):
+                raise ValueError("selected image file failed integrity verification")
+            embedding_images.append(
+                EmbeddingImage(
+                    content=content,
+                    mime_type=str(file_record["mime_type"]),
+                    sha256=actual_hash,
+                )
+            )
+            input_hashes.append(actual_hash)
+            view_code = str(analysis.get("view_code") or "UNSPECIFIED")
+            view_codes.append(None if view_code == "UNSPECIFIED" else view_code)
+            quality_gate = analysis.get("quality", {})
+            try:
+                quality = assess_reference_quality(quality_gate)
+            except ReferenceQualityError as exc:
+                raise ValueError(
+                    "selected image quality envelope is invalid"
+                ) from exc
+            qualities.append(quality.score)
+
+        if len(input_hashes) != len(set(input_hashes)):
+            raise ValueError(
+                "reference recognition requires distinct uploaded image bytes"
+            )
+        specified_view_codes = [value for value in view_codes if value is not None]
+        if len(specified_view_codes) != len(set(specified_view_codes)):
+            raise ValueError(
+                "reference recognition requires distinct declared viewpoints"
+            )
+
+        recognition_id = f"REC-{uuid4().hex[:16].upper()}"
+        started_at = utc_now()
+        async with self.model_semaphore:
+            result = await self.reference_recognition.recognize(
+                embedding_images,
+                view_ids=request.image_analysis_ids,
+                qualities=qualities,
+                angles=view_codes,
+                top_k=request.top_k,
+            )
+        completed_at = utc_now()
+        result.setdefault(
+            "schema_version", REFERENCE_RECOGNITION_RESULT_SCHEMA_VERSION
+        )
+        result["query_views"] = [
+            {
+                "view_id": analysis_id,
+                "angle": view_code,
+                "quality": quality,
+                "input_sha256": input_sha,
+                "visible_observations": list(
+                    analysis.get("visible_observations", [])
+                ),
+            }
+            for analysis_id, view_code, quality, input_sha, analysis in zip(
+                request.image_analysis_ids,
+                [value or "UNSPECIFIED" for value in view_codes],
+                qualities,
+                input_hashes,
+                selected,
+                strict=True,
+            )
+        ]
+        result["query_view_count"] = len(request.image_analysis_ids)
+        result["related_report"] = explain_reference_result(result).to_dict()
+        result.update(
+            {
+                "recognition_run_id": recognition_id,
+                "started_at": started_at,
+                "completed_at": completed_at,
+                "image_analysis_ids": list(request.image_analysis_ids),
+                "input_sha256s": input_hashes,
+                "view_codes": [value or "UNSPECIFIED" for value in view_codes],
+                "quality_scores": qualities,
+                "quality_algorithm_id": REFERENCE_QUALITY_ALGORITHM_ID,
+            }
+        )
+        # Bind orchestration fields into the immutable snapshot without storing vectors.
+        snapshot = dict(result)
+        snapshot.pop("result_snapshot_sha256", None)
+        result["result_snapshot_sha256"] = _sha256_json(snapshot)
+        embedding_run = result.get("embedding_run", {})
+        model_run = {
+            "run_id": f"MRUN-{uuid4().hex[:16].upper()}",
+            "role": "reference_image_embedding",
+            "node_id": self.settings.node_id,
+            "model": embedding_run.get(
+                "model", self.settings.reference_embedding_model
+            ),
+            "model_source": embedding_run.get(
+                "model_source", self.settings.reference_embedding_model_source
+            ),
+            "model_revision": embedding_run.get(
+                "model_revision", self.settings.reference_embedding_model_revision
+            ),
+            "model_identity_verified": embedding_run.get(
+                "model_identity_verified", False
+            ),
+            "provider_request_id": embedding_run.get("request_id"),
+            "template_hash": embedding_run.get("instruction_sha256"),
+            "started_at": started_at,
+            "completed_at": completed_at,
+            "latency_ms": embedding_run.get("latency_ms", 0),
+            "status": (
+                "SUCCESS" if result.get("run_status") == "COMPLETED" else "DEGRADED"
+            ),
+            "mode": embedding_run.get("mode", "local_reference_retrieval"),
+            "input_refs": list(request.image_analysis_ids),
+            "input_hash": _sha256_json(input_hashes),
+            "output_hash": result["result_snapshot_sha256"],
+            "output_ref": recognition_id,
+            "error_category": (
+                None
+                if result.get("run_status") == "COMPLETED"
+                else result.get("decision_status")
+            ),
+            "reference_library_id": result.get("reference_library_id"),
+            "reference_manifest_sha256": result.get("catalog_manifest_sha256"),
+            "reference_index_sha256": result.get("index_sha256"),
+            "calibration_record_sha256": result.get(
+                "calibration_record_sha256"
+            ),
+            "quality_algorithm_id": REFERENCE_QUALITY_ALGORITHM_ID,
+        }
+
+        def updater(current: Dict[str, Any]):
+            current_analyses = {
+                item["id"]: item for item in current.get("image_analyses", [])
+            }
+            if any(item not in current_analyses for item in request.image_analysis_ids):
+                raise ValueError("selected image analysis changed during recognition")
+            current.setdefault("reference_recognitions", []).append(result)
+            current["latest_reference_recognition"] = result
+            current["authenticity_state"] = "NOT_ASSESSED"
+            current.setdefault("model_runs", []).append(model_run)
+            current["next_step"] = (
+                "使用现场独立复拍的新图重试"
+                if result.get("decision_status") == "EXACT_MEDIA_REPLAY"
+                else "补拍更多合格视角后重试"
+                if result.get("decision_status") == "INSUFFICIENT_CAPTURE"
+                else "复核目录证据并规划材料科学检测"
+            )
+            graph = current["evidence_graph"]
+            recognition_node = f"observation:{session_id}:{recognition_id}"
+            add_node(
+                graph,
+                recognition_node,
+                "本地参考目录多视角检索",
+                "observation",
+                str(result.get("decision_status", "EVIDENCE_INSUFFICIENT")),
+                {
+                    "result_snapshot_sha256": result["result_snapshot_sha256"],
+                    "decision_status": result.get("decision_status"),
+                    "authenticity_state": "NOT_ASSESSED",
+                    "library_manifest_sha256": result.get(
+                        "reference_library", {}
+                    ).get("manifest_sha256"),
+                    "reference_index_sha256": result.get("index_sha256"),
+                    "embedding_model_source": embedding_run.get("model_source"),
+                    "embedding_model_revision": embedding_run.get(
+                        "model_revision"
+                    ),
+                    "calibration_record_sha256": result.get(
+                        "calibration_record_sha256"
+                    ),
+                    "input_sha256s": input_hashes,
+                    "related_report_schema_version": result.get(
+                        "related_report", {}
+                    ).get("schema_version"),
+                },
+            )
+            for analysis in selected:
+                add_edge(
+                    graph,
+                    recognition_node,
+                    f"raw:{session_id}:{analysis['file_id']}",
+                    "derived_from",
+                )
+            model_node = f"model-run:{session_id}:{model_run['run_id']}"
+            add_node(
+                graph,
+                model_node,
+                "本地参考图像嵌入与检索",
+                "model_run",
+                "success" if model_run["status"] == "SUCCESS" else "degraded",
+                dict(model_run),
+            )
+            add_edge(graph, recognition_node, model_node, "produced_by")
+            for hit in result.get("catalog_hits", []):
+                reference_id = str(hit.get("artifact_id"))
+                metadata = hit.get("metadata", {})
+                manifest_prefix = str(
+                    result.get("reference_library", {}).get("manifest_sha256")
+                    or "unversioned"
+                )[:12]
+                node_id = f"reference:catalog:{manifest_prefix}:{reference_id}"
+                add_node(
+                    graph,
+                    node_id,
+                    str(metadata.get("display_name") or reference_id),
+                    "reference",
+                    "candidate",
+                    {
+                        "artifact_id": reference_id,
+                        "retrieval_similarity": hit.get("score"),
+                        "record_sha256": metadata.get("record_sha256"),
+                        "citation_id": metadata.get("citation_id"),
+                        "source_citation": metadata.get("source_citation"),
+                        "expert_review": metadata.get("expert_review"),
+                        "rights": metadata.get("rights"),
+                        "library_binding": metadata.get("library_binding"),
+                    },
+                )
+                add_edge(graph, recognition_node, node_id, "cites")
+            cross = result.get("counterfeit_cross_check", {})
+            strong_negative = cross.get("status") in {
+                "STRONG_SIGNAL",
+                "CONFLICT_REVIEW",
+            }
+            for hit in cross.get("candidates", [])[:3]:
+                reference_id = str(hit.get("artifact_id"))
+                metadata = hit.get("metadata", {})
+                manifest_prefix = str(
+                    result.get("reference_library", {}).get("manifest_sha256")
+                    or "unversioned"
+                )[:12]
+                node_id = f"reference:negative:{manifest_prefix}:{reference_id}"
+                add_node(
+                    graph,
+                    node_id,
+                    str(metadata.get("display_name") or reference_id),
+                    "reference",
+                    "counterevidence" if strong_negative else "cross_check",
+                    {
+                        "artifact_id": reference_id,
+                        "retrieval_similarity": hit.get("score"),
+                        "record_sha256": metadata.get("record_sha256"),
+                        "citation_id": metadata.get("citation_id"),
+                        "source_citation": metadata.get("source_citation"),
+                        "expert_review": metadata.get("expert_review"),
+                        "rights": metadata.get("rights"),
+                        "library_binding": metadata.get("library_binding"),
+                        "boundary": "cross-check signal; not a counterfeit conclusion",
+                    },
+                )
+                add_edge(
+                    graph,
+                    recognition_node,
+                    node_id,
+                    "conflicts_with" if strong_negative else "cross_checks",
+                )
+            explanation_node = f"interpretation:{session_id}:{recognition_id}"
+            add_node(
+                graph,
+                explanation_node,
+                "目录相关性结构化解释",
+                "interpretation",
+                str(result.get("decision_status", "EVIDENCE_INSUFFICIENT")),
+                {
+                    "schema_version": result.get("related_report", {}).get(
+                        "schema_version"
+                    ),
+                    "related_report_sha256": _sha256_json(
+                        result.get("related_report", {})
+                    ),
+                    "authenticity_state": "NOT_ASSESSED",
+                },
+            )
+            add_edge(graph, explanation_node, recognition_node, "derived_from")
+            return current, {
+                "recognition_run_id": recognition_id,
+                "decision_status": result.get("decision_status"),
+                "authenticity_state": "NOT_ASSESSED",
+                "image_analysis_ids": list(request.image_analysis_ids),
+                "input_sha256s": input_hashes,
+                "result_snapshot_sha256": result["result_snapshot_sha256"],
+                "related_report_sha256": _sha256_json(
+                    result.get("related_report", {})
+                ),
+                "reference_citation_ids": [
+                    item.get("citation_id")
+                    for item in result.get("related_report", {}).get(
+                        "source_citations", []
+                    )
+                    if item.get("citation_id")
+                ],
+                "reference_library": result.get("reference_library", {}),
+                "embedding_run": {
+                    key: value
+                    for key, value in embedding_run.items()
+                    if key != "vectors"
+                },
+            }
+
+        self.store.atomic_update(session_id, "REFERENCE_RECOGNITION_COMPLETED", updater)
         return self.envelope(session_id)
 
     def compare_images(
@@ -2113,11 +2492,13 @@ class RelicScopeService:
         return report_to_html(self.get_report(session_id))
 
     async def health(self) -> Dict[str, Any]:
-        vision, reasoner = await asyncio.gather(
+        vision, reasoner, reference_embedding = await asyncio.gather(
             self.vision_client.health("spark-a-vision"),
             self.reasoner_client.health("spark-b-reasoner"),
+            self.reference_recognition.embedding_client.health(),
         )
         knowledge = self.knowledge.health()
+        reference_library = self.reference_recognition.summary()
         dual_node = self.settings.runtime_mode == "dual-node"
         single_spark = self.settings.runtime_mode == "single-spark"
         actual_compute_node = (
@@ -2161,6 +2542,29 @@ class RelicScopeService:
                     else "optional-report-reasoner"
                 ),
                 "required": single_spark,
+            },
+            {
+                **reference_embedding,
+                "name": "reference-image-embedding",
+                "status": (
+                    "disabled"
+                    if not self.settings.reference_library_enabled
+                    else "online"
+                    if reference_embedding.get("status") == "online"
+                    and reference_library.get("readiness") == "READY"
+                    else "degraded"
+                ),
+                "detail": (
+                    "reference recognition disabled"
+                    if not self.settings.reference_library_enabled
+                    else (
+                        f"{reference_embedding.get('detail', '')}; "
+                        f"library={reference_library.get('readiness')}"
+                    )
+                ),
+                "node_id": self.settings.node_id,
+                "role": "instance-retrieval-embedding",
+                "required": self.settings.reference_library_enabled,
             },
             {
                 "name": "instrument-adapter",
@@ -2223,6 +2627,30 @@ class RelicScopeService:
                 "degraded_reason": (
                     None if vision["status"] == "online" else vision.get("detail")
                 ),
+            },
+            {
+                "id": "porcelain-reference-recognition",
+                "name": "50 件多视角目录识别与负向参考交叉验证",
+                "status": (
+                    "disabled"
+                    if not self.settings.reference_library_enabled
+                    else "online"
+                    if reference_library.get("readiness") == "READY"
+                    and reference_embedding.get("status") == "online"
+                    else "degraded"
+                ),
+                "execution_mode": "LOCAL_OPEN_SET_MULTI_VIEW_RETRIEVAL",
+                "node_id": self.settings.node_id,
+                "required": self.settings.reference_library_enabled,
+                "model": self.settings.reference_embedding_model,
+                "data_classification": "CONTROLLED_REFERENCE_DATA",
+                "degraded_reason": (
+                    None
+                    if reference_library.get("readiness") == "READY"
+                    and reference_embedding.get("status") == "online"
+                    else reference_library.get("detail")
+                ),
+                "authenticity_state": "NOT_ASSESSED",
             },
             {
                 "id": "p01-active-sensing",
@@ -2359,6 +2787,7 @@ class RelicScopeService:
                 ),
             },
             "knowledge_version": self.knowledge.version,
+            "reference_library": reference_library,
             "compute_runtime": compute_runtime,
             "components": components,
             "checked_at": utc_now(),
