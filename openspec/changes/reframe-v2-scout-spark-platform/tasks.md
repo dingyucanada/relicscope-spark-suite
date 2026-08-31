@@ -52,4 +52,4 @@
 - [x] Run the complete repository test and deployment policy suite.
 - [x] Run Android unit tests and lint in an Android SDK environment.
 - [ ] Run ten consecutive real jobs and concurrent-client tests on Spark.
-- [ ] Commit and publish the V2 branch after local verification.
+- [x] Commit and publish the V2 branch after local verification.
