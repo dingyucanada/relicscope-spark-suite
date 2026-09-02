@@ -6,10 +6,12 @@ import io
 import json
 import time
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
-from threading import Barrier
+from threading import Barrier, Lock, local
+from types import SimpleNamespace
 from uuid import uuid4
 
 import numpy as np
@@ -18,7 +20,7 @@ from PIL import Image
 
 from app.scout.auth import hash_device_token, verify_device_token
 from app.scout.schemas import ScoutJobMetadata
-from app.scout.service import IncomingCapture
+from app.scout.service import IncomingCapture, ScoutStorageReserveError
 from app.scout.store import ScoutCapacityError, ScoutConflict
 from app.scout_main import ScoutPreAuthMiddleware, create_scout_app
 from app.services.image_analysis import decode_image
@@ -894,6 +896,145 @@ def test_concurrent_same_hash_ingest_cannot_delete_accepted_job_media(
     media_path = Path(captures[0]["path"])
     assert media_path.is_file()
     assert hashlib.sha256(media_path.read_bytes()).hexdigest() == captures[0]["sha256"]
+
+
+def test_concurrent_ingests_cannot_jointly_consume_storage_reserve(
+    app_settings, tmp_path, monkeypatch
+):
+    reserve = 64 * 1024**2
+    first_bytes = _image_bytes(121)
+    second_bytes = _image_bytes(122)
+    simulated = {
+        "free": reserve + max(len(first_bytes), len(second_bytes)) + 1,
+    }
+    state_lock = Lock()
+    pre_lock_reads = Barrier(2)
+    lock_state = local()
+    settings = replace(
+        app_settings,
+        scout_enabled=True,
+        scout_require_auth=True,
+        scout_media_dir=tmp_path / "runtime" / "scout-media",
+        scout_min_free_bytes=reserve,
+        scout_max_outstanding_jobs_per_device=4,
+        service_version="2.0-test",
+    )
+    application = create_scout_app(settings, model_client=ScoutVisionStub())
+    service = application.state.scout_service
+    enrollment = application.state.scout_store.enroll_device("Scout Storage Race")
+    original_lock = service._ingest_publication_lock
+    original_write = service._write_content_addressed
+
+    @contextmanager
+    def tracked_publication_lock():
+        with original_lock():
+            lock_state.held = True
+            try:
+                yield
+            finally:
+                lock_state.held = False
+
+    def simulated_disk_usage(_path):
+        # With the vulnerable implementation both callers reach this point before
+        # taking the publication lock, so force them to observe the same value.
+        if not getattr(lock_state, "held", False):
+            pre_lock_reads.wait(timeout=5)
+        with state_lock:
+            free = simulated["free"]
+        return SimpleNamespace(total=4 * reserve, used=0, free=free)
+
+    def tracked_write(path, payload):
+        created = original_write(path, payload)
+        if created:
+            with state_lock:
+                simulated["free"] -= len(payload)
+        return created
+
+    monkeypatch.setattr(service, "_ingest_publication_lock", tracked_publication_lock)
+    monkeypatch.setattr(service, "_write_content_addressed", tracked_write)
+    monkeypatch.setattr("app.scout.service.shutil.disk_usage", simulated_disk_usage)
+
+    def submit(sequence: int, payload: bytes):
+        metadata = ScoutJobMetadata.model_validate(_metadata([f"view-{sequence}.jpg"]))
+        try:
+            job, _created = service.create_job(
+                enrollment["device_id"],
+                metadata,
+                [IncomingCapture(f"view-{sequence}.jpg", "image/jpeg", payload)],
+            )
+            return "created", job["id"]
+        except ScoutStorageReserveError:
+            return "storage-reserve", None
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = (
+            executor.submit(submit, 1, first_bytes),
+            executor.submit(submit, 2, second_bytes),
+        )
+        outcomes = [future.result(timeout=10) for future in futures]
+
+    assert sorted(item[0] for item in outcomes) == ["created", "storage-reserve"]
+    accepted_id = next(item[1] for item in outcomes if item[0] == "created")
+    assert len(application.state.scout_store.list_captures(accepted_id)) == 1
+    object_files = [
+        path
+        for path in (settings.scout_media_dir / "objects").rglob("*")
+        if path.is_file()
+    ]
+    assert len(object_files) == 1
+
+
+def test_existing_content_addressed_media_requires_no_new_storage_reserve(
+    app_settings, tmp_path, monkeypatch
+):
+    reserve = 64 * 1024**2
+    shared_bytes = _image_bytes(123)
+    settings = replace(
+        app_settings,
+        scout_enabled=True,
+        scout_require_auth=True,
+        scout_media_dir=tmp_path / "runtime" / "scout-media",
+        scout_min_free_bytes=reserve,
+        scout_max_outstanding_jobs_per_device=4,
+        service_version="2.0-test",
+    )
+    application = create_scout_app(settings, model_client=ScoutVisionStub())
+    service = application.state.scout_service
+    enrollment = application.state.scout_store.enroll_device("Scout Media Reuse")
+
+    first_metadata = ScoutJobMetadata.model_validate(_metadata(["first.jpg"]))
+    first, created = service.create_job(
+        enrollment["device_id"],
+        first_metadata,
+        [IncomingCapture("first.jpg", "image/jpeg", shared_bytes)],
+    )
+    assert created is True
+    first_capture = application.state.scout_store.list_captures(first["id"])[0]
+    object_path = Path(first_capture["path"])
+    assert object_path.is_file()
+
+    monkeypatch.setattr(
+        "app.scout.service.shutil.disk_usage",
+        lambda _path: SimpleNamespace(total=4 * reserve, used=0, free=reserve),
+    )
+    second_metadata = ScoutJobMetadata.model_validate(_metadata(["second.jpg"]))
+    second, created = service.create_job(
+        enrollment["device_id"],
+        second_metadata,
+        [IncomingCapture("second.jpg", "image/jpeg", shared_bytes)],
+    )
+
+    assert created is True
+    assert second["id"] != first["id"]
+    second_capture = application.state.scout_store.list_captures(second["id"])[0]
+    assert Path(second_capture["path"]) == object_path
+    assert len(
+        [
+            path
+            for path in (settings.scout_media_dir / "objects").rglob("*")
+            if path.is_file()
+        ]
+    ) == 1
 
 
 def test_device_revocation_and_cross_device_isolation(app_settings, tmp_path):

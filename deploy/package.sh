@@ -43,6 +43,24 @@ for command_name in awk git tar sha256sum mktemp; do
   command -v "$command_name" >/dev/null 2>&1 || die "required command not found: ${command_name}"
 done
 
+required_nim_source_files=(
+  .env.v2.nim.example
+  compose.v2.nim.yml
+  deploy/v2-nim-list-profiles.sh
+  deploy/v2-nim-prepare-online.sh
+  deploy/v2-nim-preflight.sh
+)
+for required in "${required_nim_source_files[@]}"; do
+  [[ -f "${PROJECT_DIR}/${required}" ]] \
+    || die "single-Spark NIM source artifact is missing: ${required}"
+done
+for executable in \
+  deploy/v2-nim-list-profiles.sh deploy/v2-nim-prepare-online.sh \
+  deploy/v2-nim-preflight.sh; do
+  [[ -x "${PROJECT_DIR}/${executable}" ]] \
+    || die "single-Spark NIM script is not executable: ${executable}"
+done
+
 cfg() {
   local key="$1"
   local fallback="${2-}"
@@ -86,11 +104,13 @@ trap cleanup EXIT
 
 release_archive="${staging}/relicscope-release-${release_version}.tar.gz"
 entries=(
-  .agents .github .dockerignore .env.example .env.v2.example .env.v2.lab.example .gitattributes .gitignore
+  .agents .github .dockerignore .env.example .env.v2.example .env.v2.lab.example .env.v2.nim.example .gitattributes .gitignore
   AGENTS.md Dockerfile Dockerfile.vllm Dockerfile.embedding Makefile NOTICE.md README.md THIRD_PARTY_NOTICES.md
   requirements.txt requirements.lock requirements-embedding.lock requirements-dev.txt requirements-dev.lock pytest.ini
-  app data demo_media deploy docs embedding_server openspec scout-android scripts tests
-  compose.yml compose.single.yml compose.v2.yml compose.v2.lab.yml run_local.sh
+  app demo_media deploy docs embedding_server openspec scout-android scripts tests
+  data/knowledge_manifest.json data/reference_library/README.md
+  data/reference_library/manifest.schema.json data/reference_library/evaluation-manifest.schema.json
+  compose.yml compose.single.yml compose.v2.yml compose.v2.lab.yml compose.v2.nim.yml run_local.sh
 )
 existing_entries=()
 for entry in "${entries[@]}"; do
@@ -100,6 +120,38 @@ git -C "$PROJECT_DIR" archive \
   --format=tar.gz \
   --output "$release_archive" \
   "$source_commit" -- "${existing_entries[@]}"
+
+# The source release intentionally carries only public synthetic demo material and
+# data-contract schemas. Reject runtime/customer data, secrets and model payloads
+# even if a future commit accidentally places them below another packaged tree.
+while IFS= read -r archived_path; do
+  archived_path="${archived_path#./}"
+  case "$archived_path" in
+    data/|data/reference_library/|data/knowledge_manifest.json|\
+    data/reference_library/README.md|data/reference_library/manifest.schema.json|\
+    data/reference_library/evaluation-manifest.schema.json)
+      ;;
+    data/*)
+      die "non-allowlisted data entered the source archive: ${archived_path}"
+      ;;
+  esac
+  case "/${archived_path}" in
+    */runtime/*|*/secrets/*|*/work/*|*/nim-cache/*|*/hf-cache/*|*/vllm-cache/*)
+      die "private runtime path entered the source archive: ${archived_path}"
+      ;;
+  esac
+  archive_name="${archived_path##*/}"
+  case "$archive_name" in
+    .env|.env.v2|.env.v2.nim|ngc_api_key|service_api_key)
+      die "credential-bearing file entered the source archive: ${archived_path}"
+      ;;
+  esac
+  case "$archived_path" in
+    *.safetensors|*.gguf|*.ckpt|*.pt|*.pth|*.onnx|*.bin|*.engine|*.plan|*.nemo|*.tflite|*.mlmodel)
+      die "model weight entered the source archive: ${archived_path}"
+      ;;
+  esac
+done < <(tar -tzf "$release_archive")
 
 {
   printf 'release_version=%s\n' "$release_version"
@@ -117,7 +169,12 @@ git -C "$PROJECT_DIR" archive \
   printf 'contains_third_party_datasets=false\n'
   printf 'contains_controlled_reference_media=false\n'
   printf 'contains_expert_or_counterfeit_evidence=false\n'
-  printf 'nvidia_target_mapping=planned-and-partial-current-stack-see-docs/RUNTIME_BOUNDARY.md\n'
+  printf 'contains_private_artwork_data=false\n'
+  printf 'contains_ngc_credentials=false\n'
+  printf 'contains_nim_cache_or_model_weights=false\n'
+  printf 'single_spark_nim_source_path=included\n'
+  printf 'single_spark_nim_offline_payload=not-included\n'
+  printf 'nvidia_target_mapping=deployment-ready-hardware-acceptance-pending-see-docs/RUNTIME_BOUNDARY.md\n'
 } >"${staging}/MANIFEST.txt"
 
 if [[ "$OFFLINE" == "1" ]]; then

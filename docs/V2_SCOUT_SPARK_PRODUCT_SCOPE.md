@@ -1,12 +1,12 @@
 # RelicScope V2：Scout + DGX Spark 本地 AI 基础设施
 
-> 决策日期：2026-09-01
+> 决策日期：2026-09-03
 > 适用对象：客户负责人、AI 工程师、Scout 产品团队、Spark 运维人员
-> 状态：代码框架已实现；目标 DGX Spark 与目标 Android 设备尚待现场验收
+> 当前状态：`DEPLOYMENT_READY`。代码、配置与交接材料已具备部署条件；目标 DGX Spark、目标 Android 设备和现场网络尚未验收。
 
 ## 1. 直接结论
 
-V2 的首要交付不是一个信息繁多的网站，也不是由 AI 工程师代替客户建设艺术品数据库。V2 应交付一套可运行、可复现、可维护的本地 AI 基础设施：
+V2 当前交付聚焦可运行、可复现、可维护的本地 AI 基础设施。网页展示与完整艺术品数据库属于独立工作流，由后续业务目标、数据授权和专家治理决定：
 
 ```text
 Scout 安卓手持设备
@@ -21,7 +21,7 @@ Scout 安卓手持设备
 候选模型 · 视频模型 · 微调/评测 · 批处理 · 人工切换备用
 ```
 
-一个标准任务必须能在一台 Spark 上完整运行。第二台 Spark 的价值是隔离工作负载、开展模型实验、增加处理能力和提供备用选择，不应成为系统启动的前提。
+一个标准任务必须能在一台 Spark 上完整运行。第二台 Spark 用于隔离工作负载、开展模型实验、增加处理能力和提供备用选择；主系统启动不依赖第二台设备。
 
 ## 2. 当前产品边界
 
@@ -34,13 +34,13 @@ Scout 安卓手持设备
 | 双 Spark | 主机完整运行；副机做独立模型、评测、微调或备用 | ConnectX‑7 分布式推理 | 宣传两台机器自动合并成一台 256GB GPU |
 | 结论 | 图像质量、可见观察、限制和下一步 | 经专家批准的领域任务 | 真伪、年代、窑口、作者、价值和法律结论 |
 
-现有 50 件参考库、假货交叉验证、Scientific Evidence Graph、RAG 和仪器能力仍有长期价值，但它们是可插拔能力。没有参考库时，Scout→Spark 的基础流程仍必须正常工作。
+参考样本库、仿品交叉验证、Scientific Evidence Graph、RAG 和仪器接入属于长期可插拔能力。Scout→Spark 基础流程具备独立运行条件，不以参考库建成为前置条件。
 
-## 3. DGX Spark 的真实意义
+## 3. DGX Spark 的平台角色
 
 ### 3.1 适合本项目的能力
 
-NVIDIA 官方规格显示，DGX Spark 使用 GB10 Grace Blackwell、20 核 Arm CPU、128GB CPU/GPU 一致性统一内存、4TB NVMe、10GbE、Wi‑Fi 7，以及 ConnectX‑7 200Gb/s 网络；FP4 稀疏理论峰值最高 1 PFLOP。其优势不是便携相机控制，而是以较小体积提供本地模型运行、数据不出现场、容器化复现和模型开发环境。[NVIDIA DGX Spark 产品规格](https://www.nvidia.com/en-us/products/workstations/dgx-spark/) · [Hardware Overview](https://docs.nvidia.com/dgx/dgx-spark/hardware.html)
+NVIDIA 官方规格显示，DGX Spark 使用 GB10 Grace Blackwell、20 核 Arm CPU、128GB CPU/GPU 一致性统一内存、4TB NVMe、10GbE、Wi‑Fi 7，以及 ConnectX‑7 200Gb/s 网络；FP4 稀疏理论峰值最高 1 PFLOP。RelicScope 将其定位为紧凑型本地 AI 服务器，用于现场模型运行、数据本地保存、容器化复现和模型开发；便携拍摄与端侧质检由 Scout 承担。[NVIDIA DGX Spark 产品规格](https://www.nvidia.com/en-us/products/workstations/dgx-spark/) · [Hardware Overview](https://docs.nvidia.com/dgx/dgx-spark/hardware.html)
 
 这使 Spark 适合承担：
 
@@ -51,15 +51,15 @@ NVIDIA 官方规格显示，DGX Spark 使用 GB10 Grace Blackwell、20 核 Arm C
 - 受控知识包、向量检索和后续 Agent 工具；
 - 离线或弱网环境下的 AI appliance。
 
-### 3.2 不应误解的地方
+### 3.2 容量与兼容性边界
 
-128GB 是 CPU、GPU、操作系统、模型权重、KV Cache 和其他服务共同使用的统一内存，不是 128GB 独占显存。官方的“最高 200B 推理”“双机更大模型”属于容量上限口径，实际上下文、并发、首字延迟和吞吐都需要在目标工作负载上测量。FP4 理论峰值也不能直接换算为五张图片生成报告所需时间。
+128GB 统一内存由 CPU、GPU、操作系统、模型权重、KV Cache 和其他服务共同使用，不能按 128GB 独占显存规划。官方的“最高 200B 推理”“双机更大模型”描述容量上限；实际上下文、并发、首字延迟和吞吐仍需在目标工作负载上测量。FP4 理论峰值也不能直接换算为五张图片生成报告所需时间。
 
 Spark 为 ARM64。每个 Python wheel、Docker 镜像和 NVIDIA 组件都必须确认 ARM64/GB10 支持；不能默认复用 x86 GPU 服务器的镜像。[DGX Spark Porting Guide](https://docs.nvidia.com/dgx/dgx-spark-porting-guide/dgx-spark-porting-guide.pdf)
 
-### 3.3 两台 Spark 的正确使用方式
+### 3.3 双 Spark 演进策略
 
-官方支持通过 QSFP 将 Spark 连接为 200GbE 集群，并可使用 vLLM、Ray、NCCL 或 TensorRT‑LLM 运行分布式工作负载；这不是 NVLink 共享内存，也不是自动把两台主机合并。[ConnectX‑7 Networking](https://docs.nvidia.com/dgx/dgx-spark/spark-clustering.html) · [NVIDIA Connect Two Sparks](https://github.com/NVIDIA/dgx-spark-playbooks/tree/main/nvidia/connect-two-sparks)
+官方支持通过 QSFP 将 Spark 连接为 200GbE 集群，并可使用 vLLM、Ray、NCCL 或 TensorRT‑LLM 运行分布式工作负载。该架构采用网络通信，不提供 NVLink 共享内存，也不会自动将两台主机合并。[ConnectX‑7 Networking](https://docs.nvidia.com/dgx/dgx-spark/spark-clustering.html) · [NVIDIA Connect Two Sparks](https://github.com/NVIDIA/dgx-spark-playbooks/tree/main/nvidia/connect-two-sparks)
 
 V2 推荐按以下顺序使用两台机器：
 
@@ -103,7 +103,7 @@ V2 使用独立的 `app.scout_main`，只公开 `/api/v2/scout`，旧版演示�
 - 修复模型配置后可对 `MODEL_UNAVAILABLE` 原 job 发起受控原地重试，无需重拍或更换
   `client_job_id`；媒体完整性失败不允许绕过；
 - 将全部合格视角放入一次多图推理请求，同时把每条观察绑定到原始 capture ID；
-- 结果绑定模型来源、revision、请求 ID、系统提示词哈希、实际请求载荷哈希、
+- 结果绑定模型来源、NIM profile 或模型 revision、请求 ID、系统提示词哈希、实际请求载荷哈希、
   容器 digest、输入/输出哈希、节点和延迟；实际请求哈希覆盖有序多视角内容，
   但不保存图像副本；推理前再次核对原始文件哈希并按采集 ordinal 固定顺序。
 - 每次失败和成功的模型调用都追加为独立的运行证明；同一任务重试不会覆盖此前
@@ -123,32 +123,31 @@ INGEST_VALIDATION
   → RESULT_ASSEMBLY
 ```
 
-这里不需要自主 Agent。设备认证、质量门控、模型选择、超时、失败重试和结论边界都应由代码决定，才能做运维验收。
+当前主链路采用确定性编排。设备认证、质量门控、模型选择、超时、失败重试和结论边界均由代码控制，以支持复现、审计和运维验收。
 
 V2 手机入口目前只接受 `standard` 分析模式。这样可避免客户端选择低质量捷径，所有
 正式演示均经过同一套多视角质量门控、模型调用和结果边界。
 
 Agent 适合后续作为受限工具调用层，例如：根据观察建议补拍、检索客户批准的资料、选择仪器适配器。Agent 只能调用允许的工具，不能自行改变结论状态。
 
-Codex Desktop 可作为工程师在 Spark 上检出代码、审查配置和协助排障的开发工具；它
-不参与现场任务处理，也不是服务开机、Scout 上传或本地推理的运行依赖。正式运行只
-依赖已冻结的源码提交、容器、模型、配置和系统服务。
+Codex Desktop 可作为工程师在 Spark 上检出代码、审查配置和协助排障的开发工具。现场任务处理、服务开机、Scout 上传和本地推理由已冻结的源码提交、容器、模型、配置与系统服务独立承担。
 
 ## 5. 模型与微调决策
 
-### 5.1 先把模型服务跑稳
+### 5.1 模型服务基线
 
-网关采用 OpenAI 兼容接口。目标模型若有经过 GB10 验证的 NVIDIA NIM profile，可优先评估 NIM；需要快速切换开源模型、A/B 或自定义量化时，可使用 NVIDIA 官方 Spark vLLM 路径。NIM 的支持是逐模型、逐版本和逐 profile 的，不能宣传所有 NIM 均可直接在 Spark 运行。[NIM Support Matrix](https://docs.nvidia.com/nim/large-language-models/latest/reference/support-matrix.html) · [vLLM on DGX Spark](https://github.com/NVIDIA/dgx-spark-playbooks/tree/main/nvidia/vllm)
+网关采用 OpenAI-compatible 接口。首台 Spark 的生产试运行基线为 Qwen3.6-35B-A3B 与 NVIDIA VLM NIM `1.7.1-variant`；NVIDIA 的支持矩阵为它提供了 DGX Spark 专用 ARM64 profile。需要快速切换开源模型、开展 A/B 或验证自定义量化时，保留 NVIDIA Spark vLLM 路径。NIM 兼容性按具体模型、版本和 profile 判定；单一配置的成功结果不代表其他 NIM 配置已经获得支持。[VLM NIM Support Matrix](https://docs.nvidia.com/nim/vision-language-models/1.7.0/support-matrix.html) · [vLLM on DGX Spark](https://github.com/NVIDIA/dgx-spark-playbooks/tree/main/nvidia/vllm)
 
 建议形成三个槽位：
 
 | 槽位 | 当前用途 | 晋级条件 |
 |---|---|---|
-| 中文图像基线 | Qwen 系 VLM；输出受限 JSON | 在目标 Spark 上通过延迟、内存、中文观察和边界测试 |
-| NVIDIA 候选 | Nemotron 3 Nano Omni；图像/视频影子 A/B | 解决官方 English-only 边界，并在中文任务上胜出 |
+| 生产试运行基线 | Qwen3.6-35B-A3B NIM；输出受限 JSON | 在目标 Spark 上冻结 profile、容器 digest，并通过稳定性和边界测试 |
+| 中文质量候选 | Qwen3.8-27B-FP8；同输入顺序 A/B | 在中文可见事实、JSON、延迟和统一内存上胜出 |
+| 视频/音频候选 | Nemotron 3 Nano Omni；独立证据抽取 | 解决 English-heavy 数据边界，并在目标视频任务上胜出 |
 | 正式模型 | 基线或定制模型 | 冻结评测集上有可重复收益并通过专家评审 |
 
-Nemotron 3 Nano Omni 官方模型卡支持图像、视频、音频和文本，也有 Spark 配方，但语言支持标注为 English only。因此它适合视频/多模态候选，不宜未经验证直接取代中文主模型。[Nemotron 3 Nano Omni 模型卡](https://huggingface.co/nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning-NVFP4)
+Qwen3.8-27B 是更新的原生图像/视频模型，但当前 NIM 矩阵只给出通用单 GPU 内存门槛，没有单列 DGX Spark 优化 profile，因此先进入候选槽。Nemotron 3 Nano Omni 支持图像、视频、音频和文本，模型卡列出 DGX Spark，但训练与评测主要为英文；它适合视频/多模态证据候选，不宜未经验证直接取代中文主模型。[完整选型报告](MODEL_SELECTION_AND_SPARK_RUNTIME_2026-09.md)
 
 ### 5.2 何时微调
 
@@ -161,9 +160,9 @@ Nemotron 3 Nano Omni 官方模型卡支持图像、视频、音频和文本，�
 
 副 Spark 最适合承担这一工作。NVIDIA 官方 NeMo 路径支持在 Spark 上进行 PEFT/SFT；仍需针对具体模型、精度和数据量实测。[Fine-tune with NeMo](https://build.nvidia.com/spark/nemo-fine-tune)
 
-## 6. 当前 Demo 应展示什么
+## 6. 当前演示验收场景
 
-Demo 是一条真实运行链，而不是网页讲解：
+Demo 展示一条真实运行链：
 
 1. Android Scout 选择“正面”，拍摄一张清晰图片；端侧显示质量通过。
 2. 依次完成背面、侧面、口沿/内部与底足；关闭网络后点击提交，任务保留在手机。
@@ -174,7 +173,7 @@ Demo 是一条真实运行链，而不是网页讲解：
 7. 重复提交不重复推理；撤销设备后请求立即返回 401。
 8. 关闭第二台 Spark，主机仍完成任务；再在副机运行候选模型做独立 A/B。
 
-参考库、假货库、RAG 或 Evidence Graph 可以作为“扩展能力已留接口”说明，不应占据当前演示主流程。
+参考库、假货库、RAG 与 Evidence Graph 已纳入长期技术路线；当前演示以 Scout→Spark 多视角闭环为主，扩展能力按数据和验收条件逐项启用。
 
 当前代码不会自动删除原始照片或任务。客户的数据保留期限、批准人、备份介质与
 销毁流程必须在正式上线前确定；在此之前仅使用授权的演示媒体，并由操作员监控
@@ -187,12 +186,12 @@ Demo 是一条真实运行链，而不是网页讲解：
 - 独立 V2 API、持久任务和本地模型适配；
 - Android 参考客户端；
 - 单机 ARM64 Compose、HTTPS、设备配对和烟雾测试；
-- 非 root、只读容器、私有模型网络、固定镜像/模型版本与一致性备份恢复；
+- 非 root、只读容器、私有模型网络、固定镜像/模型版本，以及备份/恢复脚本与静态检查；目标 Spark 上的完整恢复演练待阶段 B 完成；
 - 范围、部署与硬件验收文档。
 
 ### 阶段 B：第一台 Spark 现场验收
 
-- 冻结 DGX OS、驱动、CUDA、容器和模型 revision；
+- 冻结 DGX OS、驱动、CUDA、容器和 NIM profile / 模型 revision；
 - 测量 1/3/5 张图的 TTFT、总时长、峰值统一内存和失败率；
 - 连续运行 10 个任务，验证无 OOM、无服务重启；
 - 测试手机断网、杀进程、恢复上传和设备撤销；
@@ -213,6 +212,8 @@ Demo 是一条真实运行链，而不是网页讲解：
 - 任何“准确识别”“鉴定”指标都由独立测试集支持。
 
 ## 8. 验收口径
+
+当前 `DEPLOYMENT_READY` 表示软件、配置和部署材料已具备上机条件，不包含目标硬件性能或现场业务效果。完成目标 Spark 的实机闭环并保留验收证据后，状态可更新为 `HARDWARE_VERIFIED`；客户完成业务场景评审并签署后，状态可更新为 `PILOT_ACCEPTED`。
 
 代码仓库通过测试只代表软件逻辑可复现。以下事实必须在目标机器形成记录后才能对客户承诺：
 

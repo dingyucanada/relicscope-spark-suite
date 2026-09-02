@@ -6,9 +6,9 @@
     <meta name="color-scheme" content="dark" />
     <meta
       name="description"
-      content="RelicScope AI 单台 DGX Spark 多模态文物科学鉴证演示控制台"
+      content="RelicScope AI 本机工程预览：多模态文物科学鉴证开发控制台"
     />
-    <title>RelicScope AI · Scientific Forensics Console</title>
+    <title>RelicScope AI · Local Engineering Preview</title>
     <link rel="icon" href="/static/ceramic-placeholder.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
@@ -16,9 +16,34 @@
     <a class="skip-link" href="#main-content">跳至主工作区</a>
 
     <div class="demo-boundary" role="note" aria-label="演示数据免责声明">
-      <span class="demo-boundary__label">USER MEDIA / DEMO SCIENCE</span>
-      <span>用户媒体按原始输入登记；仪器检测值与参考资料为回放或演示数据。输出不构成鉴定、断代、估价或法律结论。</span>
+      <span class="demo-boundary__label">LOCAL ENGINEERING PREVIEW</span>
+      <span><strong>USER MEDIA / DEMO SCIENCE</strong> · 用户媒体按原始输入登记；仪器检测值与参考资料为回放或演示数据。输出不构成鉴定、断代、估价或法律结论。</span>
     </div>
+
+    <section
+      class="api-unavailable-guidance"
+      id="api-unavailable-guidance"
+      role="alert"
+      aria-live="assertive"
+      hidden
+    >
+      <div class="api-unavailable-guidance__status" aria-hidden="true">
+        <span></span>
+        API OFFLINE
+      </div>
+      <div class="api-unavailable-guidance__copy">
+        <strong>本机工程预览尚未连接 RelicScope API</strong>
+        <p id="api-unavailable-detail">请从仓库根目录启动回环服务，再通过指定地址打开控制台。</p>
+        <div class="api-unavailable-guidance__steps" aria-label="本机安全启动步骤">
+          <span><b>1 · 首次安装并启动</b><code>make console-install</code></span>
+          <span><b>2 · 打开</b><a href="http://127.0.0.1:8088"><code>http://127.0.0.1:8088</code></a></span>
+        </div>
+        <small>以后使用 <code>make console</code> 启动。两条命令均默认绑定 127.0.0.1；请勿改为公网监听。</small>
+      </div>
+      <button class="button button--ghost button--small" id="retry-api-connection" type="button">
+        重新检查 API
+      </button>
+    </section>
 
     <header class="topbar">
       <div class="brand-block">
@@ -30,7 +55,7 @@
           </svg>
         </div>
         <div>
-          <p class="eyebrow">AI-NATIVE SCIENTIFIC FORENSICS</p>
+          <p class="eyebrow">LOCAL ENGINEERING PREVIEW</p>
           <h1>RelicScope <span>AI</span></h1>
           <p class="brand-subtitle" id="brand-runtime-subtitle">古陶瓷多模态科学鉴证 · 正在探测运行拓扑</p>
         </div>
@@ -826,7 +851,7 @@
     </main>
 
     <footer class="console-footer">
-      <div><strong>RelicScope AI</strong><span>Local Scientific Forensics Prototype</span></div>
+      <div><strong>RelicScope AI</strong><span>Local Engineering Preview</span></div>
       <p>运行数据边界：本地私网 · 演示资料隔离 · 无外部 CDN</p>
     </footer>
 

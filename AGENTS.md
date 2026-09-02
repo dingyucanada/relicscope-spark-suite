@@ -2,107 +2,155 @@
 
 ## Objective
 
-Help an authorized operator reproduce, test, or maintain the RelicScope Spark Suite without weakening its scientific, privacy, or deployment boundaries.
+Help an authorized operator reproduce, test, or maintain the RelicScope Spark Suite
+without weakening its scientific, privacy, or deployment boundaries.
 
-## V2 Scout branch
+## Current V2 baseline
 
-On `v2-scout-spark-platform`, the primary path is `app.scout_main:app` with
-`compose.v2.yml`. Android Scout is the capture client; one Spark must complete the full
-job; a second Spark is optional. Do not expose legacy sessions, demo, report,
-reference-library administration, vLLM, NIM, or embedding ports on the Scout LAN.
+On `main`, the recommended pilot is Android Scout plus one DGX
+Spark running `app.scout_main:app`, HTTPS ingress, a durable job queue, and the
+Qwen3.6-35B-A3B NVIDIA NIM for VLM. The NIM deployment uses `compose.v2.nim.yml`
+and `.env.v2.nim`. One Spark must complete the full image-analysis path by itself;
+a second Spark is optional capacity, standby, or evaluation infrastructure.
 
-Keep the V2 critical path deterministic: ingest validation, server quality check, local
-VLM observation, and result assembly. RAG, Agent, reference recognition, and instrument
-adapters are optional and disabled by default. A reference corpus must not become a V2
-gateway readiness requirement.
+The first release is image-only. Keep ingest validation, server-side quality checks,
+local VLM observation, evidence-bound result assembly, and recapture advice on the
+critical path. Reference recognition, RAG, Agent workflows, native video, instrument
+adapters, and automatic authenticity conclusions remain outside that path.
 
-Read these first for V2:
+Do not publish the gateway, NIM, embedding, database, or administration ports to the
+Scout LAN. Only the private-LAN HTTPS ingress may be reachable by Scout. Do not add
+legacy sessions, browser-demo, report-administration, or reference-library routes to
+the V2 Scout API.
+
+Read these documents before changing or deploying V2:
 
 1. `docs/V2_SCOUT_SPARK_PRODUCT_SCOPE.md`
-2. `docs/V2_SCOUT_SPARK_DEPLOYMENT.md`
-3. `docs/V2_SPARK_ACCEPTANCE.md`
-4. `scout-android/README.md`
+2. `docs/MODEL_SELECTION_AND_SPARK_RUNTIME_2026-09.md`
+3. `docs/V2_SCOUT_SPARK_DEPLOYMENT.md`
+4. `docs/V2_SPARK_ACCEPTANCE.md`
+5. `docs/GITHUB_SPARK_QUICKSTART.md`
+6. `scout-android/README.md`
 
-The only supported primary-Spark order is:
+## Supported NIM deployment order
+
+For the primary Spark, preserve this order:
 
 ```text
-v2-install → edit and approve .env.v2 → v2-prepare-online → disconnect download
-network → v2-preflight → v2-start → v2-health → v2-enroll → v2-smoke
+v2-nim-install
+→ review .env.v2.nim, licenses, storage, private IP and hostname
+→ v2-nim-list-profiles with a protected NGC key file on the target GB10
+→ freeze the selected profile and all model identities
+→ v2-nim-prepare-online
+→ confirm temporary Registry credentials were cleared and block public egress
+→ v2-nim-preflight
+→ v2-nim-start
+→ v2-nim-health
+→ v2-nim-export-ca
+→ v2-nim-enroll
+→ v2-nim-smoke with authorized multi-view images
+→ complete V2_SPARK_ACCEPTANCE.md
 ```
 
-`v2-start` runs the preflight again. Do not invoke legacy V1 install, prefetch, browser
-demo, reference-library, or acceptance commands on this branch unless the operator
-explicitly asks to maintain V1.
+Qwen3.6 NIM `1.7.1-variant` predates the NIM VLM 2.1.1 keyless threshold. Registry
+authentication and model-cache preparation therefore belong only in the approved
+online window. The repository scripts must use their isolated temporary Docker
+credential directory and clean it on every exit. Never store an NGC key in
+`.env.v2.nim`, Compose, Git, a runtime container, shell history, or an agent prompt.
 
-## First-run paths
+`v2-nim-start` runs the strict preflight again. A passing preflight records frozen
+configuration and deployment-boundary checks; `v2-nim-health` records readiness;
+only a successful multi-image `v2-nim-smoke` records an accepted local completion.
+The application receipt is configuration-bound evidence, not an independent
+attestation of the container or GPU. Target-Spark performance,
+offline behavior, Android connectivity, and hardware identity still require the
+acceptance evidence described in `docs/V2_SPARK_ACCEPTANCE.md`.
 
-Always read `README.md`. On the V2 branch, use only the four V2 documents listed above.
-`docs/GITHUB_SPARK_QUICKSTART.md` is a legacy V1 guide and is read only for an explicit
-legacy request.
+The V2 `compose.v2.yml`/vLLM path is an explicit compatibility fallback, not the
+recommended pilot baseline. `compose.v2.lab.yml` is for isolated candidate-model and
+A/B work. Legacy V1 single- and dual-Spark commands are maintenance paths and must not
+be used for a V2 deployment unless the operator explicitly requests them.
 
-For repository-only reproduction on a development computer:
+## Model policy
+
+- Qwen3.6-35B-A3B through the DGX-Spark-specific NVIDIA NIM is the current V2 image
+  baseline. Preserve the exact container digest, compatible profile ID, served model
+  name, source name, and application commit in deployment evidence.
+- The exact Qwen3.6 `1.7.1-variant` does not support Docker's custom `-u` option.
+  Preserve the image-defined user and its private writable NIM cache; do not copy a
+  generic NIM hardening recipe that adds `user:` or makes this cache read-only.
+- Qwen3.8 is a later Chinese multimodal challenger. Do not describe it as
+  DGX-Spark-optimized until an official compatible profile or target-machine evidence
+  demonstrates that exact claim.
+- Nemotron 3 Nano Omni is a native-video candidate. Its official model card identifies
+  an English-language boundary, so Chinese ceramic output and faithful translation
+  require explicit expert evaluation.
+- Run large A/B candidates sequentially on one Spark, or isolate them on the optional
+  second Spark. Never infer pooled 256 GB memory or distributed inference from owning
+  two 128 GB systems.
+- Do not promote a candidate from a machine scorecard alone. Freeze input hashes,
+  prompt, schema, model/runtime identity, and comparison rules; require domain and
+  model-engineering review.
+
+## Repository-only reproduction
+
+On a development computer, this path exercises deterministic code only:
 
 1. Run `./scripts/reproduce-demo.sh --check-only`.
-2. In an approved online dependency-install window, run `./scripts/reproduce-demo.sh --install`.
+2. During an approved dependency-install window, run
+   `./scripts/reproduce-demo.sh --install`.
 3. Confirm `http://127.0.0.1:8088/api/health`.
-4. Report this as deterministic/degraded reproduction only. Instrument values are demo/replay data and no DGX Spark GPU or sensor validation is implied.
+4. Run the repository checks documented in `docs/GITHUB_SPARK_QUICKSTART.md`.
 
-For the v1.2.0 default product path on one authorized DGX Spark:
+Report this as deterministic/degraded reproduction. Bundled media and instrument
+values are synthetic or replay fixtures; no DGX Spark, GB10, NIM, GPU, offline, sensor,
+or scientific validation is implied.
 
-1. Read `docs/SINGLE_SPARK_GPU_DEPLOYMENT.md` completely.
-2. Preserve the order: install → review `.env` and model terms → approved online prefetch → restore offline flags → start → health → live acceptance.
-3. Use `make accept-single-spark` to prove that image, native-video, and report calls used the configured local GPU model.
-4. Use `make ab-single-spark` only after both model caches are approved. It runs frozen-input Qwen/Nemotron comparison sequentially and restores Qwen on the successful path.
-5. Keep Qwen3-VL as the default unless the generated scorecard passes machine gates and the required domain and model-engineering experts approve promotion.
-
-## Useful commands
+## Useful V2 commands
 
 ```bash
-make v2-install
-make v2-prepare-online
-make v2-preflight
-make v2-start
-make v2-health
-make v2-enroll SCOUT_NAME="Scout 01" SCOUT_DEVICE_ARGS="--output runtime/provisioning/scout-01.json"
-make v2-smoke SCOUT_SMOKE_ARGS="--provisioning ... --ca-cert ... --capture FRONT=... --capture BACK=... --capture BASE=..."
+make v2-nim-install
+make v2-nim-list-profiles NIM_PROFILE_ARGS="--allow-network --ngc-key-file /secure/ngc_api_key"
+make v2-nim-prepare-online NIM_PREPARE_ARGS="--ngc-key-file /secure/ngc_api_key"
+make v2-nim-preflight
+make v2-nim-start
+make v2-nim-health
+make v2-nim-export-ca
+make v2-nim-enroll SCOUT_NAME="Scout 01" SCOUT_DEVICE_ARGS="--output runtime/provisioning/scout-01.json"
+make v2-nim-smoke SCOUT_SMOKE_ARGS="--provisioning ... --ca-cert ... --capture FRONT=... --capture BACK=... --capture BASE=..."
 ```
 
-Legacy V1 commands, only for an explicit legacy request:
-
-```bash
-make demo-install
-make demo
-make demo-check
-make test
-make check
-
-make install ROLE=single INSTALL_ARGS="--generate-key"
-make prefetch ROLE=single
-make start ROLE=single
-make health ROLE=single
-make accept-single-spark
-make ab-single-spark
-```
-
-Two-node deployment is a secondary expansion, not the v1.2.0 default. If explicitly requested, read `docs/DUAL_SPARK_DEPLOYMENT.md` and preserve its documented per-node order. Never infer dual-node or distributed-model validation from a successful single-Spark run.
+Optional fallback and evaluation commands are documented in
+`docs/V2_SCOUT_SPARK_DEPLOYMENT.md`; do not substitute them silently for the NIM path.
 
 ## Safety boundaries
 
-- Never read, print, commit, upload, or paste `.env`, `secrets/`, `runtime/`, raw artifact media, tokens, or service keys.
-- Do not install drivers, change network interfaces, firewall rules, users, systemd, or storage retention unless the operator explicitly authorizes that exact action.
-- Do not claim single- or dual-DGX-Spark, GPU, VLM, native-video, offline-network, or scientific-instrument validation without evidence from the target machine or machines.
-- Do not turn RGB image/video observations into authenticity, exact dating, kiln, author, price, grading, or legal conclusions.
-- Treat Qwen3-VL as the current Chinese ceramic image/video engineering baseline. Treat Nemotron 3 Nano Omni as a native-video candidate with an NVIDIA Spark playbook and an `English only` model-card language boundary; never auto-promote it from one run or a machine scorecard.
-- Never run the two large A/B models concurrently on one Spark. Preserve frozen input hashes and the sequential comparison design.
-- Preserve existing user data and unrelated changes. Use the repository scripts and Make targets instead of inventing production commands.
+- Never read, print, commit, upload, or paste private runtime configuration such as
+  `.env`, `.env.v2`, `.env.v2.nim`, `.env.v2.lab`, `secrets/`, `runtime/`, raw artifact
+  media, customer metadata, access tokens, device credentials, or service keys.
+  Versioned `*.example` templates are public configuration contracts and may be read.
+- Do not install drivers, upgrade DGX OS, change network interfaces, firewall rules,
+  users, systemd, storage retention, or customer backups unless the operator explicitly
+  authorizes that exact action.
+- Do not claim single- or dual-DGX-Spark, GB10, GPU, VLM, NIM, offline-network,
+  Android, or scientific-instrument validation without evidence from the target
+  machine or machines.
+- RGB images may support visible observations, capture-quality findings, comparison,
+  and recapture advice. They cannot establish authenticity, exact date, kiln, maker,
+  price, grade, provenance, or a legal conclusion.
+- Keep `reference_library_used=false`, `rag_used=false`, and `agent_used=false` unless
+  those subsystems were separately authorized, configured, and evidenced.
+- Preserve user data and unrelated changes. Use repository scripts and Make targets;
+  do not improvise production commands that bypass their checks.
 
-## Definition of local reproduction
+## Evidence states
 
-- JavaScript syntax and deployment checks pass.
-- The Python environment installs from `requirements.txt`.
-- The local service starts on loopback.
-- `/api/health` responds.
-- `make demo-media-check` verifies the bundled synthetic fixture and `make demo-media-smoke` completes the image/video/report/integrity path.
-- The browser can run the deterministic P01 workflow and shows `DEMO/SYNTHETIC` and degraded/local runtime boundaries.
+- **CODE_VERIFIED**: static checks and tests passed on a development computer.
+- **DEPLOYMENT_READY**: configuration and scripts are prepared, but the customer
+  hardware has not completed acceptance.
+- **HARDWARE_VERIFIED**: target Spark identity, frozen runtime, health, and real local
+  completion evidence passed.
+- **PILOT_ACCEPTED**: Android Scout, private network, restart/offline/failure cases,
+  authorized images, and named acceptance owners passed the signed checklist.
 
-Single-Spark GPU acceptance additionally requires the evidence in `runtime/acceptance/` described by `docs/SINGLE_SPARK_GPU_DEPLOYMENT.md`. Sequential A/B evidence belongs in `runtime/model-ab/`; machine eligibility never replaces expert review. Two-node reproduction has separate criteria in `docs/DUAL_SPARK_DEPLOYMENT.md` and remains an optional, independent hardware validation.
+Never collapse these states into a generic claim that the system is “verified.”

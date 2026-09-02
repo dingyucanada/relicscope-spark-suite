@@ -4,6 +4,7 @@
 !.env.example
 !.env.v2.example
 !.env.v2.lab.example
+!.env.v2.nim.example
 secrets/
 .envrc
 .netrc
@@ -57,6 +58,18 @@ packages/
 *.tar.gz
 *.zip
 .codex/
+
+# Public-source data boundary. The repository contains only the deterministic
+# knowledge manifest and the documentation/schema for controlled reference data.
+# Real reference media, manifests, test packs, reviews, and calibration outputs
+# must live under ignored runtime storage or an approved external mount.
+data/*
+!data/knowledge_manifest.json
+!data/reference_library/
+data/reference_library/*
+!data/reference_library/README.md
+!data/reference_library/manifest.schema.json
+!data/reference_library/evaluation-manifest.schema.json
 
 # Editor and operating-system metadata
 .DS_Store

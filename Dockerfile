@@ -38,7 +38,12 @@ RUN python -m pip install \
       --requirement requirements.lock
 
 COPY --chown=relicscope:relicscope app ./app
-COPY --chown=relicscope:relicscope data ./data
+COPY --chown=relicscope:relicscope data/knowledge_manifest.json ./data/knowledge_manifest.json
+COPY --chown=relicscope:relicscope \
+     data/reference_library/README.md \
+     data/reference_library/manifest.schema.json \
+     data/reference_library/evaluation-manifest.schema.json \
+     ./data/reference_library/
 COPY --chown=relicscope:relicscope \
      scripts/import-reference-library.py \
      scripts/build-reference-vector-index.py \

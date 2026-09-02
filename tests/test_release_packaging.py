@@ -20,7 +20,18 @@ def _run(*args: str, cwd: Path):
 def _minimal_repository(tmp_path: Path) -> Path:
     repo = tmp_path / "repo"
     (repo / "deploy").mkdir(parents=True)
-    shutil.copy2(PROJECT_ROOT / "deploy/package.sh", repo / "deploy/package.sh")
+    for relative_path in (
+        "deploy/package.sh",
+        "deploy/v2-nim-list-profiles.sh",
+        "deploy/v2-nim-prepare-online.sh",
+        "deploy/v2-nim-preflight.sh",
+        ".env.v2.nim.example",
+        "compose.v2.nim.yml",
+    ):
+        source = PROJECT_ROOT / relative_path
+        destination = repo / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
     (repo / "README.md").write_text("# release fixture\n", encoding="utf-8")
     (repo / ".gitignore").write_text("runtime/\nsecrets/\n", encoding="utf-8")
     assert _run("git", "init", cwd=repo).returncode == 0

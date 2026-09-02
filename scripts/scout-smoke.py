@@ -215,14 +215,18 @@ def _validate_success_result(
         run
         for run in runs
         if run.get("available") is True
-        and run.get("mode") == "local_vllm"
+        and run.get("mode") in {"local_vllm", "local_nim"}
         and run.get("model_identity_verified") is True
     ]
     if not successful:
-        raise RuntimeError("successful smoke result did not prove a local vLLM completion")
+        raise RuntimeError("successful smoke result did not record an accepted local VLM completion")
     if len(successful) != 1:
         raise RuntimeError("smoke result must contain exactly one successful model run")
     run = successful[0]
+    if run.get("runtime_attestation_scope") != "configuration_bound_application_receipt":
+        raise RuntimeError("model run does not declare its application-receipt scope")
+    if run.get("model_identity_verification_scope") != "provider_response_name_match":
+        raise RuntimeError("model run does not declare its served-name verification scope")
     for field in (
         "system_prompt_hash",
         "request_payload_hash",
@@ -237,7 +241,15 @@ def _validate_success_result(
         raise RuntimeError("model run is not bound to an immutable runtime image")
     model_revision = str(run.get("model_revision", "")).lower()
     if not IMMUTABLE_COMMIT_PATTERN.fullmatch(model_revision):
-        raise RuntimeError("model run is not bound to an immutable model revision")
+        raise RuntimeError("model run is not bound to an immutable model artifact")
+    artifact_id = str(run.get("model_artifact_id", model_revision)).lower()
+    if artifact_id != model_revision:
+        raise RuntimeError("model artifact identity disagrees with the compatibility field")
+    if run.get("mode") == "local_nim":
+        if run.get("runtime_provider") != "nvidia_nim":
+            raise RuntimeError("NIM completion is missing its declared runtime provider")
+        if run.get("model_artifact_kind") != "nim_profile":
+            raise RuntimeError("NIM completion is not bound to an immutable NIM profile")
     configured_model = run.get("configured_model")
     if (
         not isinstance(configured_model, str)
@@ -245,7 +257,7 @@ def _validate_success_result(
         or run.get("model") != configured_model
         or run.get("model_source") != configured_model
     ):
-        raise RuntimeError("model identity and immutable source are not consistently bound")
+        raise RuntimeError("served model alias and configured source name are inconsistent")
     expected_system_prompt_hash = hashlib.sha256(
         SCOUT_MULTI_VIEW_SYSTEM_PROMPT.encode("utf-8")
     ).hexdigest()
@@ -366,7 +378,12 @@ def main() -> int:
         choices=sorted(TERMINAL - {"SUCCEEDED"}),
         help="accept an expected non-success status only for a deliberate fault test",
     )
-    parser.add_argument("--timeout-seconds", type=float, default=300)
+    parser.add_argument(
+        "--timeout-seconds",
+        type=float,
+        default=900,
+        help="overall job deadline; the 900-second default covers cold start and retries",
+    )
     args = parser.parse_args()
 
     try:

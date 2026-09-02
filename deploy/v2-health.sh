@@ -4,6 +4,7 @@ IFS=$'\n\t'
 
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 env_file="${V2_ENV_FILE:-${project_root}/.env.v2}"
+compose_file="${V2_COMPOSE_FILE:-${project_root}/compose.v2.yml}"
 
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
@@ -34,7 +35,7 @@ caddy_data="$(cfg CADDY_DATA_DIR ./runtime/caddy/data)"
 ca_file="${caddy_data}/caddy/pki/authorities/local/root.crt"
 [[ -s "${ca_file}" ]] || fail "Caddy local CA is missing; inspect the ingress container"
 
-docker compose --env-file "${env_file}" -f "${project_root}/compose.v2.yml" ps
+docker compose --env-file "${env_file}" -f "${compose_file}" ps
 started_at="${SECONDS}"
 last_detail="service did not answer"
 while ((SECONDS - started_at < timeout_seconds)); do

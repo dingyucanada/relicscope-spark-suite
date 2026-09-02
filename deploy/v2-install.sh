@@ -5,6 +5,7 @@ umask 077
 
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 env_file="${V2_ENV_FILE:-${project_root}/.env.v2}"
+env_template="${V2_ENV_TEMPLATE:-${project_root}/.env.v2.example}"
 
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
@@ -35,7 +36,9 @@ PY
   || fail "installation requires a clean checked-out source tree"
 
 if [[ ! -f "${env_file}" ]]; then
-  install -m 600 "${project_root}/.env.v2.example" "${env_file}"
+  [[ -f "${env_template}" && ! -L "${env_template}" ]] \
+    || fail "V2 environment template is unavailable: ${env_template}"
+  install -m 600 "${env_template}" "${env_file}"
   printf 'Created %s\n' "${env_file}"
 else
   chmod 600 "${env_file}"
@@ -91,20 +94,21 @@ validate_managed_paths() {
 data_dir="$(absolute_path "$(cfg RELICSCOPE_DATA_HOST_DIR ./runtime/v2-data)")"
 hf_cache_dir="$(absolute_path "$(cfg HF_CACHE_DIR ./runtime/hf-cache)")"
 vllm_cache_dir="$(absolute_path "$(cfg VLLM_CACHE_DIR ./runtime/vllm-cache)")"
+nim_cache_dir="$(absolute_path "$(cfg NIM_CACHE_DIR ./runtime/nim-cache)")"
 caddy_data_dir="$(absolute_path "$(cfg CADDY_DATA_DIR ./runtime/caddy/data)")"
 caddy_config_dir="$(absolute_path "$(cfg CADDY_CONFIG_DIR ./runtime/caddy/config)")"
 secret_file="$(absolute_path "$(cfg SERVICE_API_KEY_FILE ./secrets/service_api_key)")"
 validate_managed_paths \
-  "${data_dir}" "${hf_cache_dir}" "${vllm_cache_dir}" \
+  "${data_dir}" "${hf_cache_dir}" "${vllm_cache_dir}" "${nim_cache_dir}" \
   "${caddy_data_dir}" "${caddy_config_dir}" "${secret_file}"
 
 install -d -m 700 -- \
   "${data_dir}" "${data_dir}/scout-media" \
-  "${hf_cache_dir}" "${vllm_cache_dir}" \
+  "${hf_cache_dir}" "${vllm_cache_dir}" "${nim_cache_dir}" \
   "${caddy_data_dir}" "${caddy_config_dir}" \
   "$(dirname "${secret_file}")" "${project_root}/runtime/provisioning"
 for managed_dir in \
-  "${data_dir}" "${hf_cache_dir}" "${vllm_cache_dir}" \
+  "${data_dir}" "${hf_cache_dir}" "${vllm_cache_dir}" "${nim_cache_dir}" \
   "${caddy_data_dir}" "${caddy_config_dir}"; do
   [[ -d "${managed_dir}" && ! -L "${managed_dir}" ]] \
     || fail "managed directory is unavailable or became a symlink: ${managed_dir}"
@@ -135,7 +139,4 @@ PY
 printf '%s\n' \
   'V2 host directories, non-root container identity, configuration and secret are ready.' \
   "Review ${env_file}; set SCOUT_BIND_IP to this Spark private LAN address and" \
-  'set an immutable VISION_MODEL_REVISION, then run:' \
-  '  ./deploy/v2-prepare-online.sh --allow-network' \
-  '  make v2-preflight' \
-  '  make v2-start'
+  'follow the runtime-specific prepare, preflight and start commands in the deployment guide.'

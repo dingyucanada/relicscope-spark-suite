@@ -375,12 +375,23 @@ class ScoutService:
                 )
             return existing, False
 
-        incoming_bytes = sum(len(item.raw_bytes) for item in uploads)
-        free_bytes = shutil.disk_usage(self.settings.scout_media_dir).free
-        if free_bytes - incoming_bytes < self.settings.scout_min_free_bytes:
-            raise ScoutStorageReserveError("Spark data volume free-space reserve reached")
-
         with self._ingest_publication_lock():
+            # The reserve check and media publication must share one lock domain.
+            # Otherwise concurrent ingests can all observe the same free-space value,
+            # pass independently, and together consume the protected reserve.
+            # Content-addressed objects already present on disk do not require a
+            # second allocation.  Counting only missing objects prevents a valid
+            # metadata-only job from being rejected at the reserve boundary.
+            incoming_bytes = sum(
+                capture["byte_count"]
+                for capture in prepared
+                if not Path(capture["path"]).exists()
+            )
+            free_bytes = shutil.disk_usage(self.settings.scout_media_dir).free
+            if free_bytes - incoming_bytes < self.settings.scout_min_free_bytes:
+                raise ScoutStorageReserveError(
+                    "Spark data volume free-space reserve reached"
+                )
             new_media_paths: list[Path] = []
             for capture in prepared:
                 path = Path(capture["path"])
@@ -695,8 +706,13 @@ class ScoutService:
                             "model",
                             "configured_model",
                             "model_identity_verified",
+                            "model_identity_verification_scope",
+                            "runtime_provider",
+                            "runtime_attestation_scope",
                             "runtime_image",
                             "model_source",
+                            "model_artifact_kind",
+                            "model_artifact_id",
                             "model_revision",
                             "request_id",
                             "prompt_hash",

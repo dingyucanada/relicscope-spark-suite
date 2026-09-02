@@ -1,6 +1,6 @@
 # Third-party notices
 
-RelicScope remains unlicensed proprietary code unless a file or component states otherwise. The following bundled files are third-party material under their own license:
+RelicScope source code remains proprietary and is not licensed for use unless a file, component, or separate written agreement expressly states otherwise. Public access to this repository does not alter that status. The following bundled files are third-party material governed by their own terms:
 
 ## OpenSpec generated agent skills
 
@@ -52,9 +52,32 @@ upstream notice obligation.
 
 ## Runtime containers and model artifacts
 
-The online preparation step obtains Caddy, NVIDIA vLLM runtime material, and a
-separately selected model from their approved registries. These artifacts are
-not granted a license by this repository. Model terms, NGC terms, geography,
-access, and redistribution rights must be reviewed before caching or packaging.
-The normal source archive and Git repository contain no model weights or runtime
-container layers.
+The deployment tooling can pull Caddy, an NVIDIA NIM vision-language-model
+container from NVIDIA NGC, and the selected model artifacts. An optional vLLM
+runtime may be used as a compatibility fallback. None of those containers,
+models, weights, tokenizers, or runtime layers is bundled with or licensed by
+this repository.
+
+NVIDIA, DGX, NIM, CUDA, and related product names are trademarks or registered
+trademarks of NVIDIA Corporation in the United States and other countries.
+References to them identify technical dependencies and do not independently
+establish endorsement, certification, or validation of RelicScope.
+
+Access to and use of NVIDIA NIM and NGC content are governed by the applicable
+NVIDIA NGC terms, NVIDIA software or AI-product agreement, product-specific
+terms, entitlement requirements, and regional restrictions. An NGC API key or
+the ability to pull an image does not grant redistribution rights. Operators
+must review the terms applicable to the exact image tag and deployment before
+downloading, caching, using, or transferring it.
+
+Model licenses and acceptable-use terms can differ from the runtime-container
+terms and can change between model versions. The deploying organization is
+responsible for verifying the license, attribution, usage restrictions,
+commercial-use rights, data-processing conditions, and redistribution rights
+for every selected model and model revision.
+
+The Git repository and its normal source-release package intentionally contain
+no model weights, NVIDIA NIM images, NGC credentials, runtime container layers,
+private customer data, or private reference collections. Deployment tooling
+references external artifacts but does not convey permission to obtain or use
+them.

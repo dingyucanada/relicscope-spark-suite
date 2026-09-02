@@ -5,7 +5,7 @@ umask 077
 
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 env_file="${V2_ENV_FILE:-${project_root}/.env.v2}"
-compose_file="${project_root}/compose.v2.yml"
+compose_file="${V2_COMPOSE_FILE:-${project_root}/compose.v2.yml}"
 output_dir=""
 staging_parent=""
 gateway_was_running=false
@@ -20,8 +20,10 @@ usage() {
   cat <<'EOF'
 Usage: deploy/v2-backup.sh --output-dir /absolute/path
 
-Creates a verified V2 data/TLS backup outside the source tree. The service key,
-.env.v2, model cache and vLLM cache are deliberately excluded.
+Creates a verified V2 application-data/Caddy-state backup outside the source
+tree. Runtime environment files, service/NGC credentials, model caches and
+container images are deliberately excluded. NVIDIA NIM backups also exclude
+Caddy PKI/private-key state; the target keeps or provisions its own TLS identity.
 EOF
 }
 
@@ -43,7 +45,8 @@ done
 [[ -n "${output_dir}" ]] || fail "--output-dir is required"
 [[ "${output_dir}" == /* ]] || fail "--output-dir must be an absolute path"
 [[ "$(id -u)" != "0" ]] || fail "run backup as the non-root Spark operator"
-[[ -f "${env_file}" ]] || fail ".env.v2 is missing: ${env_file}"
+[[ -f "${env_file}" && ! -L "${env_file}" ]] || fail "V2 environment file is missing or is a symlink: ${env_file}"
+[[ -f "${compose_file}" && ! -L "${compose_file}" ]] || fail "V2 Compose file is missing or is a symlink: ${compose_file}"
 for command_name in awk basename date dirname docker find flock git grep hostname mkdir mktemp mv python3 rm rsync sed sha256sum sort sync tar xargs; do
   command -v "${command_name}" >/dev/null 2>&1 || fail "missing command: ${command_name}"
 done
@@ -104,7 +107,7 @@ PY
 }
 
 assert_excluded_path() {
-  python3 - "$1" "$2" "$3" "$4" <<'PY'
+  python3 - "$@" <<'PY'
 import os
 import sys
 
@@ -120,9 +123,19 @@ caddy_data_dir="$(safe_managed_dir "$(absolute_path "$(cfg CADDY_DATA_DIR ./runt
 caddy_config_dir="$(safe_managed_dir "$(absolute_path "$(cfg CADDY_CONFIG_DIR ./runtime/caddy/config)")")"
 hf_cache_dir="$(safe_managed_dir "$(absolute_path "$(cfg HF_CACHE_DIR ./runtime/hf-cache)")")"
 vllm_cache_dir="$(safe_managed_dir "$(absolute_path "$(cfg VLLM_CACHE_DIR ./runtime/vllm-cache)")")"
+nim_cache_dir="$(safe_managed_dir "$(absolute_path "$(cfg NIM_CACHE_DIR ./runtime/nim-cache)")")"
 secret_file="$(canonical_path "$(absolute_path "$(cfg SERVICE_API_KEY_FILE ./secrets/service_api_key)")")"
 env_file="$(canonical_path "${env_file}")"
+compose_file="$(canonical_path "${compose_file}")"
 output_dir="$(safe_managed_dir "${output_dir}")"
+
+if [[ -n "$(cfg NIM_MODEL_PROFILE)" ]]; then
+  expected_runtime_kind="nvidia-nim"
+  include_caddy_data=false
+else
+  expected_runtime_kind="vllm"
+  include_caddy_data=true
+fi
 
 python3 - "${output_dir}" "${project_root}" <<'PY'
 import os
@@ -133,14 +146,25 @@ if os.path.commonpath((output, project)) == project:
     raise SystemExit("backup output must be outside the checked-out source tree")
 PY
 
-for source_dir in "${data_dir}" "${caddy_data_dir}" "${caddy_config_dir}"; do
+for source_dir in "${data_dir}" "${caddy_config_dir}"; do
   [[ -d "${source_dir}" && -r "${source_dir}" ]] || fail "backup source is unavailable: ${source_dir}"
 done
+if [[ "${include_caddy_data}" == "true" ]]; then
+  [[ -d "${caddy_data_dir}" && -r "${caddy_data_dir}" ]] \
+    || fail "backup source is unavailable: ${caddy_data_dir}"
+fi
 [[ -d "${data_dir}/scout-media" ]] || fail "Scout media directory is missing: ${data_dir}/scout-media"
 assert_separate_paths "${data_dir}" "${caddy_data_dir}" "${caddy_config_dir}" "${output_dir}"
-for excluded in "${secret_file}" "${env_file}" "${hf_cache_dir}" "${vllm_cache_dir}"; do
-  assert_excluded_path "${excluded}" "${data_dir}" "${caddy_data_dir}" "${caddy_config_dir}"
+backup_sources=("${data_dir}" "${caddy_config_dir}")
+if [[ "${include_caddy_data}" == "true" ]]; then
+  backup_sources+=("${caddy_data_dir}")
+fi
+for excluded in "${secret_file}" "${env_file}" "${hf_cache_dir}" "${vllm_cache_dir}" "${nim_cache_dir}"; do
+  assert_excluded_path "${excluded}" "${backup_sources[@]}"
 done
+if [[ "${include_caddy_data}" != "true" ]]; then
+  assert_excluded_path "${caddy_data_dir}" "${backup_sources[@]}"
+fi
 
 mkdir -p -- "${output_dir}"
 [[ -d "${output_dir}" && -w "${output_dir}" ]] || fail "backup output is not writable: ${output_dir}"
@@ -175,12 +199,16 @@ values = (
     gateway_env.get("RELICSCOPE_GIT_COMMIT", ""),
     gateway_env.get("RELICSCOPE_SERVICE_VERSION", ""),
     gateway_env.get("VISION_MODEL", ""),
+    gateway_env.get("VISION_MODEL_SOURCE", ""),
     gateway_env.get("VISION_MODEL_REVISION", ""),
     gateway_env.get("VISION_RUNTIME_IMAGE", ""),
+    gateway_env.get("MODEL_PROFILE", ""),
     vision["Image"],
     vision["Config"].get("Image", ""),
     vision_env.get("VISION_MODEL", ""),
     vision_env.get("VISION_MODEL_REVISION", ""),
+    vision_env.get("NIM_SERVED_MODEL_NAME", ""),
+    vision_env.get("NIM_MODEL_PROFILE", ""),
     ingress["Config"].get("Image", ""),
     ingress["Image"],
 )
@@ -193,27 +221,72 @@ runtime_gateway_label_commit="$(sed -n '2p' <<<"${runtime_values}")"
 runtime_gateway_env_commit="$(sed -n '3p' <<<"${runtime_values}")"
 runtime_service_version="$(sed -n '4p' <<<"${runtime_values}")"
 runtime_model="$(sed -n '5p' <<<"${runtime_values}")"
-runtime_revision="$(sed -n '6p' <<<"${runtime_values}")"
-runtime_gateway_vllm_image="$(sed -n '7p' <<<"${runtime_values}")"
-runtime_vision_image_id="$(sed -n '8p' <<<"${runtime_values}")"
-runtime_vision_image="$(sed -n '9p' <<<"${runtime_values}")"
-runtime_vision_model="$(sed -n '10p' <<<"${runtime_values}")"
-runtime_vision_revision="$(sed -n '11p' <<<"${runtime_values}")"
-runtime_ingress_caddy_image="$(sed -n '12p' <<<"${runtime_values}")"
-runtime_ingress_caddy_image_id="$(sed -n '13p' <<<"${runtime_values}")"
+runtime_model_source="$(sed -n '6p' <<<"${runtime_values}")"
+runtime_revision="$(sed -n '7p' <<<"${runtime_values}")"
+runtime_gateway_runtime_image="$(sed -n '8p' <<<"${runtime_values}")"
+runtime_gateway_model_profile="$(sed -n '9p' <<<"${runtime_values}")"
+runtime_vision_image_id="$(sed -n '10p' <<<"${runtime_values}")"
+runtime_vision_image="$(sed -n '11p' <<<"${runtime_values}")"
+runtime_vision_model="$(sed -n '12p' <<<"${runtime_values}")"
+runtime_vision_revision="$(sed -n '13p' <<<"${runtime_values}")"
+runtime_nim_served_model="$(sed -n '14p' <<<"${runtime_values}")"
+runtime_nim_profile="$(sed -n '15p' <<<"${runtime_values}")"
+runtime_ingress_caddy_image="$(sed -n '16p' <<<"${runtime_values}")"
+runtime_ingress_caddy_image_id="$(sed -n '17p' <<<"${runtime_values}")"
 [[ "${runtime_gateway_label_commit}" == "${source_commit}" \
    && "${runtime_gateway_env_commit}" == "${source_commit}" ]] \
   || fail "the actual gateway container does not match the checked-out source commit"
 [[ "${runtime_service_version}" == "$(cfg RELICSCOPE_SERVICE_VERSION 2.0.0)" ]] \
-  || fail "the actual gateway service version differs from .env.v2"
+  || fail "the actual gateway service version differs from the selected V2 environment"
+configured_gateway_image="$(cfg SCOUT_GATEWAY_IMAGE "relicscope-scout-gateway:${runtime_service_version}-arm64")"
+configured_gateway_image_id="$(docker image inspect \
+  --format '{{.Id}}' "${configured_gateway_image}" 2>/dev/null)" \
+  || fail "the configured Scout gateway image is not present locally"
+[[ "${runtime_gateway_image_id}" == "${configured_gateway_image_id}" \
+   && "${runtime_gateway_image_id}" =~ ^sha256:[0-9a-f]{64}$ ]] \
+  || fail "the actual gateway container differs from the configured local image ID"
 [[ "${runtime_model}" == "$(cfg VISION_MODEL)" \
-   && "${runtime_revision}" == "$(cfg VISION_MODEL_REVISION)" \
-   && "${runtime_vision_model}" == "${runtime_model}" \
-   && "${runtime_vision_revision}" == "${runtime_revision}" ]] \
-  || fail "the actual gateway/model containers differ from the configured model identity"
-[[ "${runtime_gateway_vllm_image}" == "$(cfg VLLM_IMAGE)" \
-   && "${runtime_vision_image}" == "$(cfg VLLM_IMAGE)" ]] \
-  || fail "the actual model container image differs from the pinned VLLM_IMAGE"
+   && "${runtime_model_source}" == "$(cfg VISION_MODEL_SOURCE)" ]] \
+  || fail "the actual gateway model/source identity differs from the selected V2 environment"
+
+if [[ -n "${runtime_nim_profile}" || -n "${runtime_nim_served_model}" ]]; then
+  runtime_kind="nvidia-nim"
+  [[ -n "${runtime_nim_profile}" && -n "${runtime_nim_served_model}" \
+     && -z "${runtime_vision_model}" && -z "${runtime_vision_revision}" ]] \
+    || fail "the actual vision container has an ambiguous NIM/vLLM runtime identity"
+  configured_runtime_image="$(cfg NIM_VLM_IMAGE)"
+  configured_runtime_profile="$(cfg NIM_MODEL_PROFILE)"
+  configured_served_model="$(cfg NIM_SERVED_MODEL_NAME)"
+  [[ "${runtime_revision}" == "${configured_runtime_profile}" \
+     && "${runtime_nim_profile}" == "${configured_runtime_profile}" \
+     && "${runtime_nim_served_model}" == "${configured_served_model}" \
+     && "${configured_served_model}" == "${runtime_model}" \
+     && "${runtime_model_source}" == "${runtime_model}" ]] \
+    || fail "the actual gateway/NIM container differs from the frozen model/profile identity"
+  [[ "${configured_runtime_image}" =~ @sha256:[0-9a-fA-F]{64}$ ]] \
+    || fail "NIM_VLM_IMAGE must be pinned by registry digest before backup"
+else
+  runtime_kind="vllm"
+  configured_runtime_image="$(cfg VLLM_IMAGE)"
+  configured_runtime_profile="${runtime_revision}"
+  configured_served_model="${runtime_vision_model}"
+  [[ -n "${runtime_vision_model}" && -n "${runtime_vision_revision}" \
+     && "${runtime_revision}" == "$(cfg VISION_MODEL_REVISION)" \
+     && "${runtime_vision_model}" == "${runtime_model}" \
+     && "${runtime_vision_revision}" == "${runtime_revision}" ]] \
+    || fail "the actual gateway/vLLM container differs from the configured model identity"
+fi
+[[ "${runtime_kind}" == "${expected_runtime_kind}" ]] \
+  || fail "the actual vision runtime kind differs from the selected V2 environment"
+[[ "${runtime_gateway_runtime_image}" == "${configured_runtime_image}" \
+   && "${runtime_vision_image}" == "${configured_runtime_image}" ]] \
+  || fail "the actual model container image differs from the configured runtime image"
+configured_runtime_image_id="$(docker image inspect \
+  --format '{{.Id}}' "${configured_runtime_image}" 2>/dev/null)" \
+  || fail "the configured vision runtime image is not present locally"
+[[ "${runtime_vision_image_id}" == "${configured_runtime_image_id}" \
+   && "${runtime_vision_image_id}" =~ ^sha256:[0-9a-f]{64}$ ]] \
+  || fail "the actual vision container differs from the configured local image ID"
 configured_caddy_image="$(cfg CADDY_IMAGE)"
 [[ "${configured_caddy_image}" =~ @sha256:[0-9a-fA-F]{64}$ ]] \
   || fail "CADDY_IMAGE must be pinned by registry digest before backup"
@@ -263,13 +336,18 @@ backup_timestamp="$(date -u '+%Y%m%dT%H%M%SZ')"
 backup_id="relicscope-v2-backup-${backup_timestamp}"
 backup_root="${staging_parent}/${backup_id}"
 payload_root="${backup_root}/payload"
-mkdir -p -- "${payload_root}/data" "${payload_root}/caddy-data" "${payload_root}/caddy-config"
+mkdir -p -- "${payload_root}/data" "${payload_root}/caddy-config"
+if [[ "${include_caddy_data}" == "true" ]]; then
+  mkdir -p -- "${payload_root}/caddy-data"
+fi
 
 sync_payload() {
   rsync -a --delete --safe-links --no-owner --no-group -- \
     "${data_dir}/" "${payload_root}/data/"
-  rsync -a --delete --safe-links --no-owner --no-group -- \
-    "${caddy_data_dir}/" "${payload_root}/caddy-data/"
+  if [[ "${include_caddy_data}" == "true" ]]; then
+    rsync -a --delete --safe-links --no-owner --no-group -- \
+      "${caddy_data_dir}/" "${payload_root}/caddy-data/"
+  fi
   rsync -a --delete --safe-links --no-owner --no-group -- \
     "${caddy_config_dir}/" "${payload_root}/caddy-config/"
 }
@@ -300,12 +378,29 @@ for path in root.rglob("*"):
         raise SystemExit(f"unsupported payload filename: {relative!r}")
 PY
 
+if [[ "${runtime_kind}" == "nvidia-nim" ]]; then
+  python3 - "${payload_root}/caddy-config" <<'PY'
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+for path in root.rglob("*"):
+    if not path.is_file():
+        continue
+    content = path.read_bytes()
+    if b"PRIVATE KEY-----" in content or b"nvapi-" in content:
+        raise SystemExit(f"Caddy configuration contains private-key/NGC credential material: {path}")
+PY
+fi
+
 python3 - "${backup_root}/manifest.json" "${backup_id}" "${backup_timestamp}" \
   "${source_commit}" "${runtime_service_version}" \
-  "${runtime_model}" "${runtime_revision}" "$(hostname)" \
+  "${runtime_model}" "${runtime_model_source}" "${runtime_revision}" "$(hostname)" \
+  "${runtime_kind}" "${runtime_gateway_model_profile}" \
+  "${configured_runtime_profile}" "${configured_served_model}" \
   "${runtime_gateway_image_id}" "${runtime_vision_image_id}" \
   "${runtime_vision_image}" "${runtime_ingress_caddy_image}" \
-  "${runtime_ingress_caddy_image_id}" <<'PY'
+  "${runtime_ingress_caddy_image_id}" "${include_caddy_data}" <<'PY'
 import datetime
 import json
 import pathlib
@@ -313,41 +408,61 @@ import sys
 
 (
     output, backup_id, compact_time, source_commit, service_version,
-    model, model_revision, host, gateway_image_id, vision_image_id,
-    vision_runtime_image, ingress_caddy_image, ingress_caddy_image_id,
+    model, model_source, model_revision, host, runtime_kind,
+    gateway_model_profile, runtime_profile, served_model, gateway_image_id,
+    vision_image_id, vision_runtime_image, ingress_caddy_image,
+    ingress_caddy_image_id, include_caddy_data,
 ) = sys.argv[1:]
 created = datetime.datetime.strptime(compact_time, "%Y%m%dT%H%M%SZ").replace(
     tzinfo=datetime.timezone.utc
 )
+payload = [
+    {"path": "payload/data", "purpose": "V2 SQLite, WAL/SHM and scout-media"},
+    {"path": "payload/caddy-config", "purpose": "Caddy runtime configuration state"},
+]
+excluded = [
+    "V2 runtime environment file",
+    "service API key",
+    "NGC API key",
+    "Hugging Face model cache",
+    "vLLM cache",
+    "NVIDIA NIM cache and model artifacts",
+    "container images",
+]
+format_version = 2 if runtime_kind == "nvidia-nim" else 1
+if include_caddy_data == "true":
+    payload.insert(
+        1,
+        {"path": "payload/caddy-data", "purpose": "Caddy PKI, certificates and TLS identity"},
+    )
+    excluded.append("plaintext application credentials")
+else:
+    excluded.extend(["Caddy PKI and private-key state", "plaintext private-key values"])
+
 manifest = {
     "format": "relicscope-scout-spark-v2-backup",
-    "format_version": 1,
+    "format_version": format_version,
     "backup_id": backup_id,
     "created_at": created.isoformat().replace("+00:00", "Z"),
     "source": {
         "host": host,
         "git_commit": source_commit,
         "service_version": service_version,
+        "vision_runtime_kind": runtime_kind,
         "vision_model": model,
+        "vision_model_source": model_source,
         "vision_model_revision": model_revision,
+        "gateway_model_profile": gateway_model_profile,
+        "vision_runtime_profile": runtime_profile,
+        "vision_served_model": served_model,
         "gateway_image_id": gateway_image_id,
         "vision_image_id": vision_image_id,
         "vision_runtime_image": vision_runtime_image,
         "ingress_caddy_image": ingress_caddy_image,
         "ingress_caddy_image_id": ingress_caddy_image_id,
     },
-    "payload": [
-        {"path": "payload/data", "purpose": "V2 SQLite, WAL/SHM and scout-media"},
-        {"path": "payload/caddy-data", "purpose": "Caddy PKI, certificates and TLS identity"},
-        {"path": "payload/caddy-config", "purpose": "Caddy runtime configuration state"},
-    ],
-    "excluded": [
-        ".env.v2",
-        "service API key",
-        "Hugging Face model cache",
-        "vLLM cache",
-        "container images",
-    ],
+    "payload": payload,
+    "excluded": excluded,
     "integrity": {"algorithm": "SHA-256", "file": "SHA256SUMS"},
 }
 pathlib.Path(output).write_text(
@@ -377,4 +492,8 @@ mv -- "${staging_parent}/${backup_id}.tar.gz.sha256" "${archive_sidecar}"
 printf '%s\n' \
   "PASS: V2 backup created: ${archive_path}" \
   "PASS: archive digest: ${archive_sidecar}" \
-  'The service key, .env.v2, model caches and container images were not included.'
+  "PASS: recorded vision runtime: ${runtime_kind}; model/profile/image provenance is frozen in the manifest." \
+  'Runtime environment files, service/NGC credentials, model caches and container images were not included.'
+if [[ "${include_caddy_data}" != "true" ]]; then
+  printf '%s\n' 'NIM backup excluded Caddy PKI/private-key state; retain or reprovision the target TLS identity separately.'
+fi

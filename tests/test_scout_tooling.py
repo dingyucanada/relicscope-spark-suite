@@ -258,7 +258,17 @@ def _proof_fixture() -> tuple[dict, dict, list[dict]]:
         ],
         "temperature": 0.0,
         "max_tokens": 1200,
-        "response_format": {"type": "json_object"},
+        "response_format": SMOKE.build_scout_multi_view_payload(
+            model,
+            [
+                {
+                    "capture_id": capture_id,
+                    "view_code": "FRONT",
+                    "image_data_url": data_url,
+                }
+            ],
+            context,
+        )[0]["response_format"],
     }
     model_output = {
         "observations": [
@@ -338,6 +348,8 @@ def _proof_fixture() -> tuple[dict, dict, list[dict]]:
                 "configured_model": model,
                 "model_source": model,
                 "model_identity_verified": True,
+                "model_identity_verification_scope": "provider_response_name_match",
+                "runtime_attestation_scope": "configuration_bound_application_receipt",
                 "runtime_image": "nvcr.io/nvidia/vllm@sha256:" + "a" * 64,
                 "model_revision": "b" * 40,
                 "request_id": "chatcmpl-test",
@@ -373,6 +385,29 @@ def _reseal(envelope: dict) -> None:
 
 def test_smoke_recomputes_complete_input_model_output_and_result_proof():
     envelope, metadata, submitted = _proof_fixture()
+    SMOKE._validate_success_result(
+        envelope,
+        expected_job_id="job-server-0001",
+        metadata=metadata,
+        submitted=submitted,
+    )
+
+
+def test_smoke_accepts_nim_completion_with_explicit_profile_provenance():
+    envelope, metadata, submitted = _proof_fixture()
+    run = envelope["result"]["model_runs"][0]
+    run.update(
+        {
+            "mode": "local_nim",
+            "runtime_provider": "nvidia_nim",
+            "model_artifact_kind": "nim_profile",
+            "model_artifact_id": run["model_revision"],
+            "runtime_image": "nvcr.io/nim/qwen/qwen3.6-35b-a3b@sha256:"
+            + "a" * 64,
+        }
+    )
+    _reseal(envelope)
+
     SMOKE._validate_success_result(
         envelope,
         expected_job_id="job-server-0001",

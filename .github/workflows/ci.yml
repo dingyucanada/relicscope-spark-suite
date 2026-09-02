@@ -15,6 +15,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -28,6 +30,8 @@ jobs:
         run: npm install --global @fission-ai/openspec@1.11.0
       - name: JavaScript syntax
         run: node --check app/static/app.js
+      - name: Public release data boundary
+        run: python scripts/check-public-release.py
       - name: Python tests
         run: python -m pytest -q
       - name: Bundled synthetic media integrity

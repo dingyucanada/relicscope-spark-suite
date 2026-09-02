@@ -57,6 +57,8 @@ def model_request_options(model: str, *, video: bool = False) -> Dict[str, Any]:
     """Return model-card-specific options shared by runtime and acceptance tools."""
 
     normalized = model.lower()
+    if "qwen3.6" in normalized or "qwen3.8" in normalized:
+        return {"chat_template_kwargs": {"enable_thinking": False}}
     if "nemotron" not in normalized or "omni" not in normalized:
         return {}
     options: Dict[str, Any] = {
@@ -66,6 +68,90 @@ def model_request_options(model: str, *, video: bool = False) -> Dict[str, Any]:
     if video:
         options["mm_processor_kwargs"] = {"use_audio_in_video": False}
     return options
+
+
+def scout_response_format(allowed_captures: Dict[str, str]) -> Dict[str, Any]:
+    """Build the NIM/vLLM JSON-schema contract for one Scout request.
+
+    NVIDIA recommends ``json_schema`` instead of the weaker ``json_object``
+    mode because the latter also permits an empty object. The server still
+    performs its own semantic checks after decoding: the schema cannot express
+    the exact capture_id-to-view_code pairing or the scientific conclusion
+    boundary.
+    """
+
+    capture_ids = list(allowed_captures)
+    view_codes = list(dict.fromkeys(allowed_captures.values()))
+    text = {"type": "string", "minLength": 1, "maxLength": 500}
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "RelicScopeScoutObservationV2",
+            "schema": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "observations": {
+                        "type": "array",
+                        "maxItems": 64,
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {
+                                "capture_id": {
+                                    "type": "string",
+                                    "enum": capture_ids,
+                                },
+                                "view_code": {
+                                    "type": "string",
+                                    "enum": view_codes,
+                                },
+                                "text": text,
+                            },
+                            "required": ["capture_id", "view_code", "text"],
+                        },
+                    },
+                    "cross_view_observations": {
+                        "type": "array",
+                        "maxItems": 32,
+                        "items": text,
+                    },
+                    "limitations": {
+                        "type": "array",
+                        "maxItems": 32,
+                        "items": text,
+                    },
+                    "capture_issues": {
+                        "type": "array",
+                        "maxItems": 16,
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {
+                                "capture_id": {
+                                    "type": "string",
+                                    "enum": capture_ids,
+                                },
+                                "issue": text,
+                            },
+                            "required": ["capture_id", "issue"],
+                        },
+                    },
+                    "ood_risk": {
+                        "type": "string",
+                        "enum": ["LOW", "MEDIUM", "HIGH"],
+                    },
+                },
+                "required": [
+                    "observations",
+                    "cross_view_observations",
+                    "limitations",
+                    "capture_issues",
+                    "ood_risk",
+                ],
+            },
+        },
+    }
 
 
 def model_output_hash(value: Dict[str, Any]) -> str:
@@ -121,7 +207,7 @@ def build_scout_multi_view_payload(
         ],
         "temperature": 0.0,
         "max_tokens": 1200,
-        "response_format": {"type": "json_object"},
+        "response_format": scout_response_format(allowed_captures),
     }
     payload.update(model_request_options(model))
     return payload, allowed_captures
@@ -387,11 +473,40 @@ class OpenAICompatibleClient:
         self.model_revision = model_revision
         self.deployment_git_commit = deployment_git_commit
 
+    @property
+    def runtime_provider(self) -> str:
+        """Identify the local serving layer without trusting response prose."""
+
+        image = self.runtime_image.lower()
+        profile = self.model_profile.lower()
+        if "nvcr.io/nim/" in image or "nim" in profile:
+            return "nvidia_nim"
+        if "vllm" in image or "vllm" in profile:
+            return "vllm"
+        return "openai_compatible_local"
+
+    @property
+    def completion_mode(self) -> str:
+        return "local_nim" if self.runtime_provider == "nvidia_nim" else "local_vllm"
+
     def _runtime_metadata(self) -> Dict[str, Any]:
+        artifact_kind = (
+            "nim_profile"
+            if self.runtime_provider == "nvidia_nim"
+            else "model_source_revision"
+        )
         return {
             "model_profile": self.model_profile,
+            "runtime_provider": self.runtime_provider,
+            "runtime_attestation_scope": "configuration_bound_application_receipt",
             "runtime_image": self.runtime_image,
             "model_source": self.model_source,
+            "model_identity_verification_scope": "provider_response_name_match",
+            "model_artifact_kind": artifact_kind,
+            "model_artifact_id": self.model_revision,
+            # Compatibility field retained for existing evidence consumers. For
+            # NVIDIA NIM it contains the immutable NIM profile ID, not an
+            # upstream Hugging Face commit.
             "model_revision": self.model_revision,
             "deployment_git_commit": self.deployment_git_commit,
         }
@@ -685,7 +800,7 @@ class OpenAICompatibleClient:
             output_hash = model_output_hash(parsed)
             return {
                 "available": True,
-                "mode": "local_vllm",
+                "mode": self.completion_mode,
                 "role": role,
                 "model": response_model,
                 "configured_model": self.model,

@@ -1,148 +1,254 @@
-# RelicScope V2 单台 DGX Spark 部署
+# RelicScope V2：单台 DGX Spark 正式部署
 
-> 当前状态：部署代码已准备；尚未在客户 DGX Spark 上完成真机验收。
-> V2 只启动 Scout 网关、持久任务、本地 VLM 和 HTTPS 入口。
+> 适用版本：V2 Scout + Spark
+> 推荐运行时：NVIDIA NIM for VLM + Qwen3.6-35B-A3B
+> 当前状态：`DEPLOYMENT_READY`。代码、配置与交接材料已具备部署条件；客户 Spark、目标 Android 和真实业务数据仍需现场验收。
 
-Codex Desktop 可以帮助工程师完成检出、配置复核和排障，但不属于运行时。完成部署后，
-即使 Codex Desktop 未启动，Scout、队列、模型和结果接口也必须独立工作。
+## 1. 部署结果
 
-## 1. 文件与边界
+一台 DGX Spark 必须独立完成整条主链路：
 
-- Compose：`compose.v2.yml`
-- 服务入口：`app.scout_main:app`
-- 环境模板：`.env.v2.example`
-- 数据：`runtime/v2-data/`，不进入 Git
-- 模型缓存：`runtime/hf-cache/`，不进入 Git
-- HTTPS：Caddy 内部 CA，仅用于受控 Demo；正式部署改用机构 CA
-- vLLM：只在私有 Docker 网络出现，无主机端口
-
-## 2. 唯一支持的安装顺序
-
-```bash
-git switch v2-scout-spark-platform
-make v2-install
+```text
+Android Scout
+  拍摄 · 端侧质检 · 离线队列
+          │ HTTPS / 设备凭据
+          ▼
+DGX Spark
+  Caddy → Scout Gateway → 持久任务 → 私有 NVIDIA NIM
+                    │
+                    └→ 结构化可见观察 · 运行证明 · 补拍建议
 ```
 
-`v2-install` 不联网、不启动服务。它创建 `.env.v2`、非 root 容器身份、私有目录和
-服务密钥。不要把密钥、`.env.v2`、模型、媒体或数据库加入 Git。
+第二台 Spark 可以运行同一主模型作为人工切换备用，也可以承载 Qwen3.8、Nemotron、评测、LoRA 或批处理。它不是主系统启动条件，两台机器也不被强制划分为永久固定角色。
 
-先核对模型许可与官方 Spark/vLLM 或 NIM 支持，把真实 immutable revision 写入
-`.env.v2`，并把 `SCOUT_BIND_IP` 从安全的 loopback 默认值改成这台 Spark 已分配的
-私有 LAN IPv4 地址。在经批准的联网准备窗口执行：
+Codex Desktop 适合工程师检出代码、检查配置和协助排障。RelicScope 正式运行不依赖 Codex Desktop；服务由冻结的 Git commit、容器、NIM profile、环境配置和系统服务构成。
 
-模板中的 [`Qwen/Qwen3-VL-30B-A3B-Instruct`](https://huggingface.co/Qwen/Qwen3-VL-30B-A3B-Instruct) 官方模型卡给出了 vLLM 调用方式，但
-NVIDIA 当前 Spark vLLM 支持矩阵没有列出这一精确型号。它在 V2 中是待验收的中文
-基线候选；必须通过下述目标机预检和多图 smoke 才能冻结为主模型。
+## 2. 首选与备选运行时
+
+| 路径 | 用途 | 入口 |
+|---|---|---|
+| **NVIDIA NIM / Qwen3.6** | 首台 Spark 生产试运行；NVIDIA 提供 DGX Spark 专用 ARM64 profile | `compose.v2.nim.yml`、`.env.v2.nim`、`make v2-nim-*` |
+| NVIDIA vLLM / 自选模型 | 兼容回退和模型研发；需自行证明具体模型、镜像与 GB10 组合 | `compose.v2.yml`、`.env.v2`、`make v2-*` |
+| 候选实验节点 | Qwen3.8 / Nemotron 等冻结输入 A/B | `compose.v2.lab.yml`、`.env.v2.lab`、`make v2-lab-*` |
+
+模型决策和晋级规则见 [`MODEL_SELECTION_AND_SPARK_RUNTIME_2026-09.md`](MODEL_SELECTION_AND_SPARK_RUNTIME_2026-09.md)。
+
+## 3. Spark 准备
+
+### 3.1 管理员先完成
+
+- 更新并记录 DGX OS、GPU driver、CUDA、Docker 和 NVIDIA Container Toolkit；
+- 为 RelicScope 建立一个非 root 运维账号，并允许其使用 Docker；
+- 确定 Spark 的私有 LAN IPv4、主机名和现场 DNS；
+- 预留独立持久磁盘目录和加密备份位置；
+- 准备机构 CA，或仅在受控试运行使用 Caddy local CA；
+- 取得短期、最小权限的 NGC Personal API Key，并保存在 Spark 上权限为 `600` 的独立文件中；准备完成后撤销或轮换；
+- 将主机 `root`、Docker daemon 以及具有 Docker/docker-group 权限的管理员纳入下载阶段受信任边界；
+- 明确联网下载窗口，准备结束后关闭公网出站。
+
+NVIDIA 当前 NIM VLM 前置条件包括 ARM64、Docker 24+、Container Toolkit 1.14+、CUDA 12.9+ 和 driver 580+。实际版本仍应与目标 NIM release 和 DGX Spark release notes 一起复核。
+
+### 3.2 检出冻结源码
 
 ```bash
-make v2-prepare-online
+git clone https://github.com/dingyucanada/relicscope-spark-suite.git
+cd relicscope-spark-suite
+git switch main
+git rev-parse HEAD
+git status --short
 ```
 
-该步骤拉取 ARM64 镜像（包括网关的 Python 基础镜像）、把 registry tag 自动改写为 digest、构建绑定当前 Git commit
-的网关、缓存指定模型 revision，并建立轻量烟雾测试环境。它不会启动服务。完成后
-关闭获批下载通道，并确认 `RELICSCOPE_OFFLINE_MODE=true`。V2 不自动选择“最新模型”。
-主机烟雾测试环境固定安装 `httpx`、`Pillow` 与 `Pydantic`，用于 HTTPS 请求、按网关
-同一算法重建净化图片，以及验证不可变任务 schema；它不安装或加载另一份大模型。
+只有干净工作树进入部署。记录 commit；不得从未提交的临时改动启动正式服务。
 
-## 3. Spark 预检与启动
+## 4. 推荐路径：NVIDIA NIM + Qwen3.6
+
+### 4.1 初始化，不联网、不启动
 
 ```bash
-make v2-preflight
-make v2-start
-make v2-health
+make v2-nim-install
 ```
 
-`v2-preflight` 检查 ARM64、GPU、Docker、源码 commit、容器 digest、网关镜像标签、
-密钥权限、目录身份、私有监听地址、磁盘余量、离线标志、精确模型缓存和隔离网络。
-`v2-health` 再通过本地 CA 访问真实 HTTPS 入口，并要求网关、队列、本地模型身份和
-数据卷余量就绪。它是 readiness 检查；只有第 6 节的多图 `v2-smoke` 成功，才能证明
-chat template、图像处理器、JSON 契约和本地模型 completion 真正工作。
+该命令创建 `.env.v2.nim`、私有数据与 NIM cache、Caddy 目录，以及随机服务密钥。配置和凭据均不进入 Git。
 
-## 4. HTTPS 与 Android 信任
+编辑 `.env.v2.nim`：
 
-Caddy 第一次启动后生成本地 CA：
-
-```bash
-make v2-export-ca
+```dotenv
+SCOUT_BIND_IP=192.168.50.20
+SCOUT_HOSTNAME=scout.spark.local
 ```
 
-输出位于 `runtime/provisioning/scout-local-ca.crt`。受控 Demo 的 Android debug build 可以信任用户安装的 CA；正式 App 默认只信任系统/机构 CA。
+`SCOUT_BIND_IP` 必须是本机私有地址。不要映射 NIM 的 8000 端口，也不要把 8443 转发到公网。
 
-在现场 DNS 或路由器 hosts 中把 `.env.v2` 的 `SCOUT_HOSTNAME` 指向主 Spark 的 10GbE/Wi‑Fi LAN 地址。不要向公网转发 8443，不要暴露 vLLM 8000。
+### 4.2 在目标 GPU 上发现 profile
 
-## 5. 配对 Scout
-
-在线准备步骤会建立设备注册与烟雾测试共用的轻量 Python 环境。创建一次性配置：
+NIM profile 与镜像、精度和 GPU 绑定。不要从文档或另一台机器抄 profile ID。Qwen3.6
+的这个 NIM release 仍需要 NGC Registry 授权。把 key 保存在权限为 `600` 或 `400`
+的独立文件中；脚本会使用隔离的临时 Docker 配置登录，且无论成功或失败都会自动
+退出并清理，不覆盖操作员原有的 Docker 凭据：
 
 ```bash
-make v2-enroll \
+make v2-nim-list-profiles \
+  NIM_PROFILE_ARGS="--allow-network --ngc-key-file /secure/ngc_api_key"
+```
+
+从输出选择一个与 DGX Spark 匹配的 64 字符 profile ID，填入：
+
+```dotenv
+NIM_MODEL_PROFILE=<64-character-profile-id>
+```
+
+运维人员只填写 `NIM_MODEL_PROFILE`。`v2-nim-prepare-online` 会将该值自动同步至
+`VISION_MODEL_REVISION`；后者仅为旧证据结构保留的兼容别名，不需要人工重复维护。
+
+建议先比较 NVFP4 Fast MTP 和 FP8 DFlash。选择依据是本项目的 1/3/5 图延迟、峰值统一内存和结构化输出质量，不根据精度名称推测结果。
+
+### 4.3 下载、固定并封存
+
+```bash
+make v2-nim-prepare-online \
+  NIM_PREPARE_ARGS="--ngc-key-file /secure/ngc_api_key"
+```
+
+该步骤会在目标 GB10 上确认 profile，固定容器 digest，把指定模型 profile 下载到私有 cache，构建绑定当前 Git commit 的网关，并生成权限为 `600` 的准备清单。它同样使用隔离的临时 Registry 登录并在退出时清理。NGC key 只进入瞬时登录/下载进程，不会被复制到仓库、配置、长期 Docker 凭据或运行容器。下载期间，`root`、Docker daemon 和具有 Docker/docker-group 权限的管理员能够管理或检查容器进程，属于受信任边界；完成准备后应撤销或轮换短期 key。
+
+默认在下载前要求 NIM cache 所在卷至少保留 64 GiB 可用空间；可通过
+`NIM_PREPARE_MIN_FREE_BYTES` 按现场磁盘规划提高门槛，不建议在没有核实镜像、cache、
+业务数据和备份共同容量时调低。
+
+同一步骤还会建立一个小型 `.venv-v2`，只用于设备配发、私有资料审计和端到端
+验收；它不承载模型服务。这样 NIM 路径无需再运行 vLLM 的下载流程，也能直接使用
+`v2-nim-enroll`、`private-artwork-*` 和 `v2-nim-smoke`。
+
+随后关闭批准的下载网络。运行配置必须保持：
+
+```dotenv
+RELICSCOPE_OFFLINE_MODE=true
+NIM_DISABLE_MODEL_DOWNLOAD=1
+NIM_MAX_VIDEOS_PER_PROMPT=0
+NIM_TELEMETRY_MODE=0
+```
+
+第一阶段只处理图片。Qwen3.6 NIM 的视频路径需要额外的 ARM64 FFmpeg 8 共享库和独立资源验收，因此不与图片发布绑定。
+
+### 4.4 离线预检并启动
+
+```bash
+make v2-nim-preflight
+make v2-nim-start
+make v2-nim-health
+```
+
+预检拒绝非 ARM64/DGX Spark/GB10、未固定源码或容器、错误 profile、缺失 cache、运行期凭据、不安全目录、公开模型端口，以及图片阶段意外启用视频。
+
+`v2-nim-health` 证明 HTTPS 网关、持久队列和模型端点已就绪。它不能替代一次真实的多图 completion。
+
+Qwen3.6 的 DGX Spark 专用 `1.7.1-variant` 不支持 Docker 的自定义 `--user`
+参数，因此 NIM 容器保留其发行版规定的运行用户；网关与 ingress 仍保持非 root、
+移除 Linux capabilities 并启用 `no-new-privileges`。NIM cache 必须对该容器可写，
+但只挂载到模型容器，并由内部 Docker 网络、`NIM_DISABLE_MODEL_DOWNLOAD=1` 和不注入
+运行期 NGC 凭据共同限制。不要为了表面上的统一加固重新加入 `user:` 或只读 cache，
+否则该特定容器可能无法启动。
+
+## 5. Scout 配对
+
+Caddy 首次启动后导出受控试运行 CA：
+
+```bash
+make v2-nim-export-ca
+```
+
+结果位于 `runtime/provisioning/scout-local-ca.crt`。Android debug/reference build 可以信任用户安装 CA；正式 Android 包应使用机构信任链和正式配发策略。
+
+创建一台设备的单独凭据：
+
+```bash
+make v2-nim-enroll \
   SCOUT_NAME="Scout 01" \
   SCOUT_SERVER_URL="https://scout.spark.local:8443" \
   SCOUT_DEVICE_ARGS="--output runtime/provisioning/scout-01.json"
 ```
 
-配置文件权限为 `600`，包含只显示一次的设备令牌。导入 Scout 后删除或移入受控密码库。设备丢失时执行：
+配发文件包含只显示一次的设备 token。导入目标 Scout 后，把文件移入受控密码库或按批准流程销毁。设备丢失时立即 disable 该 device ID。
 
-配发过程先以禁用状态写入设备记录，只有凭据文件完成刷新并同步到磁盘后才启用设备；
-若中途失败，残留记录仍不可认证。
+## 6. 授权测试资料
+
+真实艺术品图片、清单和客户信息不能进入公开 Git 仓库。先做只读审计：
 
 ```bash
-RELICSCOPE_DATA_DIR=runtime/v2-data \
-  .venv-v2/bin/python scripts/scout-device.py disable <device-id>
+make private-artwork-audit \
+  PRIVATE_ARTWORK_ARCHIVE=/absolute/path/artworks.zip
 ```
 
-## 6. 真实端到端验收
-
-先在主 Spark 上用与网关同版本的图像库模拟 Android；这也确保净化 JPEG 与请求哈希
-可以逐字节复算：
+确认审计结果后，导入本机已忽略目录：
 
 ```bash
-make v2-smoke SCOUT_SMOKE_ARGS="\
+make private-artwork-import \
+  PRIVATE_ARTWORK_ARCHIVE=/absolute/path/artworks.zip \
+  PRIVATE_ARTWORK_BATCH=customer-pilot-001
+```
+
+导入器只接收经过解码、magic、大小、像素、压缩比和路径安全检查的 PNG/JPEG/PDF。媒体按内容哈希存储；原目录只记为 `candidate_group`，不会被系统擅自当成器物主键；视角在人工核对前保持 `unclassified`。PDF 只登记并标记人工复核，不自动把其文字当作系统指令。
+
+## 7. 真实端到端验收
+
+选择同一件器物的正面、背面和底足等授权图片：
+
+```bash
+make v2-nim-smoke SCOUT_SMOKE_ARGS="\
   --provisioning runtime/provisioning/scout-01.json \
   --ca-cert runtime/provisioning/scout-local-ca.crt \
-  --capture FRONT=front.jpg \
-  --capture BACK=back.jpg \
-  --capture BASE=base.jpg"
+  --timeout-seconds 900 \
+  --capture FRONT=/private/test/front.jpg \
+  --capture BACK=/private/test/back.jpg \
+  --capture BASE=/private/test/base.jpg"
 ```
 
-每张图必须显式绑定视角，CLI 不根据位置或文件名猜测。标准烟雾测试默认只有
-`SUCCEEDED` 才返回成功，并校验本地 vLLM 运行、模型身份、容器 digest、请求/输出
-哈希和观察—视角绑定。`PARTIAL`、`NEEDS_RECAPTURE`、`MODEL_UNAVAILABLE` 等故障演练
-只有显式传入对应的 `--allow-terminal-status` 时才可作为预期结果接受。
+通过结果必须同时证明：
 
-成功结果必须包含：
-
-- 同一个 job ID 从 `QUEUED` 进入终态；
-- 每张图片的服务端质量检查；
-- 本地模型名称、revision、请求 ID、系统提示词哈希、实际请求载荷哈希和延迟；
-- 每一次失败或成功模型调用的追加式运行证明，重试历史不得被覆盖；
-- 模型调用先预留 attempt；进程中断后，已持久化成功输出不得触发第二次模型调用，
-  未知结果的调用必须被明确记录并计入有界尝试次数；
-- 观察所依据的 capture ID 与输出哈希；
+- 同一 job 从排队进入成功终态；
+- 每张图通过服务器端质量和完整性检查；
+- 每条观察绑定实际 capture ID 与视角；
+- served model、NIM image digest、profile ID、请求 ID、请求/输出哈希和延迟已记录；
+- 没有模型时保持排队/降级，不用规则文本冒充 GPU 推理；
 - `reference_library_used=false`、`rag_used=false`、`agent_used=false`；
 - `authenticity_state=NOT_ASSESSED`。
 
-## 7. 第二台 Spark
+随后按 [`V2_SPARK_ACCEPTANCE.md`](V2_SPARK_ACCEPTANCE.md) 完成 1/3/5 图、冷/热、并发 1/2、连续任务、断网、重启、撤销设备和低磁盘测试。所有性能值均来自客户机器生成的 `runtime/` 证据，不能用开发电脑测试替代。
 
-第一阶段不要把网关数据库或唯一媒体复制到副机后宣称自动高可用。推荐：
+## 8. Qwen3.8 与 Nemotron A/B
 
-1. 副机安装相同 DGX OS 和容器基线；
-2. 运行候选模型、Nemotron 视频 A/B、批量评测或 NeMo PEFT；
-3. 用内网 mTLS/OpenAI-compatible endpoint 接受受控任务；
-4. 主机故障时按恢复手册人工启动经过验证的备用服务；
-5. 只有模型容量确实需要时才执行 NVIDIA ConnectX‑7 + Ray/NCCL/vLLM 多节点流程。
+主服务验收通过后，再使用第二台 Spark 或在维护窗口内时分复用：
 
-## 8. 停止与回滚
+1. 冻结同一批输入文件、SHA-256、视角顺序、prompt 和 schema；
+2. Qwen3.8-27B-FP8 测中文可见观察与结构报告；
+3. Nemotron 3 Nano Omni 测原生视频/音频/图像证据抽取；
+4. 记录 p50/p95、峰值统一内存、JSON 通过率、违规率和专家盲评；
+5. 只有结果和运维指标共同胜出才修改默认模型。
+
+Qwen3.8 当前 NIM 文档给出通用单 GPU FP8 门槛，没有单列 DGX Spark 优化 profile。Nemotron 官方支持 Spark，但训练与评测主要为英文。两者都必须在本项目中文陶瓷输入上验证。
+
+## 9. 停止、备份与恢复
 
 ```bash
-make v2-stop
+make v2-nim-stop
 ```
 
-停止容器不会删除 `runtime/v2-data`、模型缓存或 Caddy CA。删除或清理客户媒体属于数据保留操作，必须取得明确授权并先备份。
+停止容器不删除媒体、SQLite、NIM cache 或 CA。客户需在上线前批准原始图片、结果、日志和设备凭据的保留期限、加密备份介质、恢复负责人、删除审批和容量告警。
 
-一致性备份、校验、恢复与回滚步骤见
-[`V2_BACKUP_RESTORE.md`](V2_BACKUP_RESTORE.md)。恢复流程不会把 `.env.v2`、服务密钥、
-模型缓存或容器镜像放进数据归档。
+在正式加密保留策略完成前，只处理获得授权的测试资料。通用 V2 备份边界见 [`V2_BACKUP_RESTORE.md`](V2_BACKUP_RESTORE.md)；NIM cache 可由冻结 profile 重新准备，不应与客户媒体混装。
 
-V2 当前不执行自动保留期清理。正式上线前必须由客户批准保留期限、加密备份位置、
-恢复演练和销毁流程；容量监控与这些决策没有完成前，只处理授权演示数据。
+## 10. 交接清单
+
+| 交付项 | 工程交接证据 |
+|---|---|
+| 源码 | Git URL、branch、commit、干净状态 |
+| Spark 身份 | 型号、序列/资产号、DGX OS、driver、CUDA、磁盘 |
+| 运行时 | NIM image digest、profile ID、served model、license review |
+| 网络 | Scout hostname/IP/port、无公网转发、模型端口未暴露 |
+| 安全 | 运维账号、密钥位置/权限、CA、设备撤销流程 |
+| 数据 | 私有目录、授权记录、保留/销毁/备份责任人 |
+| 验收 | 多图 smoke、连续任务、断网/重启、低磁盘、Android 真机 |
+| 运维 | 启停、健康、日志、备份、恢复、人工故障切换 |
+| 未完成项 | 真机数值、正式 Android 签名/MDM、机构 CA、领域准确性评测 |
+
+完成目标 Spark 实机闭环并保留证据后，状态可从 `DEPLOYMENT_READY` 更新为 `HARDWARE_VERIFIED`；完成客户业务评审和签署后，状态更新为 `PILOT_ACCEPTED`。

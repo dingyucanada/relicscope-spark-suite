@@ -330,6 +330,87 @@ assert vision.get("gpus") or vision.get("deploy"), "V2 model GPU request is miss
 assert "--api-key" not in " ".join(vision.get("command") or []), "API key must not enter argv"
 '
 
+    NIM_MODEL_PROFILE=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+      VISION_MODEL_REVISION=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+      NIM_VLM_IMAGE=nvcr.io/nim/qwen/qwen3.6-35b-a3b@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
+      RELICSCOPE_GIT_COMMIT=cccccccccccccccccccccccccccccccccccccccc \
+      VISION_MODEL=qwen/qwen3.6-35b-a3b \
+      VISION_MODEL_SOURCE=qwen/qwen3.6-35b-a3b \
+      NIM_SERVED_MODEL_NAME=qwen/qwen3.6-35b-a3b \
+      RELICSCOPE_SCOUT_MAX_IMAGES_PER_JOB=5 \
+      NIM_MAX_IMAGES_PER_PROMPT=8 \
+      docker compose --env-file .env.v2.nim.example -f compose.v2.nim.yml config --quiet
+    NIM_MODEL_PROFILE=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+      VISION_MODEL_REVISION=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+      NIM_VLM_IMAGE=nvcr.io/nim/qwen/qwen3.6-35b-a3b@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
+      RELICSCOPE_GIT_COMMIT=cccccccccccccccccccccccccccccccccccccccc \
+      VISION_MODEL=qwen/qwen3.6-35b-a3b \
+      VISION_MODEL_SOURCE=qwen/qwen3.6-35b-a3b \
+      NIM_SERVED_MODEL_NAME=qwen/qwen3.6-35b-a3b \
+      RELICSCOPE_SCOUT_MAX_IMAGES_PER_JOB=5 \
+      NIM_MAX_IMAGES_PER_PROMPT=8 \
+      docker compose --env-file .env.v2.nim.example -f compose.v2.nim.yml config --format json \
+      | python3 -c '
+import json
+import sys
+
+config = json.load(sys.stdin)
+services = config["services"]
+gateway = services["gateway"]
+vision = services["vision"]
+ingress = services["ingress"]
+
+published = {name for name, service in services.items() if service.get("ports")}
+assert published == {"ingress"}, "only the HTTPS ingress may publish a host port"
+assert ingress["ports"][0].get("host_ip") == "127.0.0.1", "example ingress must bind loopback"
+assert set(gateway["networks"]) == {"gateway-private", "model-private"}
+assert set(vision["networks"]) == {"model-private"}
+assert set(ingress["networks"]) == {"lan-edge", "gateway-private"}
+assert config["networks"]["gateway-private"].get("internal") is True
+assert config["networks"]["model-private"].get("internal") is True
+assert not config["networks"]["lan-edge"].get("internal", False)
+assert all(service.get("pull_policy") == "never" for service in services.values())
+assert vision.get("user") in (None, ""), "Qwen3.6 Spark NIM must not set a custom user"
+assert vision.get("gpus") or vision.get("deploy"), "NIM GPU request is missing"
+assert not vision.get("privileged", False), "NIM must not run privileged"
+assert vision.get("pid") != "host", "NIM must not share the host PID namespace"
+assert vision.get("ipc") != "host", "NIM must not share host IPC"
+
+profile = "a" * 64
+image = "nvcr.io/nim/qwen/qwen3.6-35b-a3b@sha256:" + "b" * 64
+model = "qwen/qwen3.6-35b-a3b"
+nim_env = vision["environment"]
+gateway_env = gateway["environment"]
+assert vision["image"] == image
+assert nim_env["NIM_MODEL_PROFILE"] == profile
+assert gateway_env["VISION_MODEL_REVISION"] == profile
+assert gateway_env["VISION_RUNTIME_IMAGE"] == image
+assert gateway_env["VISION_MODEL"] == gateway_env["VISION_MODEL_SOURCE"] == model
+assert gateway_env["VISION_MODEL"] == nim_env["NIM_SERVED_MODEL_NAME"]
+gateway_images = int(gateway_env["RELICSCOPE_SCOUT_MAX_IMAGES_PER_JOB"])
+nim_images = int(nim_env["NIM_MAX_IMAGES_PER_PROMPT"])
+assert 1 <= gateway_images <= nim_images <= 8
+assert str(nim_env["NIM_MAX_VIDEOS_PER_PROMPT"]) == "0"
+assert str(nim_env["NIM_DISABLE_MODEL_DOWNLOAD"]) == "1"
+
+credential_names = {
+    "NGC_API_KEY", "HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "NVIDIA_API_KEY"
+}
+for name, service in services.items():
+    environment = service.get("environment") or {}
+    leaked = credential_names.intersection(environment)
+    assert not leaked, f"{name} leaks credential variables into runtime: {sorted(leaked)}"
+assert not vision.get("secrets"), "NIM runtime must not receive registry credentials"
+gateway_secret_sources = {
+    item if isinstance(item, str) else item.get("source")
+    for item in gateway.get("secrets", [])
+}
+assert gateway_secret_sources == {"service_api_key"}
+assert "SERVICE_API_KEY" not in gateway_env and "VISION_API_KEY" not in gateway_env
+cache = next(item for item in vision.get("volumes", []) if item.get("target") == "/opt/nim/.cache")
+assert not cache.get("read_only"), "this NIM variant requires a writable cache mount"
+'
+
     LAB_UID=1000 LAB_GID=1000 \
       RELICSCOPE_LAB_GIT_COMMIT=0000000000000000000000000000000000000000 \
       LAB_MODEL_REVISION=0000000000000000000000000000000000000000 \
@@ -378,6 +459,8 @@ fi
 
 for executable in \
   deploy/v2-install.sh deploy/v2-prepare-online.sh deploy/v2-preflight.sh \
+  deploy/v2-nim-list-profiles.sh deploy/v2-nim-prepare-online.sh \
+  deploy/v2-nim-preflight.sh \
   deploy/v2-health.sh deploy/v2-backup.sh deploy/v2-restore.sh \
   deploy/v2-lab-install.sh deploy/v2-lab-prepare-online.sh \
   deploy/v2-lab-preflight.sh deploy/v2-lab-health.sh \
@@ -390,9 +473,12 @@ for executable in \
 done
 
 for required in \
-  .env.v2.example .env.v2.lab.example compose.v2.yml compose.v2.lab.yml \
+  .env.v2.example .env.v2.lab.example .env.v2.nim.example \
+  compose.v2.yml compose.v2.lab.yml compose.v2.nim.yml \
   app/scout_main.py app/scout/api.py app/scout/service.py app/scout/store.py \
   deploy/Caddyfile.v2 deploy/Caddyfile.v2-lab deploy/v2-install.sh \
+  deploy/v2-nim-list-profiles.sh deploy/v2-nim-prepare-online.sh \
+  deploy/v2-nim-preflight.sh \
   deploy/v2-prepare-online.sh deploy/v2-preflight.sh deploy/v2-health.sh \
   deploy/v2-backup.sh deploy/v2-restore.sh deploy/v2-lab-install.sh \
   deploy/v2-lab-prepare-online.sh deploy/v2-lab-preflight.sh deploy/v2-lab-health.sh \
@@ -410,8 +496,10 @@ for required in \
 done
 
 for packaged in \
-  '.env.v2.example' '.env.v2.lab.example' 'scout-android' \
-  'compose.v2.yml' 'compose.v2.lab.yml'; do
+  '.env.v2.example' '.env.v2.lab.example' '.env.v2.nim.example' 'scout-android' \
+  'compose.v2.yml' 'compose.v2.lab.yml' 'compose.v2.nim.yml' \
+  'deploy/v2-nim-list-profiles.sh' 'deploy/v2-nim-prepare-online.sh' \
+  'deploy/v2-nim-preflight.sh'; do
   if ! grep -Eq "(^|[[:space:]])${packaged//./\\.}([[:space:]]|$)" "${PROJECT_DIR}/deploy/package.sh"; then
     printf 'ERROR: V2 release entry is absent from deploy/package.sh: %s\n' "$packaged" >&2
     failures=$((failures + 1))

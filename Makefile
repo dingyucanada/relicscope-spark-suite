@@ -13,8 +13,15 @@ SYSTEMD_ARGS ?=
 ACCEPT_ARGS ?=
 REFERENCE_ARGS ?=
 REFERENCE_SCAFFOLD_DIR ?= runtime/data/reference-library-intake
+PRIVATE_ARTWORK_ARCHIVE ?=
+PRIVATE_ARTWORK_BATCH ?=
+PRIVATE_ARTWORK_ARGS ?=
 V2_ENV_FILE ?= .env.v2
+V2_COMPOSE_FILE ?= compose.v2.yml
+V2_NIM_ENV_FILE ?= .env.v2.nim
 V2_LAB_ENV_FILE ?= .env.v2.lab
+NIM_PREPARE_ARGS ?=
+NIM_PROFILE_ARGS ?=
 V2_BACKUP_ARGS ?=
 V2_RESTORE_ARGS ?=
 V2_LAB_PREPARE_ARGS ?=
@@ -27,16 +34,33 @@ SCOUT_SMOKE_ARGS ?=
 .PHONY: help require-role require-archive install prefetch preflight start stop restart \
 	health status backup restore package package-offline install-systemd remove-systemd check \
 	demo demo-install demo-check demo-media-check demo-media-smoke demo-media-generate test \
+	console console-install console-check console-smoke \
 	accept-single-spark ab-single-spark \
 	reference-scaffold reference-verify reference-import reference-build reference-evaluate reference-seal reference-status \
+	private-artwork-audit private-artwork-import require-private-artwork-archive \
 	v2-install v2-prepare-online v2-preflight v2-start v2-stop v2-health \
 	v2-enroll v2-export-ca v2-smoke v2-backup v2-restore \
+	v2-nim-install v2-nim-list-profiles v2-nim-prepare-online v2-nim-preflight \
+	v2-nim-start v2-nim-stop v2-nim-health v2-nim-enroll v2-nim-export-ca v2-nim-smoke \
+	v2-nim-backup v2-nim-restore \
 	v2-lab-install v2-lab-prepare-online v2-lab-preflight v2-lab-start \
 	v2-lab-stop v2-lab-health v2-lab-benchmark
 
 help:
 	@printf '%s\n' \
 	  'RelicScope V2: Android Scout + local DGX Spark appliance' \
+	  '' \
+	  'Recommended: NVIDIA NIM + Qwen3.6-35B-A3B on one DGX Spark' \
+	  '' \
+	  '  make v2-nim-install' \
+	  '  make v2-nim-list-profiles NIM_PROFILE_ARGS="--allow-network --ngc-key-file /secure/ngc_api_key"' \
+	  '  make v2-nim-prepare-online NIM_PREPARE_ARGS="--ngc-key-file /secure/ngc_api_key"' \
+	  '  make v2-nim-start                     # strict offline preflight, then start' \
+	  '  make v2-nim-health' \
+	  '  make v2-nim-backup V2_BACKUP_ARGS="--output-dir /absolute/backup"' \
+	  '  make v2-nim-restore V2_RESTORE_ARGS="--archive /absolute/backup.tar.gz --confirm-restore"' \
+	  '' \
+	  'Alternative vLLM runtime:' \
 	  '' \
 	  '  make v2-install                       # initialize a fresh Spark without downloading' \
 	  '  make v2-prepare-online                # explicit approved model/container download window' \
@@ -45,6 +69,8 @@ help:
 	  '  make v2-enroll SCOUT_NAME="Scout 01" SCOUT_DEVICE_ARGS="--output runtime/provisioning/scout-01.json"' \
 	  '  make v2-export-ca                     # export the local CA for Android trust setup' \
 	  '  make v2-smoke SCOUT_SMOKE_ARGS="..."  # real capture/job/result API test' \
+	  '  make private-artwork-audit PRIVATE_ARTWORK_ARCHIVE=/private/data.zip' \
+	  '  make private-artwork-import PRIVATE_ARTWORK_ARCHIVE=/private/data.zip PRIVATE_ARTWORK_BATCH=batch-001' \
 	  '  make v2-backup V2_BACKUP_ARGS="--output-dir /absolute/backup"' \
 	  '  make v2-restore V2_RESTORE_ARGS="--archive /absolute/backup.tar.gz --confirm-restore"' \
 	  '' \
@@ -94,6 +120,50 @@ help:
 	  '  make test                               # run tests in the local .venv' \
 	  '  make check'
 
+v2-nim-install:
+	V2_ENV_FILE="$(abspath $(V2_NIM_ENV_FILE))" \
+	V2_ENV_TEMPLATE="$(abspath .env.v2.nim.example)" ./deploy/v2-install.sh
+
+v2-nim-list-profiles:
+	V2_ENV_FILE="$(abspath $(V2_NIM_ENV_FILE))" ./deploy/v2-nim-list-profiles.sh \
+		$(NIM_PROFILE_ARGS)
+
+v2-nim-prepare-online:
+	V2_ENV_FILE="$(abspath $(V2_NIM_ENV_FILE))" ./deploy/v2-nim-prepare-online.sh \
+		--allow-network $(NIM_PREPARE_ARGS)
+
+v2-nim-preflight:
+	V2_ENV_FILE="$(abspath $(V2_NIM_ENV_FILE))" ./deploy/v2-nim-preflight.sh
+
+v2-nim-start: v2-nim-preflight
+	docker compose --env-file "$(V2_NIM_ENV_FILE)" -f compose.v2.nim.yml up -d --no-build --pull never
+
+v2-nim-stop:
+	docker compose --env-file "$(V2_NIM_ENV_FILE)" -f compose.v2.nim.yml down
+
+v2-nim-health:
+	V2_ENV_FILE="$(abspath $(V2_NIM_ENV_FILE))" \
+	V2_COMPOSE_FILE="$(abspath compose.v2.nim.yml)" ./deploy/v2-health.sh
+
+v2-nim-enroll:
+	$(MAKE) v2-enroll V2_ENV_FILE="$(V2_NIM_ENV_FILE)" \
+		SCOUT_NAME="$(SCOUT_NAME)" SCOUT_SERVER_URL="$(SCOUT_SERVER_URL)" \
+		SCOUT_DEVICE_ARGS="$(SCOUT_DEVICE_ARGS)"
+
+v2-nim-export-ca:
+	$(MAKE) v2-export-ca V2_ENV_FILE="$(V2_NIM_ENV_FILE)"
+
+v2-nim-smoke:
+	$(MAKE) v2-smoke SCOUT_SMOKE_ARGS="$(SCOUT_SMOKE_ARGS)"
+
+v2-nim-backup:
+	V2_ENV_FILE="$(abspath $(V2_NIM_ENV_FILE))" \
+	V2_COMPOSE_FILE="$(abspath compose.v2.nim.yml)" ./deploy/v2-backup.sh $(V2_BACKUP_ARGS)
+
+v2-nim-restore:
+	V2_ENV_FILE="$(abspath $(V2_NIM_ENV_FILE))" \
+	V2_COMPOSE_FILE="$(abspath compose.v2.nim.yml)" ./deploy/v2-restore.sh $(V2_RESTORE_ARGS)
+
 v2-install:
 	V2_ENV_FILE="$(abspath $(V2_ENV_FILE))" ./deploy/v2-install.sh
 
@@ -130,10 +200,12 @@ v2-smoke:
 	.venv-v2/bin/python scripts/scout-smoke.py $(SCOUT_SMOKE_ARGS)
 
 v2-backup:
-	V2_ENV_FILE="$(abspath $(V2_ENV_FILE))" ./deploy/v2-backup.sh $(V2_BACKUP_ARGS)
+	V2_ENV_FILE="$(abspath $(V2_ENV_FILE))" \
+	V2_COMPOSE_FILE="$(abspath $(V2_COMPOSE_FILE))" ./deploy/v2-backup.sh $(V2_BACKUP_ARGS)
 
 v2-restore:
-	V2_ENV_FILE="$(abspath $(V2_ENV_FILE))" ./deploy/v2-restore.sh $(V2_RESTORE_ARGS)
+	V2_ENV_FILE="$(abspath $(V2_ENV_FILE))" \
+	V2_COMPOSE_FILE="$(abspath $(V2_COMPOSE_FILE))" ./deploy/v2-restore.sh $(V2_RESTORE_ARGS)
 
 v2-lab-install:
 	V2_LAB_ENV_FILE="$(abspath $(V2_LAB_ENV_FILE))" ./deploy/v2-lab-install.sh
@@ -177,6 +249,16 @@ demo-media-generate:
 	@test -x .venv/bin/python || { printf '%s\n' 'Project .venv is required.' >&2; exit 2; }
 	.venv/bin/python scripts/generate-demo-media.py
 
+# Stable names for the local engineering preview. It is a FastAPI application;
+# opening app/static/index.html directly cannot provide the required API.
+console: demo
+
+console-install: demo-install
+
+console-check: demo-check
+
+console-smoke: demo-media-smoke
+
 accept-single-spark:
 	./deploy/single-spark-accept.sh $(ACCEPT_ARGS)
 
@@ -204,6 +286,35 @@ reference-seal:
 
 reference-status:
 	./deploy/reference-library.sh status $(REFERENCE_ARGS)
+
+require-private-artwork-archive:
+	@test -n "$(PRIVATE_ARTWORK_ARCHIVE)" || { \
+	  printf '%s\n' 'PRIVATE_ARTWORK_ARCHIVE=/absolute/path/archive.zip is required' >&2; \
+	  exit 2; \
+	}
+	@test -f "$(PRIVATE_ARTWORK_ARCHIVE)" || { \
+	  printf '%s\n' 'PRIVATE_ARTWORK_ARCHIVE must be a readable regular file' >&2; \
+	  exit 2; \
+	}
+
+private-artwork-audit: require-private-artwork-archive
+	@python_bin=.venv-v2/bin/python; \
+	  test -x "$$python_bin" || python_bin=.venv/bin/python; \
+	  test -x "$$python_bin" || { printf '%s\n' 'Run make v2-nim-prepare-online or make console-install first.' >&2; exit 2; }; \
+	  "$$python_bin" scripts/import-private-artwork-archive.py \
+	    "$(PRIVATE_ARTWORK_ARCHIVE)" $(PRIVATE_ARTWORK_ARGS)
+
+private-artwork-import: require-private-artwork-archive
+	@test -n "$(PRIVATE_ARTWORK_BATCH)" || { \
+	  printf '%s\n' 'PRIVATE_ARTWORK_BATCH is required' >&2; \
+	  exit 2; \
+	}
+	@python_bin=.venv-v2/bin/python; \
+	  test -x "$$python_bin" || python_bin=.venv/bin/python; \
+	  test -x "$$python_bin" || { printf '%s\n' 'Run make v2-nim-prepare-online or make console-install first.' >&2; exit 2; }; \
+	  "$$python_bin" scripts/import-private-artwork-archive.py \
+	    "$(PRIVATE_ARTWORK_ARCHIVE)" --import-batch "$(PRIVATE_ARTWORK_BATCH)" \
+	    $(PRIVATE_ARTWORK_ARGS)
 
 test:
 	@test -x .venv/bin/python || { printf '%s\n' 'Run make demo-install first.' >&2; exit 2; }

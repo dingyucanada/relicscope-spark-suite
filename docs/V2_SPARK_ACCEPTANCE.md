@@ -1,10 +1,16 @@
 # V2 DGX Spark 与 Scout 现场验收表
 
-任何性能与能力数字均在目标机器实测后填写。空白不是失败，而是尚未验证。
+当前仓库状态为 `DEPLOYMENT_READY`。任何性能与能力数字均在目标机器实测后填写；空白表示尚未验证。
+
+| 状态 | 升级条件 |
+|---|---|
+| `DEPLOYMENT_READY` | 代码、配置、部署脚本和交接材料已通过软件侧检查，尚未形成目标硬件验收结论 |
+| `HARDWARE_VERIFIED` | 本表中的目标 Spark、模型、网络、安全与真实多图闭环项目完成，并保存可复核证据 |
+| `PILOT_ACCEPTED` | `HARDWARE_VERIFIED` 已完成，客户对约定业务场景、边界和运维责任完成评审并签署 |
 
 ## A. 系统身份
 
-| 项目 | 主 Spark | 副 Spark |
+| 项目 | 主 Spark | 可选第二台 Spark |
 |---|---|---|
 | 设备序列/资产号 |  |  |
 | DGX OS |  |  |
@@ -21,8 +27,9 @@
 
 | 项目 | 值 |
 |---|---|
+| Runtime provider（NVIDIA NIM / vLLM） |  |
 | 模型 source |  |
-| immutable revision |  |
+| NIM profile / immutable model revision |  |
 | NIM/vLLM 镜像 digest |  |
 | 精度/量化 |  |
 | 最大上下文 |  |
@@ -66,7 +73,7 @@
 | EXIF Orientation 6/8 | 原字节哈希不变；质检和模型像素先转正 |  |
 | 数据卷低于保留余量 | 507，健康状态显示 storage degraded |  |
 | 网关重启 | 非终态任务恢复 |  |
-| 默认 v2-smoke | 仅 SUCCEEDED 且本地模型/容器/请求/观察绑定齐全时 exit 0 |  |
+| 默认 V2 smoke（900 秒总等待） | 仅 SUCCEEDED 且本地 NIM/vLLM、容器、请求与观察绑定齐全时 exit 0 |  |
 
 ## E. 双 Spark 决策门
 
@@ -86,6 +93,9 @@
 | 人工备用切换 |  |  |  |  |  |
 
 ## F. 签署
+
+技术项目全部通过后记录 `HARDWARE_VERIFIED`；四方完成业务场景、科学边界、数据责任与
+运维责任评审后记录 `PILOT_ACCEPTED`。任何未通过项须列出责任人、处置计划和复验日期。
 
 | 角色 | 姓名 | 日期 | 结论 |
 |---|---|---|---|

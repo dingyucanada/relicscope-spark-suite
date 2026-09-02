@@ -326,12 +326,12 @@ class Settings:
             and self.vision_model_source != self.vision_model
         ):
             raise ValueError(
-                "Scout V2 model source must equal the model identity loaded by vLLM"
+                "Scout V2 model source must equal the identity served by the local runtime"
             )
         if self.scout_enabled and self.runtime_mode == "single-spark":
             immutable_hex = re.compile(r"^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$")
             if not immutable_hex.fullmatch(self.vision_model_revision):
-                raise ValueError("Scout V2 requires an immutable model revision")
+                raise ValueError("Scout V2 requires an immutable model artifact ID")
             if not immutable_hex.fullmatch(self.deployment_git_commit):
                 raise ValueError("Scout V2 requires an immutable deployment Git commit")
             if not re.search(

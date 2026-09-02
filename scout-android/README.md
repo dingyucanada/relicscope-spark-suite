@@ -64,7 +64,7 @@ APK 位于 `app/build/outputs/apk/debug/app-debug.apk`。仓库已经包含 Grad
 1. 在主 Spark 仓库根目录创建一个设备配置：
 
    ```bash
-   make v2-enroll \
+   make v2-nim-enroll \
      SCOUT_NAME="Scout 01" \
      SCOUT_SERVER_URL="https://scout.spark.local:8443" \
      SCOUT_DEVICE_ARGS="--output runtime/provisioning/scout-01.json"
@@ -73,7 +73,7 @@ APK 位于 `app/build/outputs/apk/debug/app-debug.apk`。仓库已经包含 Grad
 2. 导出 Caddy 本地 CA：
 
    ```bash
-   make v2-export-ca
+   make v2-nim-export-ca
    ```
 
 3. 仅在受控 demo Android 设备上，把 `runtime/provisioning/scout-local-ca.crt` 安装为“CA 证书”。不同厂商入口略有差异，通常位于“设置 → 安全与隐私 → 更多安全设置 → 加密与凭据 → 安装证书”。安装 CA 代表该设备信任该机构，请只在专用演示设备上操作。
@@ -86,7 +86,7 @@ APK 位于 `app/build/outputs/apk/debug/app-debug.apk`。仓库已经包含 Grad
 
 5. 确保 `scout.spark.local` 在现场 DNS 中指向主 Spark。Wi‑Fi 与 USB 共享网络都可以；USB 场景指的是 Android USB 网络共享，仍然走同一个 HTTPS API，并非通过 MTP 复制图片。
 
-release APK 不信任用户自行安装的 CA。正式部署应使用公开受信任证书，或通过企业设备管理把机构 CA 作为系统信任部署。不要把 Caddy、Spark API 或 vLLM 端口直接暴露到公网。
+release APK 不信任用户自行安装的 CA。正式部署应使用公开受信任证书，或通过企业设备管理把机构 CA 作为系统信任部署。不要把 Caddy、Spark API 或 NIM/其他模型运行时端口直接暴露到公网。
 
 ## API 契约
 

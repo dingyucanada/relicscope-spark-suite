@@ -1,0 +1,158 @@
+services:
+  gateway:
+    platform: linux/arm64
+    image: ${SCOUT_GATEWAY_IMAGE:-relicscope-scout-gateway:2.1.0-arm64}
+    pull_policy: never
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.12.11-slim-bookworm}
+        PYPI_INDEX_URL: ${PYPI_INDEX_URL:-https://pypi.org/simple}
+        APP_UID: ${APP_UID:-10001}
+        APP_GID: ${APP_GID:-10001}
+        RELICSCOPE_GIT_COMMIT: ${RELICSCOPE_GIT_COMMIT:-unknown}
+    restart: unless-stopped
+    init: true
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    secrets: [service_api_key]
+    environment:
+      RELICSCOPE_DATA_DIR: /var/lib/relicscope
+      RELICSCOPE_HOST: 0.0.0.0
+      RELICSCOPE_PORT: "8088"
+      RELICSCOPE_SERVICE_VERSION: ${RELICSCOPE_SERVICE_VERSION:-2.1.0}
+      RELICSCOPE_RUNTIME_MODE: ${RELICSCOPE_RUNTIME_MODE:-single-spark}
+      RELICSCOPE_NODE_ID: ${RELICSCOPE_NODE_ID:-spark-primary}
+      RELICSCOPE_COMPUTE_NODE_ID: ${RELICSCOPE_COMPUTE_NODE_ID:-spark-primary}
+      RELICSCOPE_GIT_COMMIT: ${RELICSCOPE_GIT_COMMIT:?set the checked-out immutable commit}
+      RELICSCOPE_OFFLINE_MODE: "true"
+      RELICSCOPE_REQUIRE_PRIVATE_ENDPOINTS: "true"
+      RELICSCOPE_SCOUT_ENABLED: "true"
+      RELICSCOPE_SCOUT_REQUIRE_AUTH: "true"
+      RELICSCOPE_SCOUT_MEDIA_DIR: /var/lib/relicscope/scout-media
+      RELICSCOPE_SCOUT_MAX_IMAGES_PER_JOB: ${RELICSCOPE_SCOUT_MAX_IMAGES_PER_JOB:-8}
+      RELICSCOPE_SCOUT_WORKER_POLL_SECONDS: ${RELICSCOPE_SCOUT_WORKER_POLL_SECONDS:-2}
+      RELICSCOPE_SCOUT_MODEL_MAX_ATTEMPTS: ${RELICSCOPE_SCOUT_MODEL_MAX_ATTEMPTS:-3}
+      RELICSCOPE_SCOUT_MODEL_RETRY_BASE_SECONDS: ${RELICSCOPE_SCOUT_MODEL_RETRY_BASE_SECONDS:-5}
+      RELICSCOPE_SCOUT_MIN_FREE_BYTES: ${RELICSCOPE_SCOUT_MIN_FREE_BYTES:-21474836480}
+      RELICSCOPE_SCOUT_MAX_OUTSTANDING_JOBS_PER_DEVICE: ${RELICSCOPE_SCOUT_MAX_OUTSTANDING_JOBS_PER_DEVICE:-20}
+      RELICSCOPE_REFERENCE_LIBRARY_ENABLED: "false"
+      RELICSCOPE_MAX_UPLOAD_BYTES: ${RELICSCOPE_MAX_UPLOAD_BYTES:-12582912}
+      MODEL_PROFILE: ${MODEL_PROFILE:-qwen3.6-35b-a3b-nim-scout}
+      MODEL_TIMEOUT_SECONDS: ${MODEL_TIMEOUT_SECONDS:-240}
+      MODEL_MAX_CONCURRENCY: "1"
+      VISION_BASE_URL: http://vision:8000/v1
+      VISION_RUNTIME_IMAGE: ${NIM_VLM_IMAGE:?pin the NIM image by digest during preparation}
+      VISION_MODEL: ${VISION_MODEL:-qwen/qwen3.6-35b-a3b}
+      VISION_MODEL_SOURCE: ${VISION_MODEL_SOURCE:-qwen/qwen3.6-35b-a3b}
+      VISION_MODEL_REVISION: ${NIM_MODEL_PROFILE:?freeze a compatible NIM profile ID}
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      DO_NOT_TRACK: "1"
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        service_key="$$(cat /run/secrets/service_api_key)"
+        if [ "$${#service_key}" -lt 32 ]; then
+          echo "FATAL: service API key is missing or too short" >&2
+          exit 78
+        fi
+        export VISION_API_KEY="$$service_key"
+        exec python -m uvicorn app.scout_main:app --host 0.0.0.0 --port 8088 --no-access-log
+    volumes:
+      - type: bind
+        source: ${RELICSCOPE_DATA_HOST_DIR:-./runtime/v2-data}
+        target: /var/lib/relicscope
+    tmpfs: [/tmp:size=512m,mode=1777]
+    networks: [gateway-private, model-private]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8088/health/live',timeout=3).read()"]
+      interval: 15s
+      timeout: 4s
+      start_period: 30s
+      retries: 4
+
+  vision:
+    platform: linux/arm64
+    image: ${NIM_VLM_IMAGE:?pin the NIM image by digest during preparation}
+    pull_policy: never
+    restart: unless-stopped
+    init: true
+    shm_size: 16gb
+    gpus: all
+    security_opt: [no-new-privileges:true]
+    # Keep the vendor container's runtime user/capability contract intact. This
+    # DGX-Spark-only variant does not support a custom Docker user; model access
+    # is instead bounded by an internal network, no published port and a private
+    # cache mount. Tighten capabilities only after the exact profile passes the
+    # target-Spark acceptance suite.
+    environment:
+      NIM_MODEL_PROFILE: ${NIM_MODEL_PROFILE:?freeze a compatible NIM profile ID}
+      NIM_SERVED_MODEL_NAME: ${NIM_SERVED_MODEL_NAME:-qwen/qwen3.6-35b-a3b}
+      NIM_DISABLE_MODEL_DOWNLOAD: "1"
+      NIM_MAX_IMAGES_PER_PROMPT: ${NIM_MAX_IMAGES_PER_PROMPT:-8}
+      NIM_MAX_VIDEOS_PER_PROMPT: "0"
+      NIM_TELEMETRY_MODE: "0"
+      NIM_JSONL_LOGGING: "true"
+      NIM_LOG_LEVEL: INFO
+    volumes:
+      - type: bind
+        source: ${NIM_CACHE_DIR:-./runtime/nim-cache}
+        target: /opt/nim/.cache
+    tmpfs: [/tmp:size=2g,mode=1777]
+    networks: [model-private]
+    healthcheck:
+      test: [CMD, python3, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/v1/health/ready',timeout=5).read()"]
+      interval: 20s
+      timeout: 7s
+      start_period: 30m
+      retries: 5
+
+  ingress:
+    image: ${CADDY_IMAGE:-caddy:2.10.2-alpine}
+    pull_policy: never
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    restart: unless-stopped
+    init: true
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    environment:
+      SCOUT_HOSTNAME: ${SCOUT_HOSTNAME:-scout.spark.local}
+      SCOUT_HTTPS_PORT: ${SCOUT_HTTPS_PORT:-8443}
+    ports:
+      - "${SCOUT_BIND_IP:-127.0.0.1}:${SCOUT_HTTPS_PORT:-8443}:${SCOUT_HTTPS_PORT:-8443}"
+    volumes:
+      - type: bind
+        source: ./deploy/Caddyfile.v2
+        target: /etc/caddy/Caddyfile
+        read_only: true
+      - type: bind
+        source: ${CADDY_DATA_DIR:-./runtime/caddy/data}
+        target: /data
+      - type: bind
+        source: ${CADDY_CONFIG_DIR:-./runtime/caddy/config}
+        target: /config
+    tmpfs: [/tmp:size=64m,mode=1777]
+    networks: [lan-edge, gateway-private]
+    depends_on:
+      gateway:
+        condition: service_healthy
+
+networks:
+  lan-edge:
+    driver: bridge
+  gateway-private:
+    driver: bridge
+    internal: true
+  model-private:
+    driver: bridge
+    internal: true
+
+secrets:
+  service_api_key:
+    file: ${SERVICE_API_KEY_FILE:-./secrets/service_api_key}

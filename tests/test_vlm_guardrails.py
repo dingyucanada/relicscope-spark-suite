@@ -5,10 +5,40 @@ from httpx import Headers
 
 from app.services.vlm import (
     OpenAICompatibleClient,
+    build_scout_multi_view_payload,
     report_citation_ids,
     validate_reasoner_output,
     validate_vision_output,
 )
+
+
+def test_scout_request_uses_capture_bound_json_schema():
+    payload, _ = build_scout_multi_view_payload(
+        "qwen/qwen3.6-35b-a3b",
+        [
+            {
+                "capture_id": "capture-a",
+                "view_code": "FRONT",
+                "image_data_url": "data:image/jpeg;base64,AA==",
+            },
+            {
+                "capture_id": "capture-b",
+                "view_code": "BASE",
+                "image_data_url": "data:image/jpeg;base64,AA==",
+            },
+        ],
+        {"job_id": "job-a"},
+    )
+    response_format = payload["response_format"]
+    assert response_format["type"] == "json_schema"
+    schema = response_format["json_schema"]["schema"]
+    assert schema["additionalProperties"] is False
+    observation = schema["properties"]["observations"]["items"]
+    assert observation["properties"]["capture_id"]["enum"] == [
+        "capture-a",
+        "capture-b",
+    ]
+    assert observation["properties"]["view_code"]["enum"] == ["FRONT", "BASE"]
 
 
 def test_nemotron_candidate_disables_thinking_and_audio_for_json_video_contract():
@@ -22,6 +52,41 @@ def test_nemotron_candidate_disables_thinking_and_audio_for_json_video_contract(
     }
     qwen = OpenAICompatibleClient("http://vision:8000/v1", "key", "qwen3_vl_30b_a3b")
     assert qwen._model_request_options(video=True) == {}
+
+
+def test_current_qwen_candidates_disable_thinking_for_structured_observation():
+    for model in ("qwen/qwen3.6-35b-a3b", "Qwen/Qwen3.8-27B"):
+        client = OpenAICompatibleClient("http://vision:8000/v1", "key", model)
+        assert client._model_request_options(video=False) == {
+            "chat_template_kwargs": {"enable_thinking": False}
+        }
+
+
+def test_nim_runtime_provenance_distinguishes_profile_from_source_revision():
+    profile = "a" * 64
+    client = OpenAICompatibleClient(
+        "http://vision:8000/v1",
+        "key",
+        "qwen/qwen3.6-35b-a3b",
+        model_profile="qwen3.6-35b-a3b-nim-scout",
+        runtime_image="nvcr.io/nim/qwen/qwen3.6-35b-a3b@sha256:" + "b" * 64,
+        model_source="qwen/qwen3.6-35b-a3b",
+        model_revision=profile,
+    )
+
+    assert client.completion_mode == "local_nim"
+    assert client._runtime_metadata() == {
+        "model_profile": "qwen3.6-35b-a3b-nim-scout",
+        "runtime_provider": "nvidia_nim",
+        "runtime_attestation_scope": "configuration_bound_application_receipt",
+        "runtime_image": "nvcr.io/nim/qwen/qwen3.6-35b-a3b@sha256:" + "b" * 64,
+        "model_source": "qwen/qwen3.6-35b-a3b",
+        "model_identity_verification_scope": "provider_response_name_match",
+        "model_artifact_kind": "nim_profile",
+        "model_artifact_id": profile,
+        "model_revision": profile,
+        "deployment_git_commit": "unknown",
+    }
 
 
 def test_completion_identity_requires_exact_model_and_request_id():

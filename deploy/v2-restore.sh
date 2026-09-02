@@ -5,7 +5,7 @@ umask 077
 
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 env_file="${V2_ENV_FILE:-${project_root}/.env.v2}"
-compose_file="${project_root}/compose.v2.yml"
+compose_file="${V2_COMPOSE_FILE:-${project_root}/compose.v2.yml}"
 archive_path=""
 confirm_restore=false
 allow_version_mismatch=false
@@ -19,6 +19,7 @@ caddy_config_stage=""
 data_rollback=""
 caddy_data_rollback=""
 caddy_config_rollback=""
+restore_caddy_data=false
 
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
@@ -61,7 +62,8 @@ done
 [[ -n "${archive_path}" ]] || fail "--archive is required"
 [[ "${archive_path}" == /* ]] || fail "--archive must be an absolute path"
 [[ "$(id -u)" != "0" ]] || fail "run restore as the non-root Spark operator"
-[[ -f "${env_file}" ]] || fail ".env.v2 is missing: ${env_file}"
+[[ -f "${env_file}" && ! -L "${env_file}" ]] || fail "V2 environment file is missing or is a symlink: ${env_file}"
+[[ -f "${compose_file}" && ! -L "${compose_file}" ]] || fail "V2 Compose file is missing or is a symlink: ${compose_file}"
 for command_name in awk basename chmod date dirname docker find flock git mkdir mktemp mv python3 rm rsync sed sha256sum stat sync tar; do
   command -v "${command_name}" >/dev/null 2>&1 || fail "missing command: ${command_name}"
 done
@@ -124,6 +126,8 @@ PY
 data_dir="$(safe_managed_dir "$(absolute_path "$(cfg RELICSCOPE_DATA_HOST_DIR ./runtime/v2-data)")")"
 caddy_data_dir="$(safe_managed_dir "$(absolute_path "$(cfg CADDY_DATA_DIR ./runtime/caddy/data)")")"
 caddy_config_dir="$(safe_managed_dir "$(absolute_path "$(cfg CADDY_CONFIG_DIR ./runtime/caddy/config)")")"
+env_file="$(canonical_path "${env_file}")"
+compose_file="$(canonical_path "${compose_file}")"
 assert_separate_paths "${data_dir}" "${caddy_data_dir}" "${caddy_config_dir}"
 for target in "${data_dir}" "${caddy_data_dir}" "${caddy_config_dir}"; do
   [[ -d "${target}" ]] || fail "current managed directory is missing: ${target}"
@@ -268,7 +272,7 @@ tar --extract --gzip --file "${archive_path}" --directory "${extract_parent}" \
 backup_root="${extract_parent}/${top_level}"
 [[ -f "${backup_root}/manifest.json" && -f "${backup_root}/SHA256SUMS" ]] \
   || fail "archive manifest or checksums are missing"
-for payload in data caddy-data caddy-config; do
+for payload in data caddy-config; do
   [[ -d "${backup_root}/payload/${payload}" ]] || fail "archive payload is missing: ${payload}"
 done
 
@@ -282,15 +286,37 @@ import sys
 root = pathlib.Path(sys.argv[1])
 top_level = sys.argv[2]
 manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
-if manifest.get("format") != "relicscope-scout-spark-v2-backup" or manifest.get("format_version") != 1:
+version = manifest.get("format_version")
+if manifest.get("format") != "relicscope-scout-spark-v2-backup" or version not in {1, 2}:
     raise SystemExit("unsupported backup manifest")
 if manifest.get("backup_id") != top_level:
     raise SystemExit("backup ID does not match archive root")
-expected_payload = {"payload/data", "payload/caddy-data", "payload/caddy-config"}
+runtime_kind = manifest.get("source", {}).get("vision_runtime_kind", "vllm")
+if version == 1:
+    expected_payload = {"payload/data", "payload/caddy-data", "payload/caddy-config"}
+elif runtime_kind == "nvidia-nim":
+    expected_payload = {"payload/data", "payload/caddy-config"}
+else:
+    raise SystemExit("format v2 is reserved for a recognized NIM runtime")
 if {entry.get("path") for entry in manifest.get("payload", [])} != expected_payload:
     raise SystemExit("manifest payload scope is invalid")
+payload_root = root / "payload"
+actual_payload = {
+    f"payload/{path.name}" for path in payload_root.iterdir() if path.is_dir()
+}
+if actual_payload != expected_payload:
+    raise SystemExit("archive payload directories do not match the declared scope")
 excluded = set(manifest.get("excluded", []))
-required_exclusions = {".env.v2", "service API key", "Hugging Face model cache", "vLLM cache"}
+required_exclusions = {"service API key", "Hugging Face model cache", "vLLM cache"}
+if not ({".env.v2", "V2 runtime environment file"} & excluded):
+    raise SystemExit("manifest does not declare its runtime environment exclusion")
+if version == 2:
+    required_exclusions |= {
+        "NGC API key",
+        "NVIDIA NIM cache and model artifacts",
+        "Caddy PKI and private-key state",
+        "plaintext private-key values",
+    }
 if not required_exclusions.issubset(excluded):
     raise SystemExit("manifest does not declare required secret/cache exclusions")
 
@@ -331,45 +357,138 @@ import pathlib
 import re
 import sys
 
-source = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))["source"]
+manifest = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+version = manifest["format_version"]
+source = manifest["source"]
+model = source.get("vision_model", "unknown")
+revision = source.get("vision_model_revision", "unknown")
 keys = (
+    "vision_runtime_kind",
     "git_commit",
     "service_version",
     "vision_model",
+    "vision_model_source",
     "vision_model_revision",
+    "vision_runtime_profile",
+    "vision_served_model",
+    "gateway_image_id",
+    "vision_runtime_image",
+    "vision_image_id",
     "ingress_caddy_image",
     "ingress_caddy_image_id",
 )
-values = [source.get(key, "unknown") for key in keys]
+fallbacks = {
+    "vision_runtime_kind": "vllm",
+    "vision_model_source": model,
+    "vision_runtime_profile": revision,
+    "vision_served_model": model,
+}
+values = [source.get(key, fallbacks.get(key, "unknown")) for key in keys]
 if any(not isinstance(value, str) or "\n" in value or "\r" in value for value in values):
     raise SystemExit("manifest provenance fields are invalid")
-if values[4] != "unknown" and not re.search(r"@sha256:[0-9a-fA-F]{64}$", values[4]):
+if values[11] != "unknown" and not re.search(r"@sha256:[0-9a-fA-F]{64}$", values[11]):
     raise SystemExit("manifest ingress Caddy image is not immutable")
-if values[5] != "unknown" and not re.fullmatch(r"sha256:[0-9a-f]{64}", values[5]):
+if values[12] != "unknown" and not re.fullmatch(r"sha256:[0-9a-f]{64}", values[12]):
     raise SystemExit("manifest ingress Caddy image ID is invalid")
+if values[8] != "unknown" and not re.fullmatch(r"sha256:[0-9a-f]{64}", values[8]):
+    raise SystemExit("manifest gateway image ID is invalid")
+if values[10] != "unknown" and not re.fullmatch(r"sha256:[0-9a-f]{64}", values[10]):
+    raise SystemExit("manifest vision image ID is invalid")
+if version == 2:
+    if values[0] != "nvidia-nim":
+        raise SystemExit("format v2 requires NVIDIA NIM provenance")
+    if not re.search(r"@sha256:[0-9a-fA-F]{64}$", values[9]):
+        raise SystemExit("NIM runtime image is not immutable")
+    if any(value in {"", "unknown"} for value in values):
+        raise SystemExit("NIM manifest provenance is incomplete")
+print(str(version))
 print("\n".join(values))
 PY
 )"
-backup_commit="$(sed -n '1p' <<<"${manifest_values}")"
-backup_service_version="$(sed -n '2p' <<<"${manifest_values}")"
-backup_model="$(sed -n '3p' <<<"${manifest_values}")"
-backup_revision="$(sed -n '4p' <<<"${manifest_values}")"
-backup_ingress_caddy_image="$(sed -n '5p' <<<"${manifest_values}")"
-backup_ingress_caddy_image_id="$(sed -n '6p' <<<"${manifest_values}")"
+backup_format_version="$(sed -n '1p' <<<"${manifest_values}")"
+backup_runtime_kind="$(sed -n '2p' <<<"${manifest_values}")"
+backup_commit="$(sed -n '3p' <<<"${manifest_values}")"
+backup_service_version="$(sed -n '4p' <<<"${manifest_values}")"
+backup_model="$(sed -n '5p' <<<"${manifest_values}")"
+backup_model_source="$(sed -n '6p' <<<"${manifest_values}")"
+backup_revision="$(sed -n '7p' <<<"${manifest_values}")"
+backup_runtime_profile="$(sed -n '8p' <<<"${manifest_values}")"
+backup_served_model="$(sed -n '9p' <<<"${manifest_values}")"
+backup_gateway_image_id="$(sed -n '10p' <<<"${manifest_values}")"
+backup_runtime_image="$(sed -n '11p' <<<"${manifest_values}")"
+backup_vision_image_id="$(sed -n '12p' <<<"${manifest_values}")"
+backup_ingress_caddy_image="$(sed -n '13p' <<<"${manifest_values}")"
+backup_ingress_caddy_image_id="$(sed -n '14p' <<<"${manifest_values}")"
+if [[ "${backup_format_version}" == "1" ]]; then
+  restore_caddy_data=true
+else
+  restore_caddy_data=false
+  [[ ! -e "${backup_root}/payload/caddy-data" ]] \
+    || fail "NIM backup unexpectedly contains Caddy PKI/private-key state"
+  python3 - "${backup_root}/payload/caddy-config" <<'PY'
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+for path in root.rglob("*"):
+    if not path.is_file():
+        continue
+    content = path.read_bytes()
+    if b"PRIVATE KEY-----" in content or b"nvapi-" in content:
+        raise SystemExit(f"NIM backup contains private-key/NGC credential material: {path}")
+PY
+fi
 current_commit="$(git -C "${project_root}" rev-parse --verify 'HEAD^{commit}' 2>/dev/null || printf unknown)"
 current_service_version="$(cfg RELICSCOPE_SERVICE_VERSION 2.0.0)"
+current_gateway_image="$(cfg SCOUT_GATEWAY_IMAGE "relicscope-scout-gateway:${current_service_version}-arm64")"
+current_gateway_image_id="$(docker image inspect \
+  --format '{{.Id}}' "${current_gateway_image}" 2>/dev/null || printf unknown)"
 current_model="$(cfg VISION_MODEL unknown)"
 current_revision="$(cfg VISION_MODEL_REVISION unknown)"
+current_model_source="$(cfg VISION_MODEL_SOURCE "${current_model}")"
+if [[ -n "$(cfg NIM_MODEL_PROFILE)" ]]; then
+  current_runtime_kind="nvidia-nim"
+  current_runtime_profile="$(cfg NIM_MODEL_PROFILE unknown)"
+  current_served_model="$(cfg NIM_SERVED_MODEL_NAME unknown)"
+  current_runtime_image="$(cfg NIM_VLM_IMAGE unknown)"
+else
+  current_runtime_kind="vllm"
+  current_runtime_profile="${current_revision}"
+  current_served_model="${current_model}"
+  current_runtime_image="$(cfg VLLM_IMAGE unknown)"
+fi
+current_vision_image_id="$(docker image inspect \
+  --format '{{.Id}}' "${current_runtime_image}" 2>/dev/null || printf unknown)"
 current_ingress_caddy_image="$(cfg CADDY_IMAGE unknown)"
 current_ingress_caddy_image_id="$(docker image inspect \
   --format '{{.Id}}' "${current_ingress_caddy_image}" 2>/dev/null || printf unknown)"
+if [[ "${backup_runtime_kind}" == "nvidia-nim" || "${current_runtime_kind}" == "nvidia-nim" ]]; then
+  [[ "${allow_version_mismatch}" != "true" ]] \
+    || fail "--allow-version-mismatch is not permitted for NVIDIA NIM restores"
+fi
 if [[ "${allow_version_mismatch}" != "true" ]]; then
+  [[ "${backup_runtime_kind}" == "${current_runtime_kind}" ]] \
+    || fail "backup vision runtime kind differs; select the matching V2 environment and Compose file"
   [[ "${backup_commit}" == "${current_commit}" ]] \
     || fail "backup source commit differs; checkout ${backup_commit} or use --allow-version-mismatch after review"
   [[ "${backup_service_version}" == "${current_service_version}" ]] \
     || fail "backup service version differs; align the release or review --allow-version-mismatch"
-  [[ "${backup_model}" == "${current_model}" && "${backup_revision}" == "${current_revision}" ]] \
-    || fail "backup model identity differs; align .env.v2 or use --allow-version-mismatch after review"
+  [[ "${backup_gateway_image_id}" != "unknown" \
+     && "${current_gateway_image_id}" =~ ^sha256:[0-9a-f]{64}$ \
+     && "${backup_gateway_image_id}" == "${current_gateway_image_id}" ]] \
+    || fail "backup Scout gateway image identity differs; rebuild the frozen source release first"
+  [[ "${backup_model}" == "${current_model}" \
+     && "${backup_model_source}" == "${current_model_source}" \
+     && "${backup_revision}" == "${current_revision}" \
+     && "${backup_runtime_profile}" == "${current_runtime_profile}" \
+     && "${backup_served_model}" == "${current_served_model}" ]] \
+    || fail "backup model/source/profile identity differs; align the selected V2 environment"
+  [[ "${backup_runtime_image}" != "unknown" \
+     && "${backup_vision_image_id}" != "unknown" \
+     && "${current_vision_image_id}" =~ ^sha256:[0-9a-f]{64}$ \
+     && "${backup_runtime_image}" == "${current_runtime_image}" \
+     && "${backup_vision_image_id}" == "${current_vision_image_id}" ]] \
+    || fail "backup vision runtime image identity differs; reconstruct the frozen image/profile first"
   [[ "${backup_ingress_caddy_image}" != "unknown" \
      && "${backup_ingress_caddy_image_id}" != "unknown" \
      && "${current_ingress_caddy_image}" =~ @sha256:[0-9a-fA-F]{64}$ \
@@ -383,14 +502,16 @@ fi
 
 rollback_timestamp="$(date -u '+%Y%m%dT%H%M%SZ')"
 data_stage="${data_dir}.restore-stage-${rollback_timestamp}"
-caddy_data_stage="${caddy_data_dir}.restore-stage-${rollback_timestamp}"
 caddy_config_stage="${caddy_config_dir}.restore-stage-${rollback_timestamp}"
 data_rollback="${data_dir}.pre-restore-${rollback_timestamp}"
-caddy_data_rollback="${caddy_data_dir}.pre-restore-${rollback_timestamp}"
 caddy_config_rollback="${caddy_config_dir}.pre-restore-${rollback_timestamp}"
-for path in \
-  "${data_stage}" "${caddy_data_stage}" "${caddy_config_stage}" \
-  "${data_rollback}" "${caddy_data_rollback}" "${caddy_config_rollback}"; do
+restore_paths=("${data_stage}" "${caddy_config_stage}" "${data_rollback}" "${caddy_config_rollback}")
+if [[ "${restore_caddy_data}" == "true" ]]; then
+  caddy_data_stage="${caddy_data_dir}.restore-stage-${rollback_timestamp}"
+  caddy_data_rollback="${caddy_data_dir}.pre-restore-${rollback_timestamp}"
+  restore_paths+=("${caddy_data_stage}" "${caddy_data_rollback}")
+fi
+for path in "${restore_paths[@]}"; do
   [[ ! -e "${path}" ]] || fail "restore staging/rollback path already exists: ${path}"
 done
 
@@ -455,25 +576,35 @@ PY
 find "${backup_root}/payload" -type d -exec chmod 700 -- {} +
 find "${backup_root}/payload" -type f -exec chmod 600 -- {} +
 stage_payload "${backup_root}/payload/data" "${data_stage}"
-stage_payload "${backup_root}/payload/caddy-data" "${caddy_data_stage}"
 stage_payload "${backup_root}/payload/caddy-config" "${caddy_config_stage}"
-find "${data_stage}" "${caddy_data_stage}" "${caddy_config_stage}" -type d -exec chmod 700 -- {} +
-find "${data_stage}" "${caddy_data_stage}" "${caddy_config_stage}" -type f -exec chmod 600 -- {} +
+staged_paths=("${data_stage}" "${caddy_config_stage}")
+if [[ "${restore_caddy_data}" == "true" ]]; then
+  stage_payload "${backup_root}/payload/caddy-data" "${caddy_data_stage}"
+  staged_paths+=("${caddy_data_stage}")
+fi
+find "${staged_paths[@]}" -type d -exec chmod 700 -- {} +
+find "${staged_paths[@]}" -type f -exec chmod 600 -- {} +
 sync
 
 docker compose --env-file "${env_file}" -f "${compose_file}" stop --timeout 60
 cutover_started=true
 mv -- "${data_dir}" "${data_rollback}"
 mv -- "${data_stage}" "${data_dir}"
-mv -- "${caddy_data_dir}" "${caddy_data_rollback}"
-mv -- "${caddy_data_stage}" "${caddy_data_dir}"
+if [[ "${restore_caddy_data}" == "true" ]]; then
+  mv -- "${caddy_data_dir}" "${caddy_data_rollback}"
+  mv -- "${caddy_data_stage}" "${caddy_data_dir}"
+fi
 mv -- "${caddy_config_dir}" "${caddy_config_rollback}"
 mv -- "${caddy_config_stage}" "${caddy_config_dir}"
 cutover_complete=true
 
 printf '%s\n' \
-  'PASS: V2 data and Caddy TLS identity restored; Compose remains stopped.' \
+  'PASS: V2 application data and Caddy configuration restored; Compose remains stopped.' \
   "Rollback copy: ${data_rollback}" \
-  "Rollback copy: ${caddy_data_rollback}" \
   "Rollback copy: ${caddy_config_rollback}" \
   'Next: run v2-preflight, start V2, run v2-health, then submit a job with an existing Scout credential.'
+if [[ "${restore_caddy_data}" == "true" ]]; then
+  printf '%s\n' "Rollback copy: ${caddy_data_rollback}" 'Legacy V2 Caddy TLS identity was restored.'
+else
+  printf '%s\n' 'NIM restore left Caddy PKI/private-key state unchanged; validate or reprovision Scout TLS trust.'
+fi

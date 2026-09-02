@@ -226,6 +226,7 @@ const state = {
   recognitionBusy: false,
   demoRunning: false,
   demoPhase: "ready",
+  apiAvailable: null,
 };
 
 let evidenceGraphCompactMode = null;
@@ -261,6 +262,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function bindEvents() {
   $("refresh-health").addEventListener("click", loadHealth);
+  $("retry-api-connection").addEventListener("click", loadHealth);
   $("session-form").addEventListener("submit", onCreateSession);
   $("image-file").addEventListener("change", onImageSelected);
   $("image-form").addEventListener("submit", onAnalyzeImage);
@@ -339,7 +341,7 @@ async function request(path, options = {}) {
     requestOptions.body = JSON.stringify(options.body);
   }
 
-  const response = await fetch(path, requestOptions);
+  const response = await fetchLocalApi(path, requestOptions);
   const contentType = response.headers.get("content-type") || "";
   let payload = null;
   if (contentType.includes("application/json")) {
@@ -356,7 +358,7 @@ async function request(path, options = {}) {
 }
 
 async function requestForm(path, formData, options = {}) {
-  const response = await fetch(path, {
+  const response = await fetchLocalApi(path, {
     method: options.method || "POST",
     headers: { Accept: "application/json", ...(options.headers || {}) },
     body: formData,
@@ -371,6 +373,17 @@ async function requestForm(path, formData, options = {}) {
     throw new Error(formatApiError(detail, response.status));
   }
   return payload;
+}
+
+async function fetchLocalApi(path, options) {
+  try {
+    return await fetch(path, options);
+  } catch (error) {
+    setApiAvailability(false, error);
+    throw new Error(
+      "无法连接本机 API。请运行 ./scripts/reproduce-demo.sh，并打开 http://127.0.0.1:8088。",
+    );
+  }
 }
 
 function formatApiError(detail, status) {
@@ -513,13 +526,32 @@ async function loadHealth() {
   setButtonLoading(button, true, "刷新中");
   try {
     state.health = await request(API.health);
+    setApiAvailability(true);
     renderHealth(state.health);
   } catch (error) {
+    setApiAvailability(false, error);
     renderHealthError(error);
     toast("无法读取运行状态", error.message, "error");
   } finally {
     setButtonLoading(button, false);
   }
+}
+
+function setApiAvailability(available, error = null) {
+  state.apiAvailable = available;
+  const guidance = $("api-unavailable-guidance");
+  guidance.hidden = available !== false;
+  document.body.classList.toggle("api-unavailable", available === false);
+  if (available === false) {
+    const openedAsFile = window.location.protocol === "file:";
+    const apiRespondedWithError = /HTTP\s+\d{3}/i.test(String(error?.message || ""));
+    $("api-unavailable-detail").textContent = openedAsFile
+      ? "当前页面由 file:// 直接打开，无法使用同源 API。请按下方步骤启动并打开本机地址。"
+      : apiRespondedWithError
+        ? "本机 API 已响应，但健康检查未通过。请查看启动终端中的错误，修复后重新检查。"
+        : "浏览器未取得 /api/health 响应。请按下方步骤启动回环服务，再重新检查。";
+  }
+  updateControlAvailability();
 }
 
 async function loadReferenceLibrarySummary({ quiet = false, reload = false } = {}) {
@@ -861,20 +893,20 @@ function renderSingleSparkTopology(health, components, aiEngine, evidenceEngine)
 function renderDistributedTopology({ dualNode, mode, nodeA, nodeB }) {
   $("runtime-kicker").textContent = "RUNTIME TOPOLOGY";
   $("runtime-heading").textContent = "本地运行态势";
-  $("hero-runtime-kicker").textContent = dualNode ? "DUAL SPARK · LIVE TOPOLOGY" : "LOCAL COMPUTE · LOGICAL SERVICES";
+  $("hero-runtime-kicker").textContent = dualNode ? "DUAL SPARK · LIVE TOPOLOGY" : "LOCAL ENGINEERING · TWO PIPELINES";
   $("hero-runtime-title").textContent = dualNode ? "感知计算与证据推理，本地协同" : "本机逻辑服务正在协同运行";
-  $("hero-node-a-label").textContent = dualNode ? "SPARK A" : "LOGICAL AI";
-  $("hero-node-b-label").textContent = dualNode ? "SPARK B" : "LOGICAL EVIDENCE";
+  $("hero-node-a-label").textContent = dualNode ? "SPARK A" : "AI PIPELINE";
+  $("hero-node-b-label").textContent = dualNode ? "SPARK B" : "EVIDENCE PIPELINE";
   $("hero-engine-connector").textContent = dualNode ? "⇄" : "＋";
   $("hero-runtime-proof").textContent = dualNode
     ? "节点和模型状态来自受控私网健康接口。"
     : "当前为本机软件路径，不代表 DGX Spark GPU 已完成实机验证。";
-  $("node-a-code").textContent = "A";
-  $("node-b-code").textContent = "B";
-  $("node-a-name").textContent = dualNode ? "Spark A" : "逻辑 A（本机回退）";
-  $("node-b-name").textContent = dualNode ? "Spark B" : "逻辑 B（本机回退）";
-  $("node-a-role-label").textContent = "Multimodal Compute";
-  $("node-b-role-label").textContent = "Evidence Gateway";
+  $("node-a-code").textContent = dualNode ? "A" : "AI";
+  $("node-b-code").textContent = dualNode ? "B" : "E";
+  $("node-a-name").textContent = dualNode ? "Spark A" : "AI 流程（本机回退）";
+  $("node-b-name").textContent = dualNode ? "Spark B" : "证据流程（本机回退）";
+  $("node-a-role-label").textContent = dualNode ? "Multimodal Compute" : "Visible Observation Pipeline";
+  $("node-b-role-label").textContent = dualNode ? "Evidence Gateway" : "Evidence · Audit · Report";
   $("brand-runtime-subtitle").textContent = dualNode
     ? "古陶瓷多模态科学鉴证 · 双 Spark 本地控制台"
     : "古陶瓷多模态科学鉴证 · 本机降级控制台";
@@ -1009,8 +1041,8 @@ function renderHealthError(error) {
   }
   $("global-system-pill").querySelector(".status-dot").className = "status-dot status-dot--offline";
   $("global-system-status").textContent = singleSpark ? "单机本地模式 · 状态不可达" : "服务入口不可达";
-  $("node-a-name").textContent = singleSpark ? "GPU AI Engine（状态未知）" : "逻辑 A（状态未知）";
-  $("node-b-name").textContent = singleSpark ? "Evidence Engine（状态未知）" : "逻辑 B（状态未知）";
+  $("node-a-name").textContent = singleSpark ? "GPU AI Engine（状态未知）" : "AI 流程（状态未知）";
+  $("node-b-name").textContent = singleSpark ? "Evidence Engine（状态未知）" : "证据流程（状态未知）";
   $("brand-runtime-subtitle").textContent = "古陶瓷多模态科学鉴证 · 运行拓扑不可用";
   $("node-link-label").textContent = "LINK OFFLINE";
   $("node-link-detail").textContent = "未取得现场健康响应";
@@ -1122,10 +1154,18 @@ function setProofValue(id, value, tone = "pending") {
   element.classList.add(`is-${tone}`);
 }
 
+function isLocalVlmMode(mode) {
+  return ["local_nim", "local_vllm"].includes(normalizeStatus(mode));
+}
+
+function localVlmRuntimeLabel(run) {
+  return normalizeStatus(run?.mode) === "local_nim" ? "NVIDIA NIM" : "LOCAL VLLM";
+}
+
 function latestVerifiedModelRun() {
   const runs = Array.isArray(state.session?.model_runs) ? state.session.model_runs : [];
   return lastItem(runs.filter((item) => (
-    normalizeStatus(item?.mode) === "local_vllm"
+    isLocalVlmMode(item?.mode)
     && normalizeStatus(item?.status) === "success"
     && item?.model_identity_verified === true
     && item?.model === item?.configured_model
@@ -1141,7 +1181,7 @@ function latestVerifiedModelRun() {
 function renderRuntimeReceipt() {
   const runs = Array.isArray(state.session?.model_runs) ? state.session.model_runs : [];
   const realRuns = runs.filter((item) => (
-    normalizeStatus(item?.mode) === "local_vllm"
+    isLocalVlmMode(item?.mode)
     && normalizeStatus(item?.status) === "success"
   ));
   const latestReal = lastItem(realRuns);
@@ -1152,9 +1192,10 @@ function renderRuntimeReceipt() {
 
   if (latestReal) {
     const latency = Number(latestReal.latency_ms);
+    const runtimeLabel = localVlmRuntimeLabel(latestReal);
     latencyElement.textContent = Number.isFinite(latency)
-      ? `${Math.round(latency)} ms · LOCAL VLLM`
-      : "LOCAL VLLM · 延迟未返回";
+      ? `${Math.round(latency)} ms · ${runtimeLabel}`
+      : `${runtimeLabel} · 延迟未返回`;
     latencyElement.title = [latestReal.run_id, latestReal.model, latestReal.node_id].filter(Boolean).join(" · ");
     const usage = latestReal.token_usage || latestReal.usage || {};
     const prompt = Number(usage.prompt_tokens);
@@ -3585,20 +3626,23 @@ function executionOutcomeText() {
 
 function updateControlAvailability() {
   const hasSession = Boolean(state.sessionId);
-  $("analyze-image").disabled = state.demoRunning || !hasSession || !state.imageFile;
-  $("compare-images").disabled = state.demoRunning || !hasSession || !comparableImagePair();
+  const apiUnavailable = state.apiAvailable !== true;
+  $("create-session").disabled = state.demoRunning || apiUnavailable;
+  $("analyze-image").disabled = state.demoRunning || apiUnavailable || !hasSession || !state.imageFile;
+  $("compare-images").disabled = state.demoRunning || apiUnavailable || !hasSession || !comparableImagePair();
   $("run-reference-recognition").disabled = state.demoRunning
+    || apiUnavailable
     || state.recognitionBusy
     || !hasSession
     || state.recognitionSelection.size < 1;
-  $("analyze-video").disabled = state.demoRunning || state.videoBusy || !hasSession || !state.videoFile;
-  $("search-knowledge").disabled = state.demoRunning || !hasSession || !$("knowledge-query").value.trim();
-  $("plan-action").disabled = state.demoRunning || !hasSession || Boolean(state.session?.current_action_id) || normalizeStatus(state.session?.status) === "complete";
-  $("execute-action").disabled = state.demoRunning || !hasSession || !state.session?.current_action_id;
-  $("refresh-evidence").disabled = state.demoRunning || !hasSession;
-  $("refresh-audit").disabled = state.demoRunning || !hasSession;
-  $("generate-report").disabled = state.demoRunning || !hasSession;
-  $("run-demo").disabled = state.demoRunning;
+  $("analyze-video").disabled = state.demoRunning || apiUnavailable || state.videoBusy || !hasSession || !state.videoFile;
+  $("search-knowledge").disabled = state.demoRunning || apiUnavailable || !hasSession || !$("knowledge-query").value.trim();
+  $("plan-action").disabled = state.demoRunning || apiUnavailable || !hasSession || Boolean(state.session?.current_action_id) || normalizeStatus(state.session?.status) === "complete";
+  $("execute-action").disabled = state.demoRunning || apiUnavailable || !hasSession || !state.session?.current_action_id;
+  $("refresh-evidence").disabled = state.demoRunning || apiUnavailable || !hasSession;
+  $("refresh-audit").disabled = state.demoRunning || apiUnavailable || !hasSession;
+  $("generate-report").disabled = state.demoRunning || apiUnavailable || !hasSession;
+  $("run-demo").disabled = state.demoRunning || apiUnavailable;
 }
 
 function setButtonLoading(button, loading, label = "处理中") {
@@ -3614,6 +3658,7 @@ function setButtonLoading(button, loading, label = "处理中") {
     button.classList.remove("is-loading");
     button.removeAttribute("aria-busy");
     button.disabled = false;
+    updateControlAvailability();
   }
 }
 
