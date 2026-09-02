@@ -136,7 +136,7 @@ while IFS= read -r archived_path; do
       ;;
   esac
   case "/${archived_path}" in
-    */runtime/*|*/secrets/*|*/work/*|*/nim-cache/*|*/hf-cache/*|*/vllm-cache/*)
+    */runtime/*|*/secrets/*|/work/*|*/runtime/work/*|*/nim-cache/*|*/hf-cache/*|*/vllm-cache/*)
       die "private runtime path entered the source archive: ${archived_path}"
       ;;
   esac

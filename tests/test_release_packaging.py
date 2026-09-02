@@ -33,6 +33,11 @@ def _minimal_repository(tmp_path: Path) -> Path:
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
     (repo / "README.md").write_text("# release fixture\n", encoding="utf-8")
+    # Android WorkManager source code lives in a legitimate package named
+    # ``work``. It must not be confused with an untracked runtime workspace.
+    worker = repo / "scout-android/app/src/main/java/example/work/Worker.kt"
+    worker.parent.mkdir(parents=True)
+    worker.write_text("package example.work\n", encoding="utf-8")
     (repo / ".gitignore").write_text("runtime/\nsecrets/\n", encoding="utf-8")
     assert _run("git", "init", cwd=repo).returncode == 0
     assert (
@@ -107,6 +112,7 @@ def test_clean_release_is_archived_from_git_commit_with_matching_sidecars(tmp_pa
     with tarfile.open(fileobj=io.BytesIO(release_bytes), mode="r:gz") as release:
         names = set(release.getnames())
     assert "README.md" in names
+    assert "scout-android/app/src/main/java/example/work/Worker.kt" in names
     assert not any(name.startswith(("runtime/", "secrets/")) for name in names)
 
 
